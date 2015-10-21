@@ -4,44 +4,61 @@ ics server
 
 
 
-#ifndef _ICS_SERVER_H
-#define _ICS_SERVER_H
+#ifndef _ICS_TCP_SERVER_H
+#define _ICS_TCP_SERVER_H
 
 #include "config.h"
-#include <asio.hpp>
+#include <string>
+#include <thread>
 
-namespace ics{
+namespace ics {
 
-	class TcpConnection{
-	public:
-		TcpConnection(asio::ip::tcp::socket s):m_socket(std::move(s)){}
+class TcpConnection {
+public:
+	TcpConnection(asio::ip::tcp::socket s) : m_socket(std::move(s)){}
 		
-		~TcpConnection(){}
+	virtual ~TcpConnection();
 
-	protected:
-		asio::ip::tcp::socket m_socket;
-	};
+	virtual void do_read() = 0;
+
+	virtual void do_wriete() = 0;
+
+	virtual void do_error() = 0;
+
+protected:
+	asio::ip::tcp::socket m_socket;
+};
 
 
-	class TcpServer
-	{
-	public:
+class TcpServer {
+public:
 
-		TcpServer() = delete;
+	TcpServer() = delete;
 
-		TcpServer(asio::ip::tcp::endpoint endpoint);
+	TcpServer(const std::string& ip, int port, std::function<void (asio::ip::tcp::socket)> do_add_client);
 
-		void run();
+	explicit TcpServer(int port, std::function<void(asio::ip::tcp::socket)> do_add_client);
 
-		void stop();
-	private:
-		void do_accept();
+	~TcpServer();
 
-	private:
-		asio::io_service		m_io_service;
-		asio::ip::tcp::acceptor	m_acceptor;
-		asio::ip::tcp::socket	m_socket;
-	};
+	void run();
+
+	void run_on_thread();
+
+	void stop();
+
+private:
+	void do_accept();
+
+private:
+	asio::io_service		m_io_service;
+	asio::ip::tcp::acceptor	m_acceptor;
+	asio::ip::tcp::socket	m_client_socket;
+	std::thread*			m_io_service_thread;
+
+	std::function<void(asio::ip::tcp::socket)> m_do_add_client;
+
+};
 
 } // end namespace ics
-#endif	// end _ICS_SERVER_H
+#endif	// end _ICS_TCP_SERVER_H

@@ -24,35 +24,23 @@ decltype(n) b = 1;	// b is [const int&] type
 #ifndef _ICS_CONFIG_H
 #define _ICS_CONFIG_H
 
-
-// define for asio
-#ifndef ASIO_STANDALONE
-#define ASIO_STANDALONE
-#endif
-
-#ifndef _CRT_SECURE_NO_WARNINGS
-#define _CRT_SECURE_NO_WARNINGS
-#endif
-
 // soft version
 #define ICS_VERSION 0x10
 
-// protocol info
-#define ICS_HEAD_PROTOCOL_NAME "ICS#"	// protocol name
-#define ICS_HEAD_PROTOCOL_NAME_LEN (sizeof(ICS_HEAD_PROTOCOL_NAME)-1)
-#define ICS_HEAD_PROTOCOL_VERSION 0x0101	// protocol version
 
+// c++ asio
+#ifndef ASIO_STANDALONE
+#define ASIO_STANDALONE
+#include <asio.hpp>
+#endif
 
-#include <iostream>
+/*
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+*/
 
-#define LOG_DEBUG(msg) \
-do \
-{\
-	std::cout << msg << std::endl; \
-} while (0)
-
-
+// byte order
+#define ICS_USE_LITTLE_ENDIAN
 
 #endif	// end _ICS_CONFIG_H
-
-

@@ -11,28 +11,36 @@
 
 using namespace std;
 
-#define ICS_USE_LITTLE_ENDIAN
 
 #if !defined(ICS_USE_LITTLE_ENDIAN) && !defined(ICS_USE_BIG_ENDIAN)
-#error must define one between 'ICS_USE_LITTLE_ENDIAN' and 'ICS_USE_BIG_ENDIAN'
+#error must define either 'ICS_USE_LITTLE_ENDIAN' or 'ICS_USE_BIG_ENDIAN'
 #endif
 
 
 
 namespace ics{
 
+// protocol info
+#define ICS_HEAD_PROTOCOL_NAME "ICS#"	// protocol name
+#define ICS_HEAD_PROTOCOL_NAME_LEN (sizeof(ICS_HEAD_PROTOCOL_NAME)-1)
+#define ICS_HEAD_PROTOCOL_VERSION 0x0101	// protocol version
 
-
-	/* is ack package */
+// is ack package
 #define ICS_HEAD_ATTR_ACK_FLAG 1
 
-	/* need response flag*/
+// need response flag
 #define ICS_HEAD_ATTR_NEEDRESPONSE 1
 
 
 class IcsProtocol
 {
 public:
+	typedef uint8_t		ics_u8_t;
+	typedef uint16_t	ics_u16_t;
+	typedef uint32_t	ics_u32_t;
+	typedef std::string	ics_string_t;
+
+
 	/*
 	// 协议字节序转化
 	static inline uint16_t ics_ntoh(uint16_t n)

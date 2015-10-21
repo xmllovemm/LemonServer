@@ -1,8 +1,8 @@
 
 #include "config.h"
-#include "icsclient.h"
+#include "tcpclient.h"
 #include "icsprotocol.h"
-
+#include "log.h"
 
 namespace ics{
 
@@ -16,10 +16,9 @@ AuthrizeInfo::AuthrizeInfo(const AuthrizeInfo& rhs)
 }
 
 AuthrizeInfo::AuthrizeInfo(AuthrizeInfo&& rhs)
+	: m_gw_id(rhs.m_gw_id), m_gw_pwd(rhs.m_gw_pwd), m_ext_info(rhs.m_ext_info)
 {
-	m_gw_id = rhs.m_gw_id;
-	m_gw_pwd = rhs.m_gw_pwd;
-	m_ext_info = rhs.m_ext_info;
+
 }
 
 AuthrizeInfo::AuthrizeInfo(const string& gw_id, const string& gw_pwd, uint16_t device_kind, const string& ext_info)
@@ -30,18 +29,12 @@ AuthrizeInfo::AuthrizeInfo(const string& gw_id, const string& gw_pwd, uint16_t d
 
 
 AuthrizeInfo::AuthrizeInfo(string&& gw_id, string&& gw_pwd, uint16_t device_kind, string&& ext_info)
-: m_gw_id(std::move(gw_id)), m_gw_pwd(std::move(gw_pwd)), m_device_kind(device_kind), m_ext_info(std::move(ext_info))
-{
-	
-}
-
-/*
-AuthrizeInfo::AuthrizeInfo(const char* gw_id, const char* gw_pwd, uint16_t device_kind, const char* ext_info)
 	: m_gw_id(gw_id), m_gw_pwd(gw_pwd), m_device_kind(device_kind), m_ext_info(ext_info)
 {
 
 }
-*/
+
+
 AuthrizeInfo& AuthrizeInfo::operator=(const AuthrizeInfo& rhs)
 {
 	m_gw_id = rhs.m_gw_id;
@@ -68,35 +61,32 @@ ostream& operator << (ostream& os, const AuthrizeInfo& rhs)
 //----------------------------------------------------------------------------------//
 
 
-IcsSimulateClient::IcsSimulateClient(asio::ip::tcp::socket&& socket, AuthrizeInfo&& info)
-	: m_socket(std::move(socket)), m_authrize_info(std::move(info))
+IcsSimulateClient::IcsSimulateClient(IcsSimulateClient&& rhs)
+	: m_socket(std::move(rhs.m_socket)), m_authrize_info(rhs.m_authrize_info)
 {
-	LOG_DEBUG("call IcsSimulateClient rvalue reference");
+
 }
 
-IcsSimulateClient::IcsSimulateClient(asio::ip::tcp::socket&& s, const AuthrizeInfo& info)
-	: m_socket(std::move(s)), m_authrize_info(info)
-{
-	LOG_DEBUG("call IcsSimulateClient const lvalue reference");
-}
+
+//*/
 
 void IcsSimulateClient::start(asio::ip::tcp::resolver::iterator endpoint_iter)
 {
 	asio::async_connect(m_socket, endpoint_iter,
 		[this](std::error_code ec, asio::ip::tcp::resolver::iterator it)
+	{
+		if (!ec)
 		{
-			if (!ec)
-			{
-				do_authrize();
+			do_authrize();
 
-				// start read data
-				do_read();
-			}
-			else
-			{
-				LOG_DEBUG("Connect to server failed, as: " << ec.message());
-			}
-		});
+			// start read data
+			do_read();
+		}
+		else
+		{
+			LOG_DEBUG("Connect to server failed, as: " << ec.message());
+		}
+	});
 }
 
 void IcsSimulateClient::do_authrize()
@@ -105,7 +95,7 @@ void IcsSimulateClient::do_authrize()
 	char buf[126];
 	IcsProtocol protocol(buf, sizeof(buf));
 	protocol.initHead(IcsProtocol::IcsMsg_auth_request, m_send_num++);
-	protocol << m_authrize_info.m_gw_id << m_authrize_info.m_gw_pwd  << m_authrize_info.m_device_kind << m_authrize_info.m_ext_info;
+	protocol << m_authrize_info.m_gw_id << m_authrize_info.m_gw_pwd << m_authrize_info.m_device_kind << m_authrize_info.m_ext_info;
 	protocol.serailzeToData();
 
 	// send
@@ -121,7 +111,6 @@ void IcsSimulateClient::do_authrize()
 			m_socket.close();
 		}
 	});
-
 }
 
 void IcsSimulateClient::do_read()
@@ -153,7 +142,7 @@ void IcsSimulateClient::do_write()
 
 void IcsSimulateClient::do_close()
 {
-//	m_io_service.post([this](){ m_socket.close(); });
+	//m_io_service.post([this](){ m_socket.close(); });
 }
 
 void IcsSimulateClient::do_handle_msg(uint8_t* buf, size_t length)
@@ -166,53 +155,5 @@ void IcsSimulateClient::do_handle_msg(uint8_t* buf, size_t length)
 //----------------------------------------------------------------------------------//
 
 
-IcsClientManager::IcsClientManager(const string& ip, const string& port)
-{
-	asio::ip::tcp::resolver resolver(m_io_service);
-	m_server_endpoint = resolver.resolve({ ip, port });
-}
 
-IcsClientManager::~IcsClientManager()
-{
-	LOG_DEBUG("call ~IcsClientManager()");
-	m_io_service.stop();
-}
-
-void IcsClientManager::run()
-{
-	m_thread.reset(new std::thread(
-		[this]()
-		{
-			LOG_DEBUG("Thread start...");
-			while (true)
-			{
-				m_io_service.run();
-				LOG_DEBUG("after io server run,sleep for 3s...");
-				std::this_thread::sleep_for(std::chrono::seconds(3));
-			}
-			LOG_DEBUG("Thread exit...");
-		}));
-}
-
-void IcsClientManager::stop()
-{
-	m_io_service.stop();
-}
-
-void IcsClientManager::createIcsClient(AuthrizeInfo&& info)
-{
-	LOG_DEBUG("call createIcsClient rvalue reference");
-
-	auto c = std::make_shared<IcsSimulateClient>(asio::ip::tcp::socket(m_io_service), std::move(info));
-	c->start(m_server_endpoint);
-}
-
-void IcsClientManager::createIcsClient(const AuthrizeInfo& info)
-{
-	LOG_DEBUG("call createIcsClient const lvalue reference");
-
-	auto c = std::make_shared<IcsSimulateClient>(asio::ip::tcp::socket(m_io_service), info);
-	c->start(m_server_endpoint);
-}
-
-}	// end namespace ics
+}// end namespace ics

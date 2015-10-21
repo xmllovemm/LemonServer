@@ -6,10 +6,8 @@
 #include "config.h"
 #include "icsprotocol.h"
 #include "tcpserver.h"
-#include <asio.hpp>
 #include <string>
-#include <list>
-#include <ostream>
+#include <map>
 #include <thread>
 
 using namespace std;
@@ -58,7 +56,11 @@ public:
 
 	IcsSimulateClient(asio::ip::tcp::socket&& s, AuthrizeInfo&& info);
 
-	IcsSimulateClient(asio::ip::tcp::socket&& s, const AuthrizeInfo& info);
+	IcsSimulateClient(IcsSimulateClient&& rhs);
+
+	IcsSimulateClient(const IcsSimulateClient& rhs) = delete;
+
+//	IcsSimulateClient(asio::ip::tcp::socket&& s, const AuthrizeInfo& info);
 
 	void start(asio::ip::tcp::resolver::iterator endpoint_iter);
 
@@ -84,26 +86,6 @@ private:
 
 //----------------------------------------------------------------------------------//
 
-class IcsClientManager
-{
-public:
-	IcsClientManager(const string& ip, const string& port);
-
-	~IcsClientManager();
-
-	void createIcsClient(AuthrizeInfo&& info);
-
-	void createIcsClient(const AuthrizeInfo& info);
-
-	void run();
-
-	void stop();
-
-private:
-	asio::ip::tcp::resolver::iterator m_server_endpoint;
-	asio::io_service m_io_service;
-	std::shared_ptr<std::thread>	m_thread;
-};
 
 
 }	// end namespace ics
