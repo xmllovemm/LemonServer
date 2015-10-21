@@ -8,6 +8,7 @@
 #include "tcpserver.h"
 #include <string>
 #include <map>
+#include <list>
 #include <thread>
 
 using namespace std;
@@ -81,7 +82,7 @@ private:
 
 	uint16_t		m_send_num;
 	uint8_t			m_recv_buf[512];
-	list<IcsProtocol> m_send_list;
+    std::list<IcsProtocol> m_send_list;
 };
 
 //----------------------------------------------------------------------------------//
