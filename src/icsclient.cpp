@@ -80,7 +80,7 @@ IcsClient::~IcsClient()
 void IcsClient::do_read()
 {
 	// wait response
-	asio::async_read(m_socket, asio::buffer(m_recv_buf, sizeof(m_recv_buf)),
+	m_socket.async_read_some(asio::buffer(m_recv_buf, sizeof(m_recv_buf)),
 		[this](const std::error_code& ec, std::size_t length)
 	{
 		if (!ec)
