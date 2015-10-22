@@ -5,7 +5,8 @@
 
 #include "config.h"
 #include "icsprotocol.h"
-#include "tcpserver.h"
+#include "tcpconnection.hpp"
+#include "clientmanager.h"
 #include <string>
 #include <map>
 #include <list>
@@ -54,7 +55,7 @@ public:
 class IcsClient : public TcpConnection {
 public:
 
-	IcsClient(asio::ip::tcp::socket&& s);
+	IcsClient(asio::ip::tcp::socket&& s, ClientManager& cm);
 
     virtual ~IcsClient();
     

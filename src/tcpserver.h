@@ -11,25 +11,8 @@ ics server
 #include <string>
 #include <thread>
 
+
 namespace ics {
-
-class TcpConnection {
-public:
-	TcpConnection(asio::ip::tcp::socket s) : m_socket(std::move(s)){}
-		
-    virtual ~TcpConnection(){}
-
-	virtual void do_read() = 0;
-
-	virtual void do_write() = 0;
-
-	virtual void do_error() = 0;
-
-protected:
-	asio::ip::tcp::socket   m_socket;
-    std::string             m_conn_name;
-};
-
 
 class TcpServer {
 public:

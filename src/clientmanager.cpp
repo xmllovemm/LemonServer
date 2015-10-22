@@ -22,13 +22,14 @@ void ClientManager::addClient(asio::ip::tcp::socket s)
 	LOG_DEBUG("call ClientManager add client");
     TcpConnection* tc = new IcsClient(std::move(s));
     tc->do_read();
+    
 }
 
 
-void ClientManager::removeClient()
+void ClientManager::removeClient(TcpConnection* tc)
 {
 	LOG_DEBUG("call removeClient");
-
+    delete tc;
 }
 
 }

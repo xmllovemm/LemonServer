@@ -4,7 +4,7 @@
 #define _CLIENT_MANAGER_H
 
 #include "config.h" 
-#include "tcpserver.h"
+#include "tcpconnection.hpp"
 #include <map>
 
 namespace ics {
@@ -18,11 +18,11 @@ public:
 
 	void addClient(asio::ip::tcp::socket s);
 
-	void removeClient();
+	void removeClient(TcpConnection* tc);
 
 private:
 	std::map<std::string, TcpConnection*>	m_client_map;
-	//	std::shared_ptr<std::thread>	m_thread;
+    //std::shared_ptr<std::thread>	m_thread;
 };
 
 }
