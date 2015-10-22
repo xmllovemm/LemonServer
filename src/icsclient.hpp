@@ -3,10 +3,10 @@
 #ifndef _ICS_CLIENT_H
 #define _ICS_CLIENT_H
 
-#include "config.h"
-#include "icsprotocol.h"
+#include "config.hpp"
+#include "icsprotocol.hpp"
 #include "tcpconnection.hpp"
-#include "clientmanager.h"
+#include "clientmanager.hpp"
 #include <string>
 #include <map>
 #include <list>

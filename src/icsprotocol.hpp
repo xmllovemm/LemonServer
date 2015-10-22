@@ -3,7 +3,7 @@
 #ifndef _ICS_PROTOCOL_H
 #define _ICS_PROTOCOL_H
 
-#include "config.h"
+#include "config.hpp"
 #include <cstdint>
 #include <string>
 #include <stdexcept>

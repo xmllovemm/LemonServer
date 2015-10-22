@@ -1,4 +1,4 @@
-//
+﻿//
 //  tcpconnection.hpp
 //  ics-server
 //
@@ -6,49 +6,36 @@
 //  Copyright © 2015年 personal. All rights reserved.
 //
 
-#ifndef tcpconnection_hpp
-#define tcpconnection_hpp
+#ifndef _TCP_CONNECTION_H
+#define _TCP_CONNECTION_H
 
-//
-//  tcpconnection.cpp
-//  ics-server
-//
-//  Created by lemon on 15/10/22.
-//  Copyright © 2015年 personal. All rights reserved.
-//
 
-#include "config.h"
-#include "clientmanager.h"
+#include "config.hpp"
+#include "clientmanager.hpp"
 
 
 namespace ics {
-    
-    class TcpConnection {
-    public:
-        TcpConnection(asio::ip::tcp::socket s, ClientManager & cm)
-        : m_socket(std::move(s)),m_client_manager(cm)
-        {}
+
+class ClientManager;
+
+class TcpConnection {
+public:
+	TcpConnection(asio::ip::tcp::socket s, ClientManager & cm);
         
-        virtual ~TcpConnection()
-        {
-            m_socket.close();
-        }
+	virtual ~TcpConnection();
         
-        virtual void do_read() = 0;
+    virtual void do_read() = 0;
         
-        virtual void do_write() = 0;
+    virtual void do_write() = 0;
         
-        void do_error()
-        {
-            m_client_manager.removeClient(this);
-        }
+	void do_error();
         
-    protected:
-        asio::ip::tcp::socket   m_socket;
-        std::string             m_conn_name;
-        const ClientManager&    m_client_manager;
-    };
+protected:
+    asio::ip::tcp::socket   m_socket;
+    std::string             m_conn_name;
+    ClientManager&			m_client_manager;
+};
     
 }
 
-#endif /* tcpconnection_hpp */
+#endif // _TCP_CONNECTION_H

@@ -9,7 +9,7 @@
 #ifndef database_hpp
 #define database_hpp
 
-#include "config.h"
+#include "config.hpp"
 
 namespace ics {
     class DataBase {

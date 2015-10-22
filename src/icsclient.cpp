@@ -1,8 +1,8 @@
 
-#include "config.h"
-#include "icsclient.h"
-#include "icsprotocol.h"
-#include "log.h"
+#include "config.hpp"
+#include "icsclient.hpp"
+#include "icsprotocol.hpp"
+#include "log.hpp"
 
 namespace ics{
 
@@ -66,8 +66,8 @@ ostream& operator << (ostream& os, const AuthrizeInfo& rhs)
 
 //*/
     
-IcsClient::IcsClient(asio::ip::tcp::socket&& s)
-    : TcpConnection(std::move(s))
+IcsClient::IcsClient(asio::ip::tcp::socket&& s, ClientManager& cm)
+    : TcpConnection(std::move(s),cm)
 {
     
 }

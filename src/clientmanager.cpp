@@ -1,8 +1,8 @@
 
 
-#include "clientmanager.h"
-#include "icsclient.h"
-#include "log.h"
+#include "clientmanager.hpp"
+#include "icsclient.hpp"
+#include "log.hpp"
 
 
 namespace ics{
@@ -20,7 +20,7 @@ ClientManager::~ClientManager()
 void ClientManager::addClient(asio::ip::tcp::socket s)
 {
 	LOG_DEBUG("call ClientManager add client");
-    TcpConnection* tc = new IcsClient(std::move(s));
+	TcpConnection* tc = new IcsClient(std::move(s), *this);
     tc->do_read();
     
 }

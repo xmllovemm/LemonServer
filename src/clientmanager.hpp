@@ -3,11 +3,12 @@
 #ifndef _CLIENT_MANAGER_H
 #define _CLIENT_MANAGER_H
 
-#include "config.h" 
+#include "config.hpp" 
 #include "tcpconnection.hpp"
 #include <map>
 
 namespace ics {
+	class TcpConnection;
 
 class ClientManager
 {

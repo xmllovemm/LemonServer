@@ -7,7 +7,7 @@ ics server
 #ifndef _ICS_TCP_SERVER_H
 #define _ICS_TCP_SERVER_H
 
-#include "config.h"
+#include "config.hpp"
 #include <string>
 #include <thread>
 
