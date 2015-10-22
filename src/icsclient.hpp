@@ -68,8 +68,6 @@ public:
     
     virtual void do_write();
     
-    virtual void do_error();
-
 	void do_handle_msg(uint8_t* buf, size_t length);
 
 private:
