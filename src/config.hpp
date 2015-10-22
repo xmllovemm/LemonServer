@@ -43,4 +43,6 @@ decltype(n) b = 1;	// b is [const int&] type
 // byte order
 #define ICS_USE_LITTLE_ENDIAN
 
+#define OTL_MYSQL
+
 #endif	// end _ICS_CONFIG_H
