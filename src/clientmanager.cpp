@@ -1,6 +1,7 @@
 
 
 #include "clientmanager.h"
+#include "icsclient.h"
 #include "log.h"
 
 
@@ -19,7 +20,8 @@ ClientManager::~ClientManager()
 void ClientManager::addClient(asio::ip::tcp::socket s)
 {
 	LOG_DEBUG("call ClientManager add client");
-
+    TcpConnection* tc = new IcsClient(std::move(s));
+    tc->do_read();
 }
 
 

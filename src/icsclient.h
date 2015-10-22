@@ -51,34 +51,28 @@ public:
 
 //----------------------------------------------------------------------------------//
 
-class IcsSimulateClient : public std::enable_shared_from_this<IcsSimulateClient>
-{
+class IcsClient : public TcpConnection {
 public:
 
-	IcsSimulateClient(asio::ip::tcp::socket&& s, AuthrizeInfo&& info);
+	IcsClient(asio::ip::tcp::socket&& s);
 
-	IcsSimulateClient(IcsSimulateClient&& rhs);
+    virtual ~IcsClient();
+    
+	IcsClient(IcsClient&& rhs) = delete;
 
-	IcsSimulateClient(const IcsSimulateClient& rhs) = delete;
-
-//	IcsSimulateClient(asio::ip::tcp::socket&& s, const AuthrizeInfo& info);
-
-	void start(asio::ip::tcp::resolver::iterator endpoint_iter);
-
-private:
-	void do_authrize();
-
-	void do_read();
-
-	void do_write();
-
-	void do_close();
+	IcsClient(const IcsClient& rhs) = delete;
+public:
+    
+    virtual void do_read();
+    
+    virtual void do_write();
+    
+    virtual void do_error();
 
 	void do_handle_msg(uint8_t* buf, size_t length);
 
 private:
-	asio::ip::tcp::socket m_socket;
-	AuthrizeInfo	m_authrize_info;
+	//	AuthrizeInfo	m_authrize_info;
 
 	uint16_t		m_send_num;
 	uint8_t			m_recv_buf[512];

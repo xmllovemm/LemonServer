@@ -1,6 +1,6 @@
 
 #include "config.h"
-#include "tcpclient.h"
+#include "icsclient.h"
 #include "icsprotocol.h"
 #include "log.h"
 
@@ -61,59 +61,23 @@ ostream& operator << (ostream& os, const AuthrizeInfo& rhs)
 //----------------------------------------------------------------------------------//
 
 
-IcsSimulateClient::IcsSimulateClient(IcsSimulateClient&& rhs)
-	: m_socket(std::move(rhs.m_socket)), m_authrize_info(rhs.m_authrize_info)
-{
 
-}
 
 
 //*/
-
-void IcsSimulateClient::start(asio::ip::tcp::resolver::iterator endpoint_iter)
+    
+IcsClient::IcsClient(asio::ip::tcp::socket&& s)
+    : TcpConnection(std::move(s))
 {
-	asio::async_connect(m_socket, endpoint_iter,
-		[this](std::error_code ec, asio::ip::tcp::resolver::iterator it)
-	{
-		if (!ec)
-		{
-			do_authrize();
-
-			// start read data
-			do_read();
-		}
-		else
-		{
-			LOG_DEBUG("Connect to server failed, as: " << ec.message());
-		}
-	});
+    
 }
 
-void IcsSimulateClient::do_authrize()
+IcsClient::~IcsClient()
 {
-	// prepare ics protocol data
-	char buf[126];
-	IcsProtocol protocol(buf, sizeof(buf));
-	protocol.initHead(IcsProtocol::IcsMsg_auth_request, m_send_num++);
-	protocol << m_authrize_info.m_gw_id << m_authrize_info.m_gw_pwd << m_authrize_info.m_device_kind << m_authrize_info.m_ext_info;
-	protocol.serailzeToData();
-
-	// send
-	asio::async_write(m_socket, asio::buffer(protocol.addr(), protocol.length()),
-		[this](const std::error_code& ec, std::size_t length)
-	{
-		if (!ec)
-		{
-			LOG_DEBUG("Send auth success!");
-		}
-		else
-		{
-			m_socket.close();
-		}
-	});
+    do_error();
 }
-
-void IcsSimulateClient::do_read()
+    
+void IcsClient::do_read()
 {
 	// wait response
 	asio::async_read(m_socket, asio::buffer(m_recv_buf, sizeof(m_recv_buf)),
@@ -129,26 +93,28 @@ void IcsSimulateClient::do_read()
 		}
 		else
 		{
-			m_socket.close();
-			LOG_DEBUG("Close the connection: " << ec.message());
+            do_error();
 		}
 	});
 }
 
-void IcsSimulateClient::do_write()
+void IcsClient::do_write()
 {
-
+    
 }
 
-void IcsSimulateClient::do_close()
+void IcsClient::do_error()
 {
-	//m_io_service.post([this](){ m_socket.close(); });
+    LOG_DEBUG(m_conn_name << " close the connection");
+    m_socket.close();
 }
 
-void IcsSimulateClient::do_handle_msg(uint8_t* buf, size_t length)
+void IcsClient::do_handle_msg(uint8_t* buf, size_t length)
 {
-	IcsProtocol proto(buf, length);
-	IcsProtocol::IcsMsgHead* mh = proto.getHead();
+    buf[length] = 0;
+    LOG_DEBUG("recv:"<<buf);
+//	IcsProtocol proto(buf, length);
+//	IcsProtocol::IcsMsgHead* mh = proto.getHead();
 }
 
 
