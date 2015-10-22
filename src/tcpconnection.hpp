@@ -27,7 +27,8 @@ public:
     virtual void do_read() = 0;
         
     virtual void do_write() = 0;
-        
+    
+protected:
 	void do_error();
         
 protected:

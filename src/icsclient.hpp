@@ -68,10 +68,11 @@ public:
     
     virtual void do_write();
     
-    virtual void do_error();
-
+private:
 	void do_handle_msg(uint8_t* buf, size_t length);
 
+    void do_authrize(IcsProtocol& proto);
+    
 private:
 	//	AuthrizeInfo	m_authrize_info;
 

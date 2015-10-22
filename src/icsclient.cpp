@@ -74,7 +74,7 @@ IcsClient::IcsClient(asio::ip::tcp::socket&& s, ClientManager& cm)
 
 IcsClient::~IcsClient()
 {
-    do_error();
+    LOG_DEBUG(m_conn_name << " has been deleted");
 }
     
 void IcsClient::do_read()
@@ -103,19 +103,29 @@ void IcsClient::do_write()
     
 }
 
-void IcsClient::do_error()
-{
-    LOG_DEBUG(m_conn_name << " close the connection");
-}
-
 void IcsClient::do_handle_msg(uint8_t* buf, size_t length)
 {
     buf[length] = 0;
     LOG_DEBUG("recv:"<<buf);
-//	IcsProtocol proto(buf, length);
-//	IcsProtocol::IcsMsgHead* mh = proto.getHead();
+    
+	IcsProtocol proto(buf, length);
+	IcsProtocol::IcsMsgHead* mh = proto.getHead();
+    
+    switch (mh->id) {
+        case 0x1010:
+            do_authrize(proto);
+            break;
+            
+        default:
+            break;
+    }
 }
 
+    
+void IcsClient::do_authrize(IcsProtocol& proto)
+{
+    
+}
 
 //----------------------------------------------------------------------------------//
 
