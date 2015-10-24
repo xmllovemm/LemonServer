@@ -1,7 +1,7 @@
 ﻿
 #include "tcpserver.hpp"
 #include "clientmanager.hpp"
-
+#include "database.hpp"
 #include <iostream>
 
 using namespace std;
@@ -11,6 +11,7 @@ void test_server()
 {
 	
 	try {
+		ics::DataBase::initialize();
 		ics::ClientManager cm(10);
 		ics::TcpServer s(9999, [&cm](asio::ip::tcp::socket s){
 					cm.addClient(std::move(s));

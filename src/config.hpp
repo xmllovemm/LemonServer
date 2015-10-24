@@ -44,6 +44,7 @@ decltype(n) b = 1;	// b is [const int&] type
 #define ICS_USE_LITTLE_ENDIAN
 
 // database
+#define OTL_STL
 #define OTL_ODBC
 #define OTL_MYSQL
 

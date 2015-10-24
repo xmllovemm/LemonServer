@@ -25,6 +25,78 @@ inline T IcsProtocol::ics_hton(T n)
 	return ntohs(n);
 #endif
 }
+/*-----------------------------IcsMsgHead-------------------------------------*/
+
+void IcsProtocol::IcsMsgHead::verify() throw(std::logic_error)
+{
+	if (std::memcmp(name, ICS_HEAD_PROTOCOL_NAME, ICS_HEAD_PROTOCOL_NAME_LEN) != 0)
+	{
+		throw std::logic_error("error protocol name");
+	}
+	if (version != ICS_HEAD_PROTOCOL_VERSION)
+	{
+		throw std::logic_error("error protocol version");
+	}
+}
+
+// set 0
+void IcsProtocol::IcsMsgHead::clean()
+{
+	memset(this, 0, sizeof(IcsMsgHead));
+}
+
+void IcsProtocol::IcsMsgHead::setMsgID(uint16_t id)
+{
+	this->id = ics_hton(id);
+}
+
+void IcsProtocol::IcsMsgHead::setLength(uint16_t len)
+{
+	this->length = ics_hton(len);
+}
+
+void IcsProtocol::IcsMsgHead::setSendNum(uint16_t num)
+{
+	this->send_num = ics_hton(num);
+}
+
+void IcsProtocol::IcsMsgHead::setAckNum(uint16_t num)
+{
+	this->ack_num = ics_hton(num);
+}
+
+void IcsProtocol::IcsMsgHead::setFlag(uint8_t encrypt, bool ack, bool response)
+{
+	this->id = ics_hton(encrypt);
+}
+
+uint16_t IcsProtocol::IcsMsgHead::getMsgID()
+{
+	return ics_ntoh(this->id);
+}
+
+uint16_t IcsProtocol::IcsMsgHead::getLength()
+{
+	return ics_ntoh(this->length);
+}
+
+uint16_t IcsProtocol::IcsMsgHead::getSendNum()
+{
+	return ics_ntoh(this->send_num);
+}
+
+uint16_t IcsProtocol::IcsMsgHead::getAckNum()
+{
+	return ics_ntoh(this->ack_num);
+}
+
+uint16_t IcsProtocol::IcsMsgHead::getFlag()
+{
+	return ics_ntoh(this->id);
+}
+
+/*-----------------------------IcsProtocol-------------------------------------*/
+
 
 IcsProtocol::IcsProtocol(void* buf, size_t length)
 {
@@ -32,28 +104,25 @@ IcsProtocol::IcsProtocol(void* buf, size_t length)
 	m_end = m_start + length;
 }
 
-void IcsProtocol::reset()
-{
-	m_start = m_pos = m_end;
-}
-
 		
 // set data
 void IcsProtocol::serailzeToData()
 {
+	/*
 	// set length
 	((IcsMsgHead*)m_start)->length = ics_hton((uint16_t)(m_pos - m_start + sizeof(uint16_t)));
 
 	// set crc32 code
 	*this << getCrc32Code(m_start, m_pos - m_start);
 	m_pos += sizeof(uint16_t);
+	*/
 }
 
 void IcsProtocol::initHead(uint16_t id, uint16_t send_num, uint16_t ack_num, bool request, bool response, EncryptionType et)
 {
 	IcsMsgHead* mh = (IcsMsgHead*)m_start;
 	memset(mh, 0, sizeof(IcsMsgHead));
-
+	/*
 	memcpy(mh->name, ICS_HEAD_PROTOCOL_NAME, ICS_HEAD_PROTOCOL_NAME_LEN);
 	mh->version = ics_hton((uint16_t)ICS_HEAD_PROTOCOL_VERSION);
 	mh->id = ics_hton(id);
@@ -62,7 +131,7 @@ void IcsProtocol::initHead(uint16_t id, uint16_t send_num, uint16_t ack_num, boo
 	mh->encrypt = et;
 	mh->ack = (request ? 0 : 1);
 	mh->response = (response ? 1 : 0);
-
+	*/
 	m_pos = m_start + sizeof(IcsMsgHead);
 }
 
@@ -78,7 +147,7 @@ void IcsProtocol::initHead(uint16_t ack_num)
 
 IcsProtocol& IcsProtocol::operator << (const uint8_t& data)
 {
-	if (sizeof(data) > leftLength())
+	if (sizeof(data) > leftSize())
 	{
 		throw overflow_error("OOM to set uint8_t data");
 	}
@@ -89,7 +158,7 @@ IcsProtocol& IcsProtocol::operator << (const uint8_t& data)
 
 IcsProtocol& IcsProtocol::operator << (const uint16_t& data)
 {
-	if (sizeof(data) > leftLength())
+	if (sizeof(data) > leftSize())
 	{
 		throw overflow_error("OOM to set uint16_t data");
 	}
@@ -101,7 +170,7 @@ IcsProtocol& IcsProtocol::operator << (const uint16_t& data)
 
 IcsProtocol& IcsProtocol::operator << (const IcsDataTime& data)
 {
-	if (sizeof(data) > leftLength())
+	if (sizeof(data) > leftSize())
 	{
 		throw overflow_error("OOM to set IcsDataTime data");
 	}
@@ -118,7 +187,7 @@ IcsProtocol& IcsProtocol::operator << (const string& data)
 {
 	*this << (uint8_t)data.length();
 
-	if (data.length() > leftLength())
+	if (data.length() > leftSize())
 	{
 		throw overflow_error("OOM to put string data");
 	}
@@ -133,7 +202,7 @@ void IcsProtocol::setString(const string& data)
 	T len = (T)data.length();
 	*this << len;
 
-	if (len > (T)leftLength())
+	if (len > (T)leftSize())
 	{
 		throw underflow_error("OOM to set string data");
 	}
@@ -151,19 +220,21 @@ void IcsProtocol::parseFormData(void* buf, int length)
 
 IcsProtocol::IcsMsgHead* IcsProtocol::getHead()
 {
+
 	IcsMsgHead* mh = (IcsMsgHead*)m_start;
+	/*
 	mh->version = ics_ntoh(mh->version);
 	mh->id = ics_ntoh(mh->id);
 	mh->send_num = ics_ntoh(mh->send_num);
 	mh->ack_num = ics_ntoh(mh->ack_num);
-
+	*/
 	m_pos = m_start + sizeof(IcsMsgHead);
 	return mh;
 }
 
 IcsProtocol& IcsProtocol::operator >> (uint8_t& data)
 {
-	if (sizeof(data) > leftLength())
+	if (sizeof(data) > leftSize())
 	{
 		throw underflow_error("OOM to get uint8_t data");
 	}
@@ -173,7 +244,7 @@ IcsProtocol& IcsProtocol::operator >> (uint8_t& data)
 
 IcsProtocol& IcsProtocol::operator >> (uint16_t& data)
 {
-	if (sizeof(data) > leftLength())
+	if (sizeof(data) > leftSize())
 	{
 		throw underflow_error("OOM to get uint16_t data");
 	}
@@ -184,7 +255,7 @@ IcsProtocol& IcsProtocol::operator >> (uint16_t& data)
 
 IcsProtocol& IcsProtocol::operator >> (IcsDataTime& data)
 {
-	if (sizeof(data) > leftLength())
+	if (sizeof(data) > leftSize())
 	{
 		throw underflow_error("OOM to get IcsDataTime data");
 	}
@@ -201,7 +272,7 @@ IcsProtocol& IcsProtocol::operator >> (string& data)
 	uint8_t len = 0;
 	*this >> len;
 
-	if (len > leftLength())
+	if (len > leftSize())
 	{
 		throw underflow_error("OOM to get string data");
 	}
@@ -211,12 +282,12 @@ IcsProtocol& IcsProtocol::operator >> (string& data)
 }
 
 template<typename T>
-string IcsProtocol::getString()
+string&& IcsProtocol::getString()
 {
 	string str;
 	T len;
 	*this >> len;
-	if (len > leftLength())
+	if (len > leftSize())
 	{
 		throw underflow_error("OOM to get string data");
 	}
