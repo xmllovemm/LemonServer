@@ -69,63 +69,64 @@ public:
     virtual void do_write();
     
 private:
-	void do_handle_msg(uint8_t* buf, size_t length);
+	bool do_handle_msg(uint8_t* buf, size_t length);
+
+	void debug_msg(uint8_t* buf, size_t length);
 
     void do_authrize(IcsProtocol& proto);
     
 	// 终端认证
-	bool handleAuthRequest(IcsProtocol& ip);
+	void handleAuthRequest(IcsProtocol& ip) throw(std::logic_error);
 
 	// 标准状态上报
-	bool handleStdStatusReport(IcsProtocol& ip);
+	void handleStdStatusReport(IcsProtocol& proto) throw(std::logic_error);
 
 	// 自定义状态上报
-	bool handleDefStatusReport(IcsProtocol& ip);
+	void handleDefStatusReport(IcsProtocol& proto) throw(std::logic_error);
 
 	// 事件上报
-	bool handleEventsReport(IcsProtocol& ip);
+	void handleEventsReport(IcsProtocol& proto) throw(std::logic_error);
 
 	// 终端回应参数查询
-	bool handleParamQueryResponse(IcsProtocol& ip);
+	void handleParamQueryResponse(IcsProtocol& proto) throw(std::logic_error);
 
 	// 终端主动上报参数修改
-	bool handleParamAlertReport(IcsProtocol& ip);
+	void handleParamAlertReport(IcsProtocol& proto) throw(std::logic_error);
 
 	// 终端回应参数修改
-	bool handleParamModifyResponse(IcsProtocol& ip);
+	void handleParamModifyResponse(IcsProtocol& proto) throw(std::logic_error);
 
 	// 业务上报
-	bool handleBusinessReport(IcsProtocol& ip);
+	void handleBusinessReport(IcsProtocol& proto) throw(std::logic_error);
 
 	// 终端发送时钟同步请求
-	bool handleDatetimeSync(IcsProtocol& ip);
+	void handleDatetimeSync(IcsProtocol& proto) throw(std::logic_error);
 
 	// 终端上报日志
-	bool handleLogReport(IcsProtocol& ip);
+	void handleLogReport(IcsProtocol& proto) throw(std::logic_error);
 
 	// 终端发送心跳到中心
-	bool handleHeartbeat(IcsProtocol& ip);
+	void handleHeartbeat(IcsProtocol& proto) throw(std::logic_error);
 
 	// 终端拒绝升级请求
-	bool handleDenyUpgrade(IcsProtocol& ip);
+	void handleDenyUpgrade(IcsProtocol& proto) throw(std::logic_error);
 
 	// 终端接收升级请求
-	bool handleAgreeUpgrade(IcsProtocol& ip);
+	void handleAgreeUpgrade(IcsProtocol& proto) throw(std::logic_error);
 
 	// 索要升级文件片段
-	bool handleRequestFile(IcsProtocol& ip);
+	void handleRequestFile(IcsProtocol& proto) throw(std::logic_error);
 
 	// 升级文件传输结果
-	bool handleUpgradeResult(IcsProtocol& ip);
+	void handleUpgradeResult(IcsProtocol& proto) throw(std::logic_error);
 
 	// 终端确认取消升级
-	bool handleUpgradeCancelAck(IcsProtocol& ip);
+	void handleUpgradeCancelAck(IcsProtocol& proto) throw(std::logic_error);
 
 private:
 	// recv area
 	uint16_t		m_send_num;
 	uint8_t			m_recv_buf[512];
-	IcsProtocol::IcsMsgHead* m_msg_head;
 	IcsProtocol		m_ics_protocol;
 
 	// send area

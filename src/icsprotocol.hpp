@@ -40,6 +40,7 @@ public:
 	typedef uint16_t	ics_u16_t;
 	typedef uint32_t	ics_u32_t;
 	typedef std::string	ics_string_t;
+	typedef uint32_t	ics_crccode_t;
 
 
 	/*
@@ -169,6 +170,7 @@ public:
 		EncryptionType_rsa = 2
 	};
 
+
 #pragma pack(1)
 	// 消息头
 	class IcsMsgHead
@@ -187,7 +189,9 @@ public:
 
 		void setAckNum(uint16_t num);
 
-		void setFlag(uint8_t encrypt,bool ack,bool response);
+		void setFlag(uint8_t encrypt, bool ack, bool response);
+
+		void setCrcCode(ics_crccode_t code);
 
 		uint16_t getMsgID();
 
@@ -199,6 +203,8 @@ public:
 
 		uint16_t getFlag();
 
+		ics_crccode_t getCrcCode();
+
 	private:
 		char		name[ICS_HEAD_PROTOCOL_NAME_LEN];		// 协议名称
 		uint16_t	version;	// 版本号
@@ -208,8 +214,8 @@ public:
 				uint8_t encrypt:4;	// 加密模式
 				uint8_t reserved1:4;	// 保留
 				uint8_t ack:1;		// 0:请求包,1:应答包
-				uint8_t response:1;	// 当前包为请求包时,0:当前包不需要应答,1:当前包需要应答
-				uint16_t reserverd2:6;
+//				uint8_t response:1;	// 当前包为请求包时,0:当前包不需要应答,1:当前包需要应答
+//				uint16_t reserverd2:6;
 			};
 		};
 		uint16_t	send_num;	// 发送流水号
@@ -237,35 +243,44 @@ public:
 	// set current to the start
 	void rewind()
 	{
-		m_start = m_pos = m_end;
+		m_start = m_pos = (uint8_t*)(m_head + 1);
 	}
 
 
 	// start address of message
-	inline void* msgAddr()
+	inline void* msgAddr() const
 	{
 		return m_start;
 	}
 
 	// length of message
-	inline size_t msgLength()
+	inline size_t msgLength() const
 	{
 		return m_pos - m_start;
 	}
 
 	// size of whole buffer
-	inline size_t bufferSize()
+	inline size_t bufferSize() const
 	{
-		return m_end - m_start;
+		return m_end - m_start - sizeof(ics_crccode_t);
 	}
 
 	// left size of whole buffer
-	inline size_t leftSize()
+	inline size_t leftSize() const
 	{
-		return m_end - m_pos;
+		return m_end - m_pos - sizeof(ics_crccode_t);
 	}
 
-	
+	inline IcsMsgHead* getHead() const
+	{
+		return m_head;
+	}
+
+
+	/* -----------------------generate data----------------------- */
+
+	void setLengthAndCrcCode();
+
 	void addDataTo(void* buf, size_t len);
 
 	void serailzeToData();
@@ -276,39 +291,49 @@ public:
 
 	void initHead(uint16_t ack_num);
 
-	IcsProtocol& operator << (const uint8_t& data);
+	IcsProtocol& operator << (uint8_t data) throw(std::overflow_error);
 
-	IcsProtocol& operator << (const uint16_t& data);
+	IcsProtocol& operator << (uint16_t data) throw(std::overflow_error);
 
-	IcsProtocol& operator << (const IcsDataTime& data);
+	IcsProtocol& operator << (const IcsDataTime& data) throw(std::overflow_error);
 
-	IcsProtocol& operator << (const string& data);
+	IcsProtocol& operator << (const string& data) throw(std::overflow_error);
+
+	IcsProtocol& operator << (const IcsProtocol& data) throw(std::overflow_error);
 
 	template<typename T = uint8_t>
-	void setString(const string& data);
+	void setString(const string& data)  throw(std::overflow_error);
 
+
+	/* -----------------------handle data----------------------- */
 
 	// get data
 	void parseFormData(void* buf, int length);
 
-	IcsMsgHead* getHead();
+	// verify
+	void verify() throw(std::logic_error);
 
-	IcsProtocol& operator >> (uint8_t& data);
+	IcsProtocol& operator >> (uint8_t& data) throw(std::underflow_error);
 
-	IcsProtocol& operator >> (uint16_t& data);
+	IcsProtocol& operator >> (uint16_t& data) throw(std::underflow_error);
 
-	IcsProtocol& operator >> (IcsDataTime& data);
+	IcsProtocol& operator >> (IcsDataTime& data) throw(std::underflow_error);
 
-	IcsProtocol& operator >> (string& data);
+	IcsProtocol& operator >> (string& data) throw(std::underflow_error);
 
 	template<typename T = uint8_t>
-	string&& getString();
+	string&& getString() throw(std::underflow_error);
+
+	void assertEmpty() throw(std::logic_error);
 
 	// calcutlate the crc code
-	uint16_t getCrc32Code(uint8_t* buf, int length);
+	ics_crccode_t getCrc32Code(uint8_t* buf, int length);
 
 private:
-	// point to the start address of buffer
+	// point to the message head
+	IcsMsgHead*	m_head;
+
+	// point to the start address of message body
 	uint8_t*	m_start;
 
 	// point to the current operating address of buffer
