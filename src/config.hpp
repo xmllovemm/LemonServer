@@ -14,18 +14,30 @@ throw()可能会跑出的异常
 int函数返回值类型
 {}函数实体
 
+in c++ 14:
+auto lambda = [](auto x,auto y){return x+y;};
+
+std::unique_ptr prt(new int(10));
+auto lam = [value = std::move(ptr)]{return *value};
 
 const vector<int> v(2);
 auto n = v[0];
 
 decltype(n) b = 1;	// b is [const int&] type
+
+
+// OTL
+timestamp ----> SQL-server:DATETIME,Oracle:DATE,Oracle 9i:TIMESTAMP   YYYY-MM-DD hh:mm:ss
+:fn<unsigned/int/float/double/timestamp/char[12],in|out|inout>
+
+
 */
 
 #ifndef _ICS_CONFIG_H
 #define _ICS_CONFIG_H
 
 // soft version
-#define ICS_VERSION 0x10
+#define ICS_VERSION 0x0101
 
 
 // c++ asio
@@ -46,6 +58,10 @@ decltype(n) b = 1;	// b is [const int&] type
 // database
 #define OTL_STL
 #define OTL_ODBC
-#define OTL_MYSQL
+#ifndef WIN32
+#define OTL_ODBC_UNIX
+#endif
+#define OTL_CONNECT_POOL_ON
+#define OTL_CPP_11_ON
 
 #endif	// end _ICS_CONFIG_H

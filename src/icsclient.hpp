@@ -7,6 +7,7 @@
 #include "icsprotocol.hpp"
 #include "tcpconnection.hpp"
 #include "clientmanager.hpp"
+#include "mempool.hpp"
 #include <string>
 #include <map>
 #include <list>
@@ -69,11 +70,14 @@ public:
     virtual void do_write();
     
 private:
+
+	void sendData(MemoryChunk& proto);
+
 	bool do_handle_msg(uint8_t* buf, size_t length);
 
 	void debug_msg(uint8_t* buf, size_t length);
 
-    void do_authrize(IcsProtocol& proto);
+	void do_authrize(IcsProtocol& proto) throw(std::logic_error);
     
 	// 终端认证
 	void handleAuthRequest(IcsProtocol& ip) throw(std::logic_error);
@@ -130,7 +134,8 @@ private:
 	IcsProtocol		m_ics_protocol;
 
 	// send area
-    std::list<IcsProtocol> m_send_list;
+	std::list<MemoryChunk> m_send_list;
+	std::mutex		m_sendLock;
 };
 
 //----------------------------------------------------------------------------------//

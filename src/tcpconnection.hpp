@@ -20,7 +20,7 @@ class ClientManager;
 
 class TcpConnection {
 public:
-	TcpConnection(asio::ip::tcp::socket s, ClientManager & cm);
+	TcpConnection(asio::ip::tcp::socket&& s, ClientManager & cm);
         
 	virtual ~TcpConnection();
         

@@ -2,20 +2,39 @@
 #include "tcpserver.hpp"
 #include "clientmanager.hpp"
 #include "database.hpp"
+#include "signalhandler.hpp"
+#include "mempool.hpp"
 #include <iostream>
+
 
 using namespace std;
 
+#if 1
+ics::DataBase db("commuser", "datang", "mysql");
+#else
+ics::DataBase db("sa", "123456", "sqlserver");
+#endif
+
+ics::MemoryPool mp(512 * 10, 10);
 
 void test_server()
 {
 	
 	try {
 		ics::DataBase::initialize();
+
+		db.open();
+
 		ics::ClientManager cm(10);
+
 		ics::TcpServer s(9999, [&cm](asio::ip::tcp::socket s){
 					cm.addClient(std::move(s));
 				});
+
+		ics::SignalHandler sh(s.getService());
+
+		sh.sync_wait();
+
 		s.run();
 	}
 	catch (std::exception& ex)
@@ -84,6 +103,15 @@ void test_std()
 	th2.join();
 }
 
+class MyNull {
+public:
+	template<class T>
+	operator T*() const
+	{
+		return (T*)0;
+	}
+};
+
 int main()
 {
 	cout << "start..." << endl;
@@ -92,7 +120,11 @@ int main()
 	
 	test_server();
 
+	
+
 	cout << "stop..." << endl;
+
+
 
 	int n;
 	cin >> n;

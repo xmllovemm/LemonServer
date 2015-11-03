@@ -4,7 +4,11 @@
 #include "icsprotocol.hpp"
 #include "log.hpp"
 #include "database.hpp"
+
 #include <cstdio>
+
+extern ics::DataBase db;
+extern ics::MemoryPool mp;
 
 namespace ics{
 
@@ -93,6 +97,7 @@ void IcsClient::do_read()
 			}
 			else
 			{
+				LOG_DEBUG(m_conn_name << " recv or handle data error");
 				do_error();
 			}
 		});
@@ -100,12 +105,43 @@ void IcsClient::do_read()
 
 void IcsClient::do_write()
 {
-    
+	std::lock_guard<std::mutex> lock(m_sendLock);
+	if (!m_send_list.empty())
+	{
+		MemoryChunk& chunk = m_send_list.front();
+		m_socket.async_send(asio::buffer(chunk.getBuff(), chunk.getUsedSize()),
+			[this](const std::error_code& ec, std::size_t length)
+		{
+			if (!ec)
+			{
+				m_send_list.pop_front();
+				do_write();
+			}
+			else
+			{
+				LOG_DEBUG(m_conn_name << " send data error");
+				do_error();
+			}
+		});
+	}
+	
+}
+
+void IcsClient::sendData(MemoryChunk& chunk)
+{
+	m_send_list.push_back(chunk);
+	do_write();
 }
 
 bool IcsClient::do_handle_msg(uint8_t* buf, size_t length)
 {
-	debug_msg(buf, length);
+	this->debug_msg(buf, length);
+
+
+
+	m_ics_protocol.reset(buf, length);
+
+	IcsProtocol::IcsMsgHead* head = m_ics_protocol.getHead();
 
 	if (m_conn_name.empty())
 	{
@@ -114,9 +150,14 @@ bool IcsClient::do_handle_msg(uint8_t* buf, size_t length)
 			LOG_ERROR("first package's size is not more than IcsMsgHead");
 			return false;
 		}
+
+		if (head->getMsgID() != IcsProtocol::terminal_auth_request)
+		{
+			LOG_ERROR("first package isn't authrize message");
+			return false;
+		}
 	}
 
-	IcsProtocol::IcsMsgHead* head = m_ics_protocol.getHead();
 
 	try {
 		m_ics_protocol.verify();
@@ -127,6 +168,10 @@ bool IcsClient::do_handle_msg(uint8_t* buf, size_t length)
 			handleAuthRequest(m_ics_protocol);
 			break;
 
+		case IcsProtocol::terminal_heartbeat:
+			handleHeartbeat(m_ics_protocol);
+			break;
+
 		default:
 			LOG_ERROR("unknown message ID:" << head->getMsgID());
 			break;
@@ -134,12 +179,12 @@ bool IcsClient::do_handle_msg(uint8_t* buf, size_t length)
 	}
 	catch (std::exception& ex)
 	{
-		LOG_ERROR("handle message [" << head->getMsgID() << "] error:" << ex.what());
+		LOG_ERROR("handle message [" << head->getMsgID() << "] std::exception:" << ex.what());
 		return false;
 	}
 	catch (otl_exception& ex)
 	{
-		LOG_ERROR("handle message [" << head->getMsgID() << "] error:" << ex.msg);
+		LOG_ERROR("handle message [" << head->getMsgID() << "] otl_exception:" << ex.msg << ",on " << ex.stm_text<<"");
 		return false;
 	}
 	catch (...)
@@ -151,27 +196,21 @@ bool IcsClient::do_handle_msg(uint8_t* buf, size_t length)
 	return true;
 }
 
-void IcsClient::debug_msg(uint8_t* buf, size_t length)
+void IcsClient::debug_msg(uint8_t* data, size_t length)
 {
 #ifndef NDEBUG
 	char buff[1024];
 	for (size_t i = 0; i < length && i < sizeof(buff)/3; i++)
 	{
-		std::sprintf(buff + i * 3, "%02x ", buff[i]);
+		std::sprintf(buff + i * 3, "%02x ", data[i]);
 	}
-	LOG_DEBUG(m_conn_name << " recv:" << buff);
+	LOG_DEBUG(m_conn_name << " recv " << length << " bytes: " << buff);
 #endif
 }
 
 void IcsClient::do_authrize(IcsProtocol& proto) throw(std::logic_error)
 {
-	DataBase db("commuser","datang","mysql");
-	otl_connect* conn = db.getConnection();
-
-	if (conn == nullptr)
-	{
-		return;
-	}
+	DataBase::OtlConnect conn = db.getConnection();
 
 	try {
 		int id = 13;
@@ -191,7 +230,7 @@ void IcsClient::do_authrize(IcsProtocol& proto) throw(std::logic_error)
 	{
 		LOG_DEBUG("exec database error:" << ex.msg);
 	}
-	db.putConnection(conn);
+	db.putConnection(std::move(conn));
 }
 
 #define UPGRADE_FILE_SEGMENG_SIZE 1024
@@ -299,7 +338,7 @@ void IcsClient::handleError(IcsTerminal* terminal)
 }
 */
 
-// 终端认证:ok
+// 终端认证
 void IcsClient::handleAuthRequest(IcsProtocol& proto) throw(std::logic_error)
 {
 	if (!m_conn_name.empty())
@@ -310,60 +349,66 @@ void IcsClient::handleAuthRequest(IcsProtocol& proto) throw(std::logic_error)
 
 	// auth info
 	string gwId, gwPwd, extendInfo;
-	uint8_t deviceKind;
+	uint16_t deviceKind;
 
 	proto >> gwId >> gwPwd >> deviceKind >> extendInfo;
 
-//	proto.assertEmpty();
+	proto.assertEmpty();
 
-	DataBase db("commuser", "datang", "mysql");
-	otl_connect* conn = db.getConnection();
+	DataBase::OtlConnect conn = db.getConnection();
 
 	if (conn == nullptr)
 	{
 		return;
 	}
 
-	otl_stream s(1, "{call sp_auth(:f1<char[33],in>,:f2<char[33],in>,:g1<int,out>)}", *conn);
+	otl_stream s(1,
+		"{ call sp_authroize(:gwid<char[33],in>,:pwd<char[33],in>,@ret,@id,@name) }",
+		*conn);
+	
+	s << gwId << gwPwd;
 
-	s << gwId.c_str() << gwPwd;
+	otl_stream o(1, "select @ret :#<int>,@id :#<char[32]>,@name :#name<char[32]>", *conn);
 
-	int ret = 0;
-	while (!s.eof())
+	int ret = 2;
+	string id, name;
+
+	o >> ret >> id >> name;
+	
+	// release db connection
+	db.putConnection(std::move(conn));
+
+	MemoryChunk chunk = mp.get();
+
+	if (!chunk.valid())
 	{
-		s >> ret;
+		LOG_WARN("cann't get memory chunk");
+		return;
 	}
 
-	LOG_DEBUG("sp result:" << ret);
+	IcsProtocol outProto(chunk.getBuff(), chunk.getTotalSize());
+	outProto.initHead(IcsProtocol::terminal_auth_response, m_send_num);
 
-	/*	
-
-	std::vector<Variant> params;
-	params.push_back(gwId);
-	params.push_back(gwPwd);
-
-	params.push_back(1);
-	params.push_back("");
-	params.push_back("");
-
-	if (!IcsTerminal::s_core_api->CORE_CALL_SP(params, "sp_authroize(:F1<char[33],in>,:F2<char[33],in>,:G1<int,out>,:G2<char[33],out>,:G3<char[33],out>)", terminal->m_dbName, terminal->m_dbSource))
+	if (ret == 0)	// 成功
 	{
-		LOG4CPLUS_ERROR(IcsTerminal::s_logger, "execute sp sp_authroize error");
-		return false;
+		m_conn_name = std::move(gwId); // 保存检测点id
+		outProto << "ok" << (uint16_t)10;	
 	}
+	else
+	{
+		outProto << "failed";
+	}
+
+	outProto.serailzeToData();
+
+	chunk.setUsedSize(outProto.msgLength());
+
+	this->sendData(chunk);
+
+	/*
 
 	// reply auth message
-	boost::shared_ptr<CBlock> sendPackage = IcsTerminal::s_core_api->CORE_CREATE_BLOCK();
-	MessageBuffer input_buf(sendPackage->getpointer<char>(sizeof(IcsMsgHead), 64), 64);
-
-	if (*boost::get<int>(&params[2]) == 0)	// 认证成功
-	{
-		terminal->m_monitorID = *boost::get<string>(&params[3]);		// 保存检测点id
-		terminal->m_monitorName = *boost::get<string>(&params[4]);		// 保存检测点名称
-
-		boost::shared_ptr<CInterface> shared = terminal->m_RefSelf.lock();
-		IcsTerminal::s_core_api->CORE_INSERT(terminal->m_monitorID, shared);	// 插入到监测点表
-
+	
 		params.clear();
 		params.push_back(terminal->m_monitorID);
 		params.push_back(IcsTerminal::s_core_api->CORE_GET_ATTR("icsmodule", "conn_addr"));

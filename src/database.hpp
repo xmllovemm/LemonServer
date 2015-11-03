@@ -12,26 +12,39 @@
 #include "config.hpp"
 #include "otlv4.h"
 #include <string>
+#include <exception>
 
 namespace ics {
     
+
 class DataBase {
 public:
-    DataBase(const std::string& uid, const std::string& pwd, const std::string& dsn);
+//	using OtlConnectPool = otl_connect_pool<otl_connect, otl_exception>;
+
+	typedef otl_connect_pool<otl_connect,otl_exception> OtlConnectPool;
+
+	typedef OtlConnectPool::connect_ptr OtlConnect;
+
+	DataBase(const std::string& uid, const std::string& pwd, const std::string& dsn);
     
+	void open(int pool_min_size = 8, int pool_max_size = 16) throw(std::runtime_error);
+
     ~DataBase();
     
-    static void initialize();
+    static void initialize(bool multi_thread = true);
     
-    otl_connect* getConnection();
+	OtlConnect getConnection();
     
-    void putConnection(otl_connect* conn);
+	void putConnection(OtlConnect conn);
     
 private:
-    std::string m_conn_str;
+
+	OtlConnectPool	m_conn_pool;
+
+    std::string		m_conn_str;
     
 };
-    
+
 }   // namespace ics
 
 #endif /* database_hpp */

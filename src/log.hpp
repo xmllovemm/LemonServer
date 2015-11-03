@@ -5,7 +5,8 @@
 
 #include <iostream>
 
-#define LOG_FORMAT "|" << __FILE__ << ":" << __LINE__ << "|" 
+//#define LOG_FORMAT "|" << __FILE__ << ":" << __LINE__ << "|" 
+#define LOG_FORMAT "|"
 
 #define LOG_INNER(level,msg) do{\
 							std::cout << level << LOG_FORMAT << msg << std::endl; \

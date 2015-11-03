@@ -21,6 +21,63 @@ using namespace std;
 
 namespace ics{
 
+namespace protocol {
+
+// 协议字节序转化
+inline uint16_t ics_ntoh(uint16_t n)
+{
+#ifdef ICS_USE_LITTLE_ENDIAN
+	return n;
+#else
+	return ntohs(n);
+#endif
+}
+
+inline uint32_t ics_ntoh(uint32_t n)
+{
+#ifdef ICS_USE_LITTLE_ENDIAN
+	return n;
+#else
+	return ntohl(n);
+#endif
+}
+
+inline uint64_t ics_ntoh(uint64_t n)
+{
+#ifdef ICS_USE_LITTLE_ENDIAN
+	return n;
+#else
+	return ntohll(n);
+#endif
+}
+
+inline uint16_t ics_hton(uint16_t n)
+{
+#ifdef ICS_USE_LITTLE_ENDIAN
+	return n;
+#else
+	return ntohs(n);
+#endif
+}
+
+inline uint32_t ics_hton(uint32_t n)
+{
+#ifdef ICS_USE_LITTLE_ENDIAN
+	return n;
+#else
+	return ntohs(n);
+#endif
+}
+
+inline uint64_t ics_hton(uint64_t n)
+{
+#ifdef ICS_USE_LITTLE_ENDIAN
+	return n;
+#else
+	return ntohll(n);
+#endif
+}
+
 // protocol info
 #define ICS_HEAD_PROTOCOL_NAME "ICS#"	// protocol name
 #define ICS_HEAD_PROTOCOL_NAME_LEN (sizeof(ICS_HEAD_PROTOCOL_NAME)-1)
@@ -32,6 +89,64 @@ namespace ics{
 // need response flag
 #define ICS_HEAD_ATTR_NEEDRESPONSE 1
 
+// crc data type
+typedef uint32_t	ics_crccode_t;
+
+#pragma pack(1)
+// 消息头
+class IcsMsgHead
+{
+public:
+	void verify() throw(std::logic_error);
+
+	// set 0
+	void clean();
+
+	void setMsgID(uint16_t id);
+
+	void setLength(uint16_t len);
+
+	void setSendNum(uint16_t num);
+
+	void setAckNum(uint16_t num);
+
+	void setFlag(uint8_t encrypt, bool ack, bool response);
+
+	void setCrcCode();
+
+	uint16_t getMsgID();
+
+	uint16_t getLength();
+
+	uint16_t getSendNum();
+
+	uint16_t getAckNum();
+
+	uint16_t getFlag();
+
+	uint16_t getVersion();
+
+	ics_crccode_t getCrcCode();
+private:
+
+	char		name[ICS_HEAD_PROTOCOL_NAME_LEN];		// 协议名称
+	uint16_t	version;	// 版本号
+	uint16_t	length;	// 消息长度
+	union {
+		struct {
+			uint8_t encrypt : 4;	// 加密模式
+			uint8_t reserved1 : 4;	// 保留
+			uint8_t ack : 1;		// 0:请求包,1:应答包
+//			uint8_t response:1;	// 当前包为请求包时,0:当前包不需要应答,1:当前包需要应答
+//			uint16_t reserverd2:6;
+		};
+	};
+	uint16_t	send_num;	// 发送流水号
+	uint16_t	ack_num;	// 应答流水号
+	uint16_t	id;		// 消息id
+};
+#pragma pack()
+
 
 class IcsProtocol
 {
@@ -39,71 +154,43 @@ public:
 	typedef uint8_t		ics_u8_t;
 	typedef uint16_t	ics_u16_t;
 	typedef uint32_t	ics_u32_t;
-	typedef std::string	ics_string_t;
-	typedef uint32_t	ics_crccode_t;
 
+	// string of one byte length
+	typedef std::string	ShortString;
 
-	/*
-	// 协议字节序转化
-	static inline uint16_t ics_ntoh(uint16_t n)
+	// string of two bytes length
+	class LongString : public std::string
 	{
-#ifdef ICS_USE_LITTLE_ENDIAN
-		return n;
-#else
-		return ntohs(n);
-#endif
-	}
+	public:
+		LongString(const char* str) : std::string(str){}
+		LongString(const std::string& str) : std::string(str){}
+		LongString(std::string&& str) : std::string(std::forward<std::string>(str)){}
 
-	static inline uint32_t ics_ntoh(uint32_t n)
-	{
-#ifdef ICS_USE_LITTLE_ENDIAN
-		return n;
-#else
-		return ntohl(n);
-#endif
-	}
+		LongString& operator = (const char* str)
+		{
+			*this = str;
+			return *this;
+		}
 
-	static inline uint64_t ics_ntoh(uint64_t n)
-	{
-#ifdef ICS_USE_LITTLE_ENDIAN
-		return n;
-#else
-		return ntohll(n);
-#endif
-	}
+		LongString& operator = (const std::string& str)
+		{
+			*this = str;
+			return *this;
+		}
 
-	static inline uint16_t ics_hton(uint16_t n)
-	{
-#ifdef ICS_USE_LITTLE_ENDIAN
-		return n;
-#else
-		return ntohs(n);
-#endif
-	}
+		LongString& operator = (std::string&& str)
+		{
+			*this = std::forward<std::string>(str);
+			return *this;
+		}
 
-	static inline uint32_t ics_hton(uint32_t n)
-	{
-#ifdef ICS_USE_LITTLE_ENDIAN
-		return n;
-#else
-		return ntohs(n);
-#endif
-	}
-
-	static inline uint64_t ics_hton(uint64_t n)
-	{
-#ifdef ICS_USE_LITTLE_ENDIAN
-		return n;
-#else
-		return ntohll(n);
-#endif
-	}
-	*/
-	template<typename T>
-	static inline T ics_ntoh(T data);
-
-	template<typename T>
-	static inline T ics_hton(T data);
+		
+		operator std::string()
+		{
+			return *(std::string*)this;
+		}
+	};
+	
 
 	// 与终端交互消息ID枚举
 	enum IcsMessageId {
@@ -172,57 +259,7 @@ public:
 
 
 #pragma pack(1)
-	// 消息头
-	class IcsMsgHead
-	{
-	public:
-		void verify() throw(std::logic_error);
-
-		// set 0
-		void clean();
-
-		void setMsgID(uint16_t id);
-
-		void setLength(uint16_t len);
-
-		void setSendNum(uint16_t num);
-
-		void setAckNum(uint16_t num);
-
-		void setFlag(uint8_t encrypt, bool ack, bool response);
-
-		void setCrcCode(ics_crccode_t code);
-
-		uint16_t getMsgID();
-
-		uint16_t getLength();
-
-		uint16_t getSendNum();
-
-		uint16_t getAckNum();
-
-		uint16_t getFlag();
-
-		ics_crccode_t getCrcCode();
-
-	private:
-		char		name[ICS_HEAD_PROTOCOL_NAME_LEN];		// 协议名称
-		uint16_t	version;	// 版本号
-		uint16_t	length;	// 消息长度
-		union {
-			struct {
-				uint8_t encrypt:4;	// 加密模式
-				uint8_t reserved1:4;	// 保留
-				uint8_t ack:1;		// 0:请求包,1:应答包
-//				uint8_t response:1;	// 当前包为请求包时,0:当前包不需要应答,1:当前包需要应答
-//				uint16_t reserverd2:6;
-			};
-		};
-		uint16_t	send_num;	// 发送流水号
-		uint16_t	ack_num;	// 应答流水号
-		uint16_t	id;		// 消息id
-	};
-
+	
 	// 协议时间定义
 	typedef struct
 	{
@@ -241,32 +278,38 @@ public:
 	IcsProtocol(void* buf, size_t length);
 
 	// set current to the start
-	void rewind()
+	inline void rewind()
 	{
-		m_start = m_pos = (uint8_t*)(m_head + 1);
+		m_pos = (uint8_t*)(m_head + 1);
 	}
 
+	inline void reset(void* buf, size_t length)
+	{
+		m_head = (IcsMsgHead*)buf;
+		m_pos = (uint8_t*)(m_head + 1);
+		m_end = (uint8_t*)buf + length;
+	}
 
 	// start address of message
 	inline void* msgAddr() const
 	{
-		return m_start;
+		return m_head;
 	}
 
 	// length of message
-	inline size_t msgLength() const
+	inline std::size_t msgLength() const
 	{
-		return m_pos - m_start;
+		return m_pos - (uint8_t*)m_head;
 	}
 
 	// size of whole buffer
-	inline size_t bufferSize() const
+	inline std::size_t bufferSize() const
 	{
-		return m_end - m_start - sizeof(ics_crccode_t);
+		return m_end - (uint8_t*)m_head;
 	}
 
 	// left size of whole buffer
-	inline size_t leftSize() const
+	inline std::size_t leftSize() const
 	{
 		return m_end - m_pos - sizeof(ics_crccode_t);
 	}
@@ -291,19 +334,24 @@ public:
 
 	void initHead(uint16_t ack_num);
 
+	template<class T, class Cond = std::enable_if<sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8>::type>
+	IcsProtocol& operator << (T&& data) throw(std::overflow_error);
+
+	/*
 	IcsProtocol& operator << (uint8_t data) throw(std::overflow_error);
 
 	IcsProtocol& operator << (uint16_t data) throw(std::overflow_error);
+	
+	IcsProtocol& operator << (uint32_t data) throw(std::overflow_error);
+	*/
 
 	IcsProtocol& operator << (const IcsDataTime& data) throw(std::overflow_error);
 
-	IcsProtocol& operator << (const string& data) throw(std::overflow_error);
+	IcsProtocol& operator << (const ShortString& data) throw(std::overflow_error);
+
+	IcsProtocol& operator << (const LongString& data) throw(std::overflow_error);
 
 	IcsProtocol& operator << (const IcsProtocol& data) throw(std::overflow_error);
-
-	template<typename T = uint8_t>
-	void setString(const string& data)  throw(std::overflow_error);
-
 
 	/* -----------------------handle data----------------------- */
 
@@ -317,24 +365,20 @@ public:
 
 	IcsProtocol& operator >> (uint16_t& data) throw(std::underflow_error);
 
+	IcsProtocol& operator >> (uint32_t& data) throw(std::underflow_error);
+
 	IcsProtocol& operator >> (IcsDataTime& data) throw(std::underflow_error);
 
-	IcsProtocol& operator >> (string& data) throw(std::underflow_error);
+	IcsProtocol& operator >> (ShortString& data) throw(std::underflow_error);
 
-	template<typename T = uint8_t>
-	string&& getString() throw(std::underflow_error);
+	IcsProtocol& operator >> (LongString& data) throw(std::underflow_error);
+	
 
 	void assertEmpty() throw(std::logic_error);
-
-	// calcutlate the crc code
-	ics_crccode_t getCrc32Code(uint8_t* buf, int length);
 
 private:
 	// point to the message head
 	IcsMsgHead*	m_head;
-
-	// point to the start address of message body
-	uint8_t*	m_start;
 
 	// point to the current operating address of buffer
 	uint8_t*	m_pos;
@@ -343,5 +387,7 @@ private:
 	uint8_t*	m_end;
 };
 
-}	// end 
+}	// end protocol
+}	// end ics
+
 #endif	// end _ICS_PROTOCOL_H

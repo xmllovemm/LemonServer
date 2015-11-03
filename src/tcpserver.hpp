@@ -31,6 +31,8 @@ public:
 
 	void stop();
 
+	asio::io_service& getService();
+
 private:
 	void do_accept();
 
