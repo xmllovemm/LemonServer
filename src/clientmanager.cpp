@@ -1,5 +1,3 @@
-
-
 #include "clientmanager.hpp"
 #include "icsclient.hpp"
 #include "log.hpp"

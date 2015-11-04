@@ -46,11 +46,6 @@ timestamp ----> SQL-server:DATETIME,Oracle:DATE,Oracle 9i:TIMESTAMP   YYYY-MM-DD
 #include <asio.hpp>
 #endif
 
-/*
-#ifndef _CRT_SECURE_NO_WARNINGS
-#define _CRT_SECURE_NO_WARNINGS
-#endif
-*/
 
 // byte order
 #define ICS_USE_LITTLE_ENDIAN
@@ -58,10 +53,14 @@ timestamp ----> SQL-server:DATETIME,Oracle:DATE,Oracle 9i:TIMESTAMP   YYYY-MM-DD
 // database
 #define OTL_STL
 #define OTL_ODBC
-#ifndef WIN32
-#define OTL_ODBC_UNIX
-#endif
 #define OTL_CONNECT_POOL_ON
 #define OTL_CPP_11_ON
+
+#if defined(WIN32) || defined (WIN64)	// in linux
+#pragma warning(disable:4290)
+#pragma warning(disable:4996)
+#else	// in windows
+#define OTL_ODBC_UNIX
+#endif
 
 #endif	// end _ICS_CONFIG_H

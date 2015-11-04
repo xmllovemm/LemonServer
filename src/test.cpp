@@ -4,6 +4,7 @@
 #include "database.hpp"
 #include "signalhandler.hpp"
 #include "mempool.hpp"
+#include "icsprotocol.hpp"
 #include <iostream>
 
 
@@ -112,19 +113,43 @@ public:
 	}
 };
 
+
+class A {
+public:
+	virtual void f()
+	{
+		cout << "call A::f()" << endl;
+	}
+
+	void g()
+	{
+		f();
+	}
+};
+
+class B :public A
+{
+public:
+	virtual void f()
+	{
+		cout << "call B::f()" << endl;
+	}
+};
+
 int main()
 {
 	cout << "start..." << endl;
 
 //	test_std();
 	
-	test_server();
+//	test_server();
 
-	
+	class B b;
+	b.g();
 
 	cout << "stop..." << endl;
 
-
+	
 
 	int n;
 	cin >> n;
