@@ -5,6 +5,7 @@
 #include "signalhandler.hpp"
 #include "mempool.hpp"
 #include "icsprotocol.hpp"
+#include "icsclient.hpp"
 #include <iostream>
 
 
@@ -22,21 +23,30 @@ void test_server()
 {
 	
 	try {
+		asio::io_service io_service;
+
 		ics::DataBase::initialize();
 
 		db.open();
 
 		ics::ClientManager cm(10);
 
-		ics::TcpServer s(9999, [&cm](asio::ip::tcp::socket s){
+		ics::TcpServer s(io_service, 9999, [&cm](asio::ip::tcp::socket s){
 					cm.addClient(std::move(s));
 				});
+		
 
-		ics::SignalHandler sh(s.getService());
+		ics::SignalHandler sh(io_service);
 
 		sh.sync_wait();
 
-		s.run();
+		/*
+		ics::SubCommServerClient subclient(io_service);
+
+		subclient.connectTo("192.168.50.133", 99);
+		//*/
+
+		io_service.run();
 	}
 	catch (std::exception& ex)
 	{
@@ -142,10 +152,7 @@ int main()
 
 //	test_std();
 	
-//	test_server();
-
-	class B b;
-	b.g();
+	test_server();
 
 	cout << "stop..." << endl;
 

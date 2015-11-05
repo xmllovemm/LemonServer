@@ -64,23 +64,29 @@ public:
 
 	IcsClient(const IcsClient& rhs) = delete;
 
-public:
     virtual void do_read();
     
     virtual void do_write();
     
 private:
-	/*
+	typedef protocol::IcsMsgHead<uint16_t> ProtocolHead;
+	typedef protocol::ProtocolStream<ProtocolHead> ProtocolStream;
+
+	void toHexInfo(uint8_t* buf, std::size_t length);
+
+	bool handleData(uint8_t* buf, std::size_t length);
+
+	void handleMessage(ProtocolStream& request, ProtocolStream& response);
+
+	// 终端认证
+	void handleAuthRequest(ProtocolStream& request, ProtocolStream& response) throw(std::logic_error);
+
+
+/*
 	void sendData(MemoryChunk& proto);
 
-	bool do_handle_msg(uint8_t* buf, size_t length);
 
-	void debug_msg(uint8_t* buf, size_t length);
-
-	void do_authrize(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error);
     
-	// 终端认证
-	void handleAuthRequest(protocol::ProtocolStream<protocol::IcsMsgHead>& ip) throw(std::logic_error);
 
 	// 标准状态上报
 	void handleStdStatusReport(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error);
@@ -128,7 +134,11 @@ private:
 	void handleUpgradeCancelAck(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error);
 	*/
 private:
+	std::string             m_conn_name;
+	ClientManager&			m_client_manager;
+
 	// recv area
+	std::array<uint8_t, 512> m_recvBuff;
 	uint16_t		m_send_num;
 	uint8_t			m_recv_buf[512];
 	protocol::ProtocolStream<protocol::IcsMsgHead<uint16_t>>		m_ics_protocol;
@@ -140,7 +150,49 @@ private:
 
 //----------------------------------------------------------------------------------//
 
+#include "log.hpp"
+class SubCommServerClient : public TcpConnection {
+public:
+	SubCommServerClient(asio::io_service& io)
+		: TcpConnection(asio::ip::tcp::socket(io))
+	{
 
+	}
+
+	void connectTo(const string& ip, int port)
+	{
+		m_socket.async_connect(asio::ip::tcp::endpoint(asio::ip::address::from_string(ip), port), [this](const asio::error_code& ec)
+			{
+				if (ec)
+				{
+					LOG_DEBUG("connect to server failed");
+				}
+				else
+				{
+					reportHearBeat();
+				}
+			});
+		
+	}
+
+	virtual void do_read()
+	{
+
+	}
+
+	virtual void do_write()
+	{
+
+	}
+
+private:
+	void reportHearBeat()
+	{
+		char buff[126];
+		protocol::ProtocolStream<protocol::IcsMsgHead<uint16_t>> pp(buff, sizeof(buff));
+
+	}
+};
 
 }	// end namespace ics
 #endif	// end _ICS_CLIENT_H

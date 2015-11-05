@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <iostream>
 #include <exception>
+#include <array>
 
 using namespace std;
 
@@ -24,75 +25,48 @@ namespace ics{
 
 namespace protocol {
 
+#define BIG_ENDIAN		1
+#define LITTLE_ENDIAN	2
+
+// system byte order
+#if 2
+#define SYSTEM_BYTE_ORDER BIG_ENDIAN
+#else
+#define SYSTEM_BYTE_ORDER LITTLE_ENDIAN
+#endif
+
+// protocol byte order
+#define PROTOCOL_BYTE_ORDER LITTLE_ENDIAN
 
 
-// 协议字节序转化
 
-template<class T>
-T ics_ntoh(T&& n)
+inline uint16_t ics_byteorder(uint16_t n)
 {
-	return n;
-}
-
-template<class T>
-T ics_hton(T&& n)
-{
-	return n;
-}
-
-inline uint16_t ics_ntoh(uint16_t n)
-{
-#ifdef ICS_USE_LITTLE_ENDIAN
+#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
 	return n;
 #else
-	return ntohs(n);
+	return ((n & 0xff) << 8) | ((n >> 8) & 0xff);
 #endif
 }
 
-inline uint32_t ics_ntoh(uint32_t n)
+inline uint32_t ics_byteorder(uint32_t n)
 {
-#ifdef ICS_USE_LITTLE_ENDIAN
+#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
 	return n;
 #else
-	return ntohl(n);
+	return ((n & 0x000000ff) << 24) | ((n & 0x0000ff00) << 8) | ((n & 0x00ff0000) >> 8) | ((n & 0xff000000) >> 24);
 #endif
 }
 
-inline uint64_t ics_ntoh(uint64_t n)
+inline uint64_t ics_byteorder(uint64_t n)
 {
-#ifdef ICS_USE_LITTLE_ENDIAN
+#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
 	return n;
 #else
-	return ntohll(n);
+	return ((n & 0x000000ff) << 24) | ((n & 0x0000ff00) << 8) | ((n & 0x00ff0000) >> 8) | ((n & 0xff000000) >> 24);
 #endif
 }
 
-inline uint16_t ics_hton(uint16_t n)
-{
-#ifdef ICS_USE_LITTLE_ENDIAN
-	return n;
-#else
-	return ntohs(n);
-#endif
-}
-
-inline uint32_t ics_hton(uint32_t n)
-{
-#ifdef ICS_USE_LITTLE_ENDIAN
-	return n;
-#else
-	return ntohs(n);
-#endif
-}
-
-inline uint64_t ics_hton(uint64_t n)
-{
-#ifdef ICS_USE_LITTLE_ENDIAN
-	return n;
-#else
-	return ntohll(n);
-#endif
-}
 
 // protocol info
 #define ICS_HEAD_PROTOCOL_NAME "ICS#"	// protocol name
@@ -227,14 +201,13 @@ typedef struct
 }IcsDataTime;
 
 // 消息头
-template<class CrcCodeType = uint16_t>
+template<class CrcCodeType, bool BigEndian = true>
 class IcsMsgHead
 {
 public:
 	static const std::size_t CrcCodeSize = sizeof(CrcCodeType);
 
-
-	void verify(std::size_t len, CrcCodeType crccode) throw(std::logic_error)
+	void verify(std::size_t len) throw(std::logic_error)
 	{
 		if (std::memcmp(name, ICS_HEAD_PROTOCOL_NAME, ICS_HEAD_PROTOCOL_NAME_LEN) != 0)
 		{
@@ -248,10 +221,15 @@ public:
 		{
 			throw std::logic_error("protocol length error");
 		}
-		if (getCrcCode() != crccode)
+		if (getCrcCode() != crc32_code(m_head, this->size() - ProtocolHead::CrcCodeSize))
 		{
 			throw std::logic_error("protocol crc code error");
 		}
+	}
+
+	void init(uint16_t id, uint16_t no)
+	{
+
 	}
 
 	// set 0
@@ -262,72 +240,70 @@ public:
 
 	void setMsgID(uint16_t id)
 	{
-		this->id = ics_hton(id);
+		this->id = ics_byteorder(id);
 	}
 
 	void setLength(uint16_t len)
 	{
-		this->length = ics_hton(len);
+		this->length = ics_byteorder(len);
 	}
 
 	void setSendNum(uint16_t num)
 	{
-		this->send_num = ics_hton(num);
+		this->send_num = ics_byteorder(num);
 	}
 
 	void setAckNum(uint16_t num)
 	{
-		this->ack_num = ics_hton(num);
+		this->ack_num = ics_byteorder(num);
 	}
 
 	void setFlag(uint8_t encrypt, bool ack, bool response)
 	{
-		//	this->id = ics_hton(encrypt);
+		//	this->id = ics_byteorder(encrypt);
 	}
 
 	void setCrcCode()
 	{
 		ics_crccode_t code = 0;
-		*(ics_crccode_t*)((char*)this + getLength() - sizeof(ics_crccode_t)) = ics_hton(code);
+		*(ics_crccode_t*)((char*)this + getLength() - sizeof(ics_crccode_t)) = ics_byteorder(code);
 	}
 
 	uint16_t getMsgID()
 	{
-		return ics_ntoh(this->id);
+		return ics_byteorder(this->id);
 	}
+
 	uint16_t getLength()
 	{
-		return ics_ntoh(this->length);
+		return ics_byteorder(this->length);
 	}
 
 	uint16_t getSendNum()
 	{
-		return ics_ntoh(this->send_num);
+		return ics_byteorder(this->send_num);
 	}
 
 	uint16_t getAckNum()
 	{
-		return ics_ntoh(this->ack_num);
+		return ics_byteorder(this->ack_num);
 	}
 
 	uint16_t getFlag()
 	{
-		return ics_ntoh(this->id);
+		return ics_byteorder(this->id);
 	}
 
 	uint16_t getVersion()
 	{
-		return ics_ntoh(this->version);
+		return ics_byteorder(this->version);
 	}
 
 	ics_crccode_t getCrcCode()
 	{
-		return ics_ntoh(*(ics_crccode_t*)((char*)this + getLength() - sizeof(ics_crccode_t)));
+		return ics_byteorder(*(ics_crccode_t*)((char*)this + getLength() - sizeof(ics_crccode_t)));
 	}
-
-
 private:
-
 	char		name[ICS_HEAD_PROTOCOL_NAME_LEN];		// 协议名称
 	uint16_t	version;	// 版本号
 	uint16_t	length;	// 消息长度
@@ -344,10 +320,35 @@ private:
 	uint16_t	ack_num;	// 应答流水号
 	uint16_t	id;		// 消息id
 };
+
+template<class CrcCodeType = uint32_t>
+class SubCommMsgHead
+{
+public:
+	static const std::size_t CrcCodeSize = sizeof(CrcCodeType);
+
+	void init()
+	{
+		std::memcpy(&m_name, "DT", 2);
+		m_version = 
+	}
+
+	void verify(std::size_t len) throw(std::logic_error)
+	{
+
+	}
+
+private:
+	uint16_t m_name;
+	uint16_t m_version;
+	uint16_t m_length;
+	uint16_t m_serial;
+	uint16_t m_id;
+};
 #pragma pack()
 
 
-// 消息体
+// 消息处理
 template<class ProtocolHead>
 class ProtocolStream
 {
@@ -355,6 +356,11 @@ public:
 	ProtocolStream(void* buf, std::size_t length)
 	{
 		reset(buf, length);
+	}
+
+	virtual ~ProtocolStream()
+	{
+
 	}
 
 	// set current to the start
@@ -387,15 +393,29 @@ public:
 		return m_end - (uint8_t*)m_head;
 	}
 
+	// 
+
+	// there is no more data to get
 	inline bool empty()
 	{
 		return m_pos == (uint8_t*)(m_head + 1);
 	}
 
+	// 
+	bool appendData(void* buf, std::size_t& len)
+	{
+		
+		std::size_t need_size = m_head->getLength();
+		if (true)
+		{
+
+		}
+	}
+
 	// -----------------------set data----------------------- 
 	void serailzeToData()
 	{
-		m_head->setLength(m_pos - (uint8_t*)m_head + sizeof(ics_crccode_t));
+		m_head->setLength(m_pos - (uint8_t*)m_head + ProtocolHead::CrcCodeSize);
 		*this << crc32_code(m_head, m_pos - (uint8_t*)m_head);
 	}
 
@@ -417,7 +437,7 @@ public:
 			throw overflow_error("OOM to set uint16_t data");
 		}
 
-		*(uint16_t*)m_pos = ics_hton(data);
+		*(uint16_t*)m_pos = ics_byteorder(data);
 		m_pos += sizeof(data);
 		return *this;
 	}
@@ -429,7 +449,7 @@ public:
 			throw overflow_error("OOM to set uint16_t data");
 		}
 
-		*(uint32_t*)m_pos = ics_hton(data);
+		*(uint32_t*)m_pos = ics_byteorder(data);
 		m_pos += sizeof(data);
 		return *this;
 	}
@@ -443,7 +463,7 @@ public:
 
 		IcsDataTime* dt = (IcsDataTime*)m_pos;
 		*dt = data;
-		dt->year = ics_hton(data.year);
+		dt->year = ics_byteorder(data.year);
 
 		m_pos += sizeof(IcsDataTime);
 		return *this;
@@ -490,7 +510,7 @@ public:
 	void verify() const throw(std::logic_error)
 	{
 		// verify head
-		m_head->verify(this->size(), crc32_code(m_head, this->size() - ProtocolHead::CrcCodeSize));
+		m_head->verify(this->size());
 	}
 
 	ProtocolStream& operator >> (uint8_t& data) throw(std::underflow_error)
@@ -509,7 +529,7 @@ public:
 		{
 			throw underflow_error("OOM to get uint16_t data");
 		}
-		data = *(uint16_t*)m_pos;
+		data = ics_byteorder(*(uint16_t*)m_pos);
 		m_pos += sizeof(data);
 		return *this;
 	}
@@ -520,7 +540,7 @@ public:
 		{
 			throw underflow_error("OOM to get uint32_t data");
 		}
-		data = *(uint16_t*)m_pos;
+		data = ics_byteorder(*(uint16_t*)m_pos);
 		m_pos += sizeof(data);
 		return *this;
 	}
@@ -533,7 +553,7 @@ public:
 		}
 		IcsDataTime* dt = (IcsDataTime*)m_pos;
 		data = *dt;
-		data.year = ics_ntoh(dt->year);
+		data.year = ics_byteorder(dt->year);
 
 		m_pos += sizeof(IcsDataTime);
 		return *this;
@@ -576,6 +596,7 @@ public:
 			throw std::logic_error(buff);
 		}
 	}
+
 private:
 	inline std::size_t leftSize()
 	{
@@ -594,12 +615,6 @@ protected:
 
 };
 
-template<class ProtocolHead>
-class ProtocolStreamInput
-{
-public:
-	
-};
 
 
 

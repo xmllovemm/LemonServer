@@ -72,7 +72,7 @@ ostream& operator << (ostream& os, const AuthrizeInfo& rhs)
 //*/
     
 IcsClient::IcsClient(asio::ip::tcp::socket&& s, ClientManager& cm)
-: TcpConnection(std::forward<asio::ip::tcp::socket>(s), cm), m_ics_protocol(m_recv_buf, sizeof(m_recv_buf))
+: TcpConnection(std::forward<asio::ip::tcp::socket>(s)),m_client_manager(cm), m_ics_protocol(m_recv_buf, sizeof(m_recv_buf))
 {
     
 }
@@ -89,12 +89,12 @@ void IcsClient::do_read()
 		[this](const std::error_code& ec, std::size_t length)
 		{
 			// no error and handle message
-//			if (!ec && do_handle_msg(m_recv_buf, length))
+			if (!ec && handleData(m_recv_buf, length))
 			{
 				// continue to read		
 				do_read();
 			}
-//			else
+			else
 			{
 				LOG_DEBUG(m_conn_name << " recv or handle data error");
 				do_error();
@@ -126,6 +126,66 @@ void IcsClient::do_write()
 	
 }
 
+void IcsClient::toHexInfo(uint8_t* data, std::size_t length)
+{
+#ifndef NDEBUG
+	char buff[1024];
+	for (size_t i = 0; i < length && i < sizeof(buff)/3; i++)
+	{
+		std::sprintf(buff + i * 3, " %02x", data[i]);
+	}
+	LOG_DEBUG(m_conn_name << " recv " << length << " bytes:" << buff);
+#endif
+}
+
+bool IcsClient::handleData(uint8_t* buf, std::size_t length)
+{
+	this->toHexInfo(buf, length);
+	/*
+	if (m_conn_name.empty())
+	{
+		if (length < sizeof(ProtocolHead)+ProtocolHead::CrcCodeSize)
+		{
+			LOG_ERROR("first package's size is not more than IcsMsgHead");
+			return false;
+		}
+
+		if (head->getMsgID() != protocol::terminal_auth_request)
+		{
+			LOG_ERROR("first package isn't authrize message");
+			return false;
+		}
+	}
+	*/
+	ProtocolStream request(buf, length);
+	
+	ProtocolHead* head = request.getHead();
+
+	ProtocolStream response(buf, length);
+
+	try {
+
+		handleMessage(request, response);
+
+	}
+	catch (std::exception& ex)
+	{
+		LOG_ERROR("handle message [" << head->getMsgID() << "] std::exception:" << ex.what());
+		return false;
+	}
+	catch (otl_exception& ex)
+	{
+		LOG_ERROR("handle message [" << head->getMsgID() << "] otl_exception:" << ex.msg << ",on " << ex.stm_text<<"");
+		return false;
+	}
+	catch (...)
+	{
+		LOG_ERROR("catch an unknown error");
+		return false;
+	}
+	return true;
+}
+
 //
 //void IcsClient::sendData(MemoryChunk& chunk)
 //{
@@ -133,179 +193,87 @@ void IcsClient::do_write()
 //	do_write();
 //}
 //
-//bool IcsClient::do_handle_msg(uint8_t* buf, size_t length)
-//{
-//	this->debug_msg(buf, length);
-//
-//
-//
-//	m_ics_protocol.reset(buf, length);
-//
-//	protocol::IcsMsgHead* head = m_ics_protocol.getHead();
-//
-//	if (m_conn_name.empty())
-//	{
-//		if (length < sizeof(protocol::IcsMsgHead) + sizeof(uint16_t))
-//		{
-//			LOG_ERROR("first package's size is not more than IcsMsgHead");
-//			return false;
-//		}
-//
-//		if (head->getMsgID() != protocol::ProtocolStream<protocol::IcsMsgHead>::terminal_auth_request)
-//		{
-//			LOG_ERROR("first package isn't authrize message");
-//			return false;
-//		}
-//	}
-//
-//
-//	try {
-//		m_ics_protocol.verify();
-//
-//		switch (head->getMsgID())
-//		{
-//		case protocol::ProtocolStream<protocol::IcsMsgHead>::terminal_auth_request:
-//			handleAuthRequest(m_ics_protocol);
-//			break;
-//
-//		case protocol::ProtocolStream<protocol::IcsMsgHead>::terminal_heartbeat:
-//			handleHeartbeat(m_ics_protocol);
-//			break;
-//
-//		default:
-//			LOG_ERROR("unknown message ID:" << head->getMsgID());
-//			break;
-//		}
-//	}
-//	catch (std::exception& ex)
-//	{
-//		LOG_ERROR("handle message [" << head->getMsgID() << "] std::exception:" << ex.what());
-//		return false;
-//	}
-//	catch (otl_exception& ex)
-//	{
-//		LOG_ERROR("handle message [" << head->getMsgID() << "] otl_exception:" << ex.msg << ",on " << ex.stm_text<<"");
-//		return false;
-//	}
-//	catch (...)
-//	{
-//		LOG_ERROR("catch an unknown error");
-//		return false;
-//	}
-//	
-//	return true;
-//}
-//
-//void IcsClient::debug_msg(uint8_t* data, size_t length)
-//{
-//#ifndef NDEBUG
-//	char buff[1024];
-//	for (size_t i = 0; i < length && i < sizeof(buff)/3; i++)
-//	{
-//		std::sprintf(buff + i * 3, "%02x ", data[i]);
-//	}
-//	LOG_DEBUG(m_conn_name << " recv " << length << " bytes: " << buff);
-//#endif
-//}
-//
-//void IcsClient::do_authrize(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error)
-//{
-//	DataBase::OtlConnect conn = db.getConnection();
-//
-//	try {
-//		int id = 13;
-//		otl_stream s(1, "{call sp_test(:f1<int,in>)}", *conn);
-////		otl_stream s(1, "select * from t_class where id < :f1<int>", *conn);
-//		s << id;
-//
-//		
-//		char name[64];
-//		while (!s.eof())
-//		{
-//			s >> id >> name;
-//			cout << "id:" << id << ",name:" << name << endl;
-//		}
-//	}
-//	catch (otl_exception& ex)
-//	{
-//		LOG_DEBUG("exec database error:" << ex.msg);
-//	}
-//	db.putConnection(std::move(conn));
-//}
-//
-//#define UPGRADE_FILE_SEGMENG_SIZE 1024
-//
-//// 终端认证
-//void IcsClient::handleAuthRequest(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error)
-//{
-//	if (!m_conn_name.empty())
-//	{
-//		LOG_DEBUG(m_conn_name << " ignore repeat authrize message");
-//		return;
-//	}
-//
-//	// auth info
-//	string gwId, gwPwd, extendInfo;
-//	uint16_t deviceKind;
-//
-//	proto >> gwId >> gwPwd >> deviceKind >> extendInfo;
-//
-//	proto.assertEmpty();
-//
-//	DataBase::OtlConnect conn = db.getConnection();
-//
-//	if (conn == nullptr)
-//	{
-//		return;
-//	}
-//
-//	otl_stream s(1,
-//		"{ call sp_authroize(:gwid<char[33],in>,:pwd<char[33],in>,@ret,@id,@name) }",
-//		*conn);
-//	
-//	s << gwId << gwPwd;
-//
-//	otl_stream o(1, "select @ret :#<int>,@id :#<char[32]>,@name :#name<char[32]>", *conn);
-//
-//	int ret = 2;
-//	string id, name;
-//
-//	o >> ret >> id >> name;
-//	
-//	// release db connection
-//	db.putConnection(std::move(conn));
-//
-//	MemoryChunk chunk = mp.get();
-//
-//	if (!chunk.valid())
-//	{
-//		LOG_WARN("cann't get memory chunk");
-//		return;
-//	}
-//
-//	protocol::ProtocolStream<protocol::IcsMsgHead> outProto(chunk.getBuff(), chunk.getTotalSize());
-//	outProto.initHead(protocol::ProtocolStream<protocol::IcsMsgHead>::terminal_auth_response, m_send_num);
-//
-//	if (ret == 0)	// 成功
-//	{
-//		m_conn_name = std::move(gwId); // 保存检测点id
-//		outProto << protocol::ProtocolStream<protocol::IcsMsgHead>::ShortString("ok") << (uint16_t)10;	
-//	}
-//	else
-//	{
-//		outProto << protocol::ProtocolStream<protocol::IcsMsgHead>::ShortString("failed");
-//	}
-//
-//	outProto.serailzeToData();
-//
-//	chunk.setUsedSize(outProto.msgLength());
-//
-//	this->sendData(chunk);
-//
-//}
-//
+void IcsClient::handleMessage(ProtocolStream& request, ProtocolStream& response)
+{
+
+	request.verify();
+
+	switch (request.getHead()->getMsgID())
+	{
+	case protocol::terminal_auth_request:
+		handleAuthRequest(request, response);
+		break;
+
+	case protocol::terminal_heartbeat:
+//		handleHeartbeat(m_ics_protocol);
+		break;
+
+	default:
+		LOG_ERROR("unknown message ID:" << request.getHead()->getMsgID());
+		break;
+	}
+	
+	
+}
+
+
+#define UPGRADE_FILE_SEGMENG_SIZE 1024
+
+// 终端认证
+void IcsClient::handleAuthRequest(ProtocolStream& request, ProtocolStream& response) throw(std::logic_error)
+{
+	if (!m_conn_name.empty())
+	{
+		LOG_DEBUG(m_conn_name << " ignore repeat authrize message");
+		return;
+	}
+
+	// auth info
+	string gwId, gwPwd, extendInfo;
+	uint16_t deviceKind;
+
+	request >> gwId >> gwPwd >> deviceKind >> extendInfo;
+
+	request.assertEmpty();
+
+	DataBase::OtlConnect conn = db.getConnection();
+
+	if (conn == nullptr)
+	{
+		return;
+	}
+
+	otl_stream s(1,
+		"{ call sp_authroize(:gwid<char[33],in>,:pwd<char[33],in>,@ret,@id,@name) }",
+		*conn);
+	
+	s << gwId << gwPwd;
+
+	otl_stream o(1, "select @ret :#<int>,@id :#<char[32]>,@name :#name<char[32]>", *conn);
+
+	int ret = 2;
+	string id, name;
+
+	o >> ret >> id >> name;
+	
+	// release db connection
+	db.putConnection(std::move(conn));
+
+	response.getHead()->init(protocol::terminal_auth_response, m_send_num);
+
+	if (ret == 0)	// 成功
+	{
+		m_conn_name = std::move(gwId); // 保存检测点id
+		response << protocol::ShortString("ok") << (uint16_t)10;	
+	}
+	else
+	{
+		response << protocol::ShortString("failed");
+	}
+}
+
 //// 标准状态上报:ok
-//void IcsClient::handleStdStatusReport(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error)
+//void IcsClient::handleStdStatusReport(protocol::ProtocolStream<protocol::IcsMsgHead>& request) throw(std::logic_error)
 //{
 //	/*
 //
@@ -364,7 +332,7 @@ void IcsClient::do_write()
 //}
 //
 //// 自定义状态上报
-//void IcsClient::handleDefStatusReport(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error)
+//void IcsClient::handleDefStatusReport(protocol::ProtocolStream<protocol::IcsMsgHead>& request) throw(std::logic_error)
 //{
 //	/*
 //
@@ -415,7 +383,7 @@ void IcsClient::do_write()
 //}
 //
 //// 事件上报:ok
-//void IcsClient::handleEventsReport(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error)
+//void IcsClient::handleEventsReport(protocol::ProtocolStream<protocol::IcsMsgHead>& request) throw(std::logic_error)
 //{
 //	/*
 //
@@ -479,7 +447,7 @@ void IcsClient::do_write()
 //}
 //
 //// 业务上报:ok
-//void IcsClient::handleBusinessReport(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error)
+//void IcsClient::handleBusinessReport(protocol::ProtocolStream<protocol::IcsMsgHead>& request) throw(std::logic_error)
 //{
 //	/*
 //
@@ -658,7 +626,7 @@ void IcsClient::do_write()
 //}
 //
 //// 终端回应参数查询
-//void IcsClient::handleParamQueryResponse(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error)
+//void IcsClient::handleParamQueryResponse(protocol::ProtocolStream<protocol::IcsMsgHead>& request) throw(std::logic_error)
 //{
 //	/*
 //
@@ -692,7 +660,7 @@ void IcsClient::do_write()
 //}
 //
 //// 终端主动上报参数修改
-//void IcsClient::handleParamAlertReport(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error)
+//void IcsClient::handleParamAlertReport(protocol::ProtocolStream<protocol::IcsMsgHead>& request) throw(std::logic_error)
 //{
 //	/*
 //
@@ -726,7 +694,7 @@ void IcsClient::do_write()
 //}
 //
 //// 终端回应参数修改
-//void IcsClient::handleParamModifyResponse(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error)
+//void IcsClient::handleParamModifyResponse(protocol::ProtocolStream<protocol::IcsMsgHead>& request) throw(std::logic_error)
 //{
 //	/*
 //
@@ -758,7 +726,7 @@ void IcsClient::do_write()
 //}
 //
 //// 终端发送时钟同步请求
-//void IcsClient::handleDatetimeSync(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error)
+//void IcsClient::handleDatetimeSync(protocol::ProtocolStream<protocol::IcsMsgHead>& request) throw(std::logic_error)
 //{
 //	/*
 //
@@ -786,7 +754,7 @@ void IcsClient::do_write()
 //}
 //
 //// 终端上报日志
-//void IcsClient::handleLogReport(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error)
+//void IcsClient::handleLogReport(protocol::ProtocolStream<protocol::IcsMsgHead>& request) throw(std::logic_error)
 //{
 //	/*
 //
@@ -839,12 +807,12 @@ void IcsClient::do_write()
 //}
 //
 //// 终端发送心跳到中心
-//void IcsClient::handleHeartbeat(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error)
+//void IcsClient::handleHeartbeat(protocol::ProtocolStream<protocol::IcsMsgHead>& request) throw(std::logic_error)
 //{
 //}
 //
 //// 终端拒绝升级请求
-//void IcsClient::handleDenyUpgrade(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error)
+//void IcsClient::handleDenyUpgrade(protocol::ProtocolStream<protocol::IcsMsgHead>& request) throw(std::logic_error)
 //{
 //	/*
 //
@@ -880,7 +848,7 @@ void IcsClient::do_write()
 //}
 //
 //// 终端接收升级请求
-//void IcsClient::handleAgreeUpgrade(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error)
+//void IcsClient::handleAgreeUpgrade(protocol::ProtocolStream<protocol::IcsMsgHead>& request) throw(std::logic_error)
 //{
 //	/*
 //
@@ -912,7 +880,7 @@ void IcsClient::do_write()
 //}
 //
 //// 索要升级文件片段
-//void IcsClient::handleRequestFile(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error)
+//void IcsClient::handleRequestFile(protocol::ProtocolStream<protocol::IcsMsgHead>& request) throw(std::logic_error)
 //{
 //	/*
 //
@@ -989,7 +957,7 @@ void IcsClient::do_write()
 //}
 //
 //// 升级文件传输结果
-//void IcsClient::handleUpgradeResult(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error)
+//void IcsClient::handleUpgradeResult(protocol::ProtocolStream<protocol::IcsMsgHead>& request) throw(std::logic_error)
 //{
 //	/*
 //
@@ -1023,7 +991,7 @@ void IcsClient::do_write()
 //}
 //
 //// 终端确认取消升级
-//void IcsClient::handleUpgradeCancelAck(protocol::ProtocolStream<protocol::IcsMsgHead>& proto) throw(std::logic_error)
+//void IcsClient::handleUpgradeCancelAck(protocol::ProtocolStream<protocol::IcsMsgHead>& request) throw(std::logic_error)
 //{
 //	/*
 //

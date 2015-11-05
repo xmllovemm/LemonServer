@@ -20,21 +20,33 @@ class ClientManager;
 
 class TcpConnection {
 public:
-	TcpConnection(asio::ip::tcp::socket&& s, ClientManager & cm);
+	TcpConnection(asio::ip::tcp::socket&& s)
+		: m_socket(std::forward<asio::ip::tcp::socket>(s))
+	{}
         
-	virtual ~TcpConnection();
-        
+	virtual ~TcpConnection()
+	{
+
+	}
+    
+	void do_start()
+	{
+		do_read();
+		do_write();
+	}
+
     virtual void do_read() = 0;
         
     virtual void do_write() = 0;
     
 protected:
-	void do_error();
+	void do_error()
+	{
+		m_socket.close();
+	}
         
 protected:
     asio::ip::tcp::socket   m_socket;
-    std::string             m_conn_name;
-    ClientManager&			m_client_manager;
 };
     
 }
