@@ -11,18 +11,18 @@
 
 
 #include "config.hpp"
-#include "clientmanager.hpp"
 
 
 namespace ics {
 
-class ClientManager;
 
 class TcpConnection {
 public:
 	TcpConnection(asio::ip::tcp::socket&& s)
 		: m_socket(std::forward<asio::ip::tcp::socket>(s))
-	{}
+	{
+		
+	}
         
 	virtual ~TcpConnection()
 	{
@@ -35,11 +35,13 @@ public:
 		do_write();
 	}
 
-    virtual void do_read() = 0;
-        
-    virtual void do_write() = 0;
-    
 protected:
+
+	virtual void do_read() = 0;
+
+	virtual void do_write() = 0;
+
+
 	void do_error()
 	{
 		m_socket.close();

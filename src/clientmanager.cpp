@@ -17,8 +17,7 @@ ClientManager::~ClientManager()
 void ClientManager::addClient(asio::ip::tcp::socket s)
 {
 	TcpConnection* tc = new IcsClient(std::move(s), *this);
-    tc->do_read();
-    
+    tc->do_start();
 }
 
 

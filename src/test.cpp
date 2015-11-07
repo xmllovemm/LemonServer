@@ -4,9 +4,10 @@
 #include "database.hpp"
 #include "signalhandler.hpp"
 #include "mempool.hpp"
-#include "icsprotocol.hpp"
 #include "icsclient.hpp"
 #include <iostream>
+#include <string>
+#include <tuple>
 
 
 using namespace std;
@@ -35,6 +36,7 @@ void test_server()
 					cm.addClient(std::move(s));
 				});
 		
+		s.run();
 
 		ics::SignalHandler sh(io_service);
 
@@ -114,52 +116,112 @@ void test_std()
 	th2.join();
 }
 
-class MyNull {
-public:
-	template<class T>
-	operator T*() const
-	{
-		return (T*)0;
-	}
-};
 
 
-class A {
-public:
-	virtual void f()
-	{
-		cout << "call A::f()" << endl;
-	}
-
-	void g()
-	{
-		f();
-	}
-};
-
-class B :public A
+std::string to_json(int v)
 {
-public:
-	virtual void f()
+	char buff[64];
+	std::sprintf(buff, "%d", v);
+	return buff;
+}
+
+std::string to_json(double v)
+{
+	char buff[64];
+	std::sprintf(buff, "%f", v);
+	return buff;
+}
+
+std::string to_json(const std::string& v)
+{
+	return v;
+}
+
+template<class T>
+std::string to_json(const std::vector<T>& v)
+{
+	std::string s("[");
+	bool first = true;
+	for (auto&& e : v)
 	{
-		cout << "call B::f()" << endl;
+		if (!first)
+		{
+			s += ", ";
+		}
+		else
+		{
+			first = false;
+		}
+		s += "]";
+	}
+	return s;
+}
+
+template<class K,class V>
+std::string to_json(const std::map<K, V>& v)
+{
+	std::string s("{");
+	bool first = false;
+	for (auto&& e:v)
+	{
+		if (!first)
+		{
+			s += ", ";
+		}
+		else
+		{
+			first = false;
+		}
+		s += to_json(e.fisrt) + ":" + to_json(e.second);
+	}
+	return s;
+}
+
+template<std::size_t Index, std::size_t N>
+struct tuple_to_json_impl 
+{
+	template<class T>
+	std::string operator()(const T& t) const
+	{
+		std::string s(to_json(std::get<Index>(t)));
+		if (Index < N -1)	// not the last element,then add a separator
+		{
+			s += ", ";
+		}
+		s += tuple_to_json_impl<Index + 1, N>()(t);
+		return s;
 	}
 };
+
+template<std::size_t N>
+struct tuple_to_json_impl<N, N>
+{
+	template<class T>
+	std::string operator()(const T& t) const
+	{
+		return "";
+	}
+};
+
+template<class ...T>
+std::string to_json(const std::tuple<T...>& t)
+{
+	std::string s("[");
+//	s += tuple_to_json_impl<0, std::tuple_size<decltype(t)>()>(t);
+	s += tuple_to_json_impl<0, sizeof...(T)>()(t);
+	s += "]";
+	return s;
+}
 
 int main()
 {
 	cout << "start..." << endl;
 
 //	test_std();
-	
+
 	test_server();
 
-	cout << "stop..." << endl;
-
 	
-
-	int n;
-	cin >> n;
-
+	cout << "stop..." << endl;
 	return 0;
 }

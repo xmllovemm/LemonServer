@@ -1,11 +1,10 @@
 
 
 #include "util.hpp"
-
-
+#include <chrono>
+#include <iomanip>
 
 namespace ics {
-
 
 static const uint32_t Crc32Table[] =
 {
@@ -79,6 +78,8 @@ uint32_t crc32_code(const void* buf, std::size_t size)
 
 	return ret;
 }
+
+
 
 
 }

@@ -36,7 +36,6 @@ void TcpServer::run()
 {
 	LOG_DEBUG("Tcp server starts to accept client");
 	do_accept();
-	m_io_service.run();
 }
 
 void TcpServer::run_on_thread()

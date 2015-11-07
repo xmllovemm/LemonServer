@@ -5,31 +5,32 @@
 
 #include "config.hpp"
 #include "util.hpp"
+#include "otlv4.h"
 #include <cstdint>
 #include <string>
 #include <stdexcept>
 #include <iostream>
 #include <exception>
 #include <array>
+#include <chrono>
+#include <ctime>
 
 using namespace std;
-
-
-#if !defined(ICS_USE_LITTLE_ENDIAN) && !defined(ICS_USE_BIG_ENDIAN)
-#error must define either 'ICS_USE_LITTLE_ENDIAN' or 'ICS_USE_BIG_ENDIAN'
-#endif
-
 
 
 namespace ics{
 
 namespace protocol {
 
+#ifndef BIG_ENDIAN
 #define BIG_ENDIAN		1
+#endif
+#ifndef LITTLE_ENDIAN
 #define LITTLE_ENDIAN	2
+#endif
 
 // system byte order
-#if 2
+#if 0
 #define SYSTEM_BYTE_ORDER BIG_ENDIAN
 #else
 #define SYSTEM_BYTE_ORDER LITTLE_ENDIAN
@@ -89,6 +90,7 @@ typedef std::string	ShortString;
 class LongString : public std::string
 {
 public:
+	LongString() : std::string(){}
 	LongString(const char* str) : std::string(str){}
 	LongString(const std::string& str) : std::string(str){}
 	LongString(std::string&& str) : std::string(std::forward<std::string>(str)){}
@@ -194,11 +196,15 @@ typedef struct
 	uint8_t		day;
 	uint8_t		hour;
 	uint8_t		miniute;
-	struct {
-		uint16_t second : 6;
-		uint16_t milesecond : 10;
+	union {
+		uint16_t sec_data;
+		struct {
+			uint16_t second : 6;
+			uint16_t milesecond : 10;
+		};
 	};
 }IcsDataTime;
+
 
 // 消息头
 template<class CrcCodeType, bool BigEndian = true>
@@ -207,7 +213,7 @@ class IcsMsgHead
 public:
 	static const std::size_t CrcCodeSize = sizeof(CrcCodeType);
 
-	void verify(std::size_t len) throw(std::logic_error)
+	void verify(const void* buf, std::size_t len) const throw(std::logic_error)
 	{
 		if (std::memcmp(name, ICS_HEAD_PROTOCOL_NAME, ICS_HEAD_PROTOCOL_NAME_LEN) != 0)
 		{
@@ -221,15 +227,27 @@ public:
 		{
 			throw std::logic_error("protocol length error");
 		}
-		if (getCrcCode() != crc32_code(m_head, this->size() - ProtocolHead::CrcCodeSize))
+		if (getCrcCode() != crc32_code(buf, len - CrcCodeSize))
 		{
 			throw std::logic_error("protocol crc code error");
 		}
 	}
 
-	void init(uint16_t id, uint16_t no)
+	// request
+	void init(uint16_t id, bool response = true)
 	{
+		std::memset(this, 0, sizeof(IcsMsgHead));
+		this->setMsgID(id);
+		setFlag(0, ICS_HEAD_ATTR_ACK_FLAG, response ? 1 : 0);
+	}
 
+	// response
+	void init(uint16_t id, uint16_t ack_no)
+	{
+		std::memset(this, 0, sizeof(IcsMsgHead));
+		this->setMsgID(id);
+		this->setAckNum(ack_no);
+		setFlag(0, !ICS_HEAD_ATTR_ACK_FLAG, 0);
 	}
 
 	// set 0
@@ -258,9 +276,12 @@ public:
 		this->ack_num = ics_byteorder(num);
 	}
 
-	void setFlag(uint8_t encrypt, bool ack, bool response)
+	void setFlag(int encrypt, int ack, int response)
 	{
-		//	this->id = ics_byteorder(encrypt);
+		this->encrypt = encrypt;
+		this->ack = ack;
+		this->response = response;
+		this->flag_data = ics_byteorder(this->flag_data);
 	}
 
 	void setCrcCode()
@@ -269,50 +290,51 @@ public:
 		*(ics_crccode_t*)((char*)this + getLength() - sizeof(ics_crccode_t)) = ics_byteorder(code);
 	}
 
-	uint16_t getMsgID()
+	uint16_t getMsgID() const
 	{
 		return ics_byteorder(this->id);
 	}
 
-	uint16_t getLength()
+	uint16_t getLength() const
 	{
 		return ics_byteorder(this->length);
 	}
 
-	uint16_t getSendNum()
+	uint16_t getSendNum() const
 	{
 		return ics_byteorder(this->send_num);
 	}
 
-	uint16_t getAckNum()
+	uint16_t getAckNum() const
 	{
 		return ics_byteorder(this->ack_num);
 	}
 
-	uint16_t getFlag()
+	uint16_t getFlag() const
 	{
 		return ics_byteorder(this->id);
 	}
 
-	uint16_t getVersion()
+	uint16_t getVersion() const
 	{
 		return ics_byteorder(this->version);
 	}
 
-	ics_crccode_t getCrcCode()
+	CrcCodeType getCrcCode() const
 	{
-		return ics_byteorder(*(ics_crccode_t*)((char*)this + getLength() - sizeof(ics_crccode_t)));
+		return ics_byteorder(*(CrcCodeType*)(this->name + getLength() - CrcCodeSize));
 	}
 private:
 	char		name[ICS_HEAD_PROTOCOL_NAME_LEN];		// 协议名称
 	uint16_t	version;	// 版本号
 	uint16_t	length;	// 消息长度
 	union {
+		uint16_t flag_data;
 		struct {
 			uint8_t encrypt : 4;	// 加密模式
 			uint8_t reserved1 : 4;	// 保留
 			uint8_t ack : 1;		// 0:请求包,1:应答包
-//			uint8_t response:1;	// 当前包为请求包时,0:当前包不需要应答,1:当前包需要应答
+			uint8_t response:1;		// 当前包为请求包时,0:当前包不需要应答,1:当前包需要应答
 //			uint16_t reserverd2:6;
 		};
 	};
@@ -330,10 +352,10 @@ public:
 	void init()
 	{
 		std::memcpy(&m_name, "DT", 2);
-		m_version = 
+		m_version = 0x0101;
 	}
 
-	void verify(std::size_t len) throw(std::logic_error)
+	void verify(void* buf, std::size_t len) throw(std::logic_error)
 	{
 
 	}
@@ -347,6 +369,10 @@ private:
 };
 #pragma pack()
 
+// get current time
+void getIcsNowTime(IcsDataTime& dt);
+
+otl_stream& operator<<(otl_stream& s, const IcsDataTime& dt);
 
 // 消息处理
 template<class ProtocolHead>
@@ -388,15 +414,19 @@ public:
 	}
 
 	// get total size
-	inline std::size_t size()
+	inline std::size_t size() const
 	{
 		return m_end - (uint8_t*)m_head;
 	}
 
-	// 
+	// get write size
+	inline std::size_t length() const
+	{
+		return m_pos - (uint8_t*)m_head;
+	}
 
 	// there is no more data to get
-	inline bool empty()
+	inline bool empty() const
 	{
 		return m_pos == (uint8_t*)(m_head + 1);
 	}
@@ -410,6 +440,8 @@ public:
 		{
 
 		}
+
+		return true;
 	}
 
 	// -----------------------set data----------------------- 
@@ -461,22 +493,17 @@ public:
 			throw overflow_error("OOM to set IcsDataTime data");
 		}
 
-		IcsDataTime* dt = (IcsDataTime*)m_pos;
-		*dt = data;
-		dt->year = ics_byteorder(data.year);
-
-		m_pos += sizeof(IcsDataTime);
+		*this << data.year << data.month << data.day << data.hour << data.miniute << data.sec_data;
 		return *this;
 	}
 
 	ProtocolStream& operator << (const ShortString& data) throw(std::overflow_error)
 	{
-		*this << (uint8_t)data.length();
-
 		if (data.length() > leftSize())
 		{
 			throw overflow_error("OOM to put string data");
 		}
+		*this << (uint8_t)data.length();
 		memcpy(m_pos, data.data(), data.length());
 		m_pos += data.length();
 		return *this;
@@ -484,13 +511,11 @@ public:
 
 	ProtocolStream& operator << (const LongString& data) throw(std::overflow_error)
 	{
-		uint16_t len = data.length();
-		*this << len;
-
-		if (len > leftSize())
+		if (data.length() + sizeof(uint16_t) > leftSize())
 		{
 			throw underflow_error("OOM to set long string data");
 		}
+		*this << (uint16_t)data.length();
 		memcpy(m_pos, data.data(), data.length());
 		m_pos += data.length();
 		return *this;
@@ -502,7 +527,7 @@ public:
 		{
 			throw overflow_error("OOM to put ProtocolStream data");
 		}
-		memcpy(m_pos, data.m_pos, data.leftSize());
+		std::memcpy(m_pos, data.m_pos, data.leftSize());
 		m_pos += data.leftSize();
 		return *this;
 	}
@@ -510,7 +535,7 @@ public:
 	void verify() const throw(std::logic_error)
 	{
 		// verify head
-		m_head->verify(this->size());
+		m_head->verify(m_head, size());
 	}
 
 	ProtocolStream& operator >> (uint8_t& data) throw(std::underflow_error)
@@ -540,7 +565,23 @@ public:
 		{
 			throw underflow_error("OOM to get uint32_t data");
 		}
-		data = ics_byteorder(*(uint16_t*)m_pos);
+		data = ics_byteorder(*(uint32_t*)m_pos);
+		m_pos += sizeof(data);
+		return *this;
+	}
+
+	ProtocolStream& operator >> (float& data) throw(std::underflow_error)
+	{
+		if (sizeof(data) > leftSize())
+		{
+			throw underflow_error("OOM to get float data");
+		}
+#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
+		data = *(float*)m_pos;
+#else
+		uint32_t tmp = ics_byteorder(*(uint32_t*)m_pos);
+		data = *(float*)&tmp;
+#endif
 		m_pos += sizeof(data);
 		return *this;
 	}
@@ -551,11 +592,7 @@ public:
 		{
 			throw underflow_error("OOM to get IcsDataTime data");
 		}
-		IcsDataTime* dt = (IcsDataTime*)m_pos;
-		data = *dt;
-		data.year = ics_byteorder(dt->year);
-
-		m_pos += sizeof(IcsDataTime);
+		*this >> data.year >> data.month >> data.day >> data.hour >> data.miniute >> data.sec_data;
 		return *this;
 	}
 
@@ -592,13 +629,13 @@ public:
 		if (leftSize() != 0)
 		{
 			char buff[64];
-			std::sprintf(buff, "superfluous data:%u bytes", leftSize());
+			std::sprintf(buff, "superfluous data:%d bytes", leftSize());
 			throw std::logic_error(buff);
 		}
 	}
 
 private:
-	inline std::size_t leftSize()
+	inline std::size_t leftSize() const
 	{
 		return m_end - m_pos - ProtocolHead::CrcCodeSize;
 	}
@@ -614,7 +651,6 @@ protected:
 	uint8_t*		m_end;
 
 };
-
 
 
 
