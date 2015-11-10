@@ -20,6 +20,10 @@ otl_stream& operator<<(otl_stream& s, const IcsDataTime& dt)
 	return s << od;
 }
 
+otl_stream& operator<<(otl_stream& s, const LongString& str)
+{
+	return s << str.c_str();
+}
 
 void getIcsNowTime(IcsDataTime& dt)
 {
@@ -33,5 +37,7 @@ void getIcsNowTime(IcsDataTime& dt)
 	dt.second = tm->tm_sec;
 	dt.milesecond = 0;
 }
+
+
 }
 }

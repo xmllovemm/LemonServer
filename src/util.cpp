@@ -1,10 +1,87 @@
 
 
 #include "util.hpp"
+#include "log.hpp"
 #include <chrono>
 #include <iomanip>
+#include <string.h>
+
+#ifdef WIN32
+#include <windows.h>
+#else
+#include <iconv.h>
+#include <errno.h>
+#endif
 
 namespace ics {
+
+bool character_convert(const char* from_code, const std::string& src, std::size_t len, const char* to_code, std::string& dest)
+{
+	bool ret = false;
+#ifdef WIN32
+	/*
+	struct {
+		const char* codeName;
+		int codePage;
+	}codePage[] = { 
+		{ "utf-8", CP_UTF8 }
+		, { "gb2312", CP_ACP } 
+		, { nullptr, 0 } };
+
+	bool find = false;
+	for (size_t i = 0; i < sizeof(codePage) / sizeof(codePage[0]); i++)
+	{
+		if (std::strcmp(from_code,codePage[i].codeName) != 0)
+		{
+
+		}
+	}
+	*/
+
+	// gbk --> utf-8
+	WCHAR buff[126];
+	char strBuf[126];
+	if (::MultiByteToWideChar(CP_ACP, 0, src.c_str(), -1, buff, sizeof(buff) / sizeof(buff[0]))> 0 && ::WideCharToMultiByte(CP_UTF8, 0, buff, -1, strBuf, sizeof(strBuf), 0, 0)>0)
+	{
+		ret = true;
+	}
+	else
+	{
+		LOG_WARN("MultiByteToWideChar/WideCharToMultiByte failed");
+	}
+	dest = strBuf;
+#else
+	iconv_t fd = iconv_open(to_code, from_code);
+	if (fd == (iconv_t)-1)
+	{
+		LOG_WARN("iconv_open error as: " << strerror(errno));
+		return ret;
+	}
+	std::size_t inLen = src.length();
+	std::size_t outLen = 255;
+
+
+	char* inBuff = const_cast<char*>(src.c_str());
+	char** pin = &inBuff;
+
+	char outBuff[256];
+	memset(outBuff, 0, sizeof(outBuff));
+	char* pppout = outBuff;
+	char** pout = &pppout;
+
+	if (iconv(fd, pin, &inLen, pout, &outLen) != -1)
+	{
+		ret = true;
+		dest = outBuff;
+	}
+	else
+	{
+		LOG_WARN("iconv error as: " << strerror(errno));
+	}
+	iconv_close(fd);
+#endif
+	return ret;
+}
 
 static const uint32_t Crc32Table[] =
 {

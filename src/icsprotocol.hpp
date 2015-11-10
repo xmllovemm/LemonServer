@@ -157,13 +157,17 @@ enum IcsMessageId {
 
 	// 业务上报功能
 	terminal_bus_report = 0x0901,				// 业务上报
-
+	terminal_gps_report = 0x0902,				// gps上报
+	
 	// 时钟同步功能
 	terminal_datetime_sync_request = 0x0a01,	// 终端发送时钟同步请求
 	terminal_datetime_sync_response = 0x0a02,	// 中心应答始终同步
 
 	// 终端发送心跳
 	terminal_heartbeat = 0x0b01,				// 终端发送心跳到中心
+
+	// 终端上报日志
+	terminal_log_report = 0x0c01,
 
 	terminal_MAX,
 };
@@ -237,6 +241,8 @@ public:
 	void init(uint16_t id, bool response = true)
 	{
 		std::memset(this, 0, sizeof(IcsMsgHead));
+		std::memcpy(this->name, ICS_HEAD_PROTOCOL_NAME, sizeof(this->name));
+		this->version = ics_byteorder((uint16_t)ICS_HEAD_PROTOCOL_VERSION);
 		this->setMsgID(id);
 		setFlag(0, ICS_HEAD_ATTR_ACK_FLAG, response ? 1 : 0);
 	}
@@ -244,9 +250,7 @@ public:
 	// response
 	void init(uint16_t id, uint16_t ack_no)
 	{
-		std::memset(this, 0, sizeof(IcsMsgHead));
-		this->setMsgID(id);
-		this->setAckNum(ack_no);
+		this->init(id, false);
 		setFlag(0, !ICS_HEAD_ATTR_ACK_FLAG, 0);
 	}
 
@@ -298,6 +302,18 @@ public:
 	uint16_t getLength() const
 	{
 		return ics_byteorder(this->length);
+	}
+
+	bool isResponse() const
+	{
+		uint16_t flag = ics_byteorder(this->flag_data);
+		return (flag >> 8 & 0x1) == 1;
+	}
+
+	bool needResposne() const
+	{
+		uint16_t flag = ics_byteorder(this->flag_data);
+		return (flag >> 8 & 0x03) == 0x02;
 	}
 
 	uint16_t getSendNum() const
@@ -373,6 +389,8 @@ private:
 void getIcsNowTime(IcsDataTime& dt);
 
 otl_stream& operator<<(otl_stream& s, const IcsDataTime& dt);
+
+otl_stream& operator<<(otl_stream& s, const LongString& dt);
 
 // 消息处理
 template<class ProtocolHead>

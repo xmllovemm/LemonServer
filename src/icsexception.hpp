@@ -5,14 +5,22 @@
 
 #include <exception>
 #include <string>
+#include <cstdio>
+#include <stdarg.h>
+
 
 namespace ics {
 
-class IcsException : public std::exception {
+class IcsException{
 public:
-	IcsException(const char* msg) : std::exception(msg)
+	IcsException(const char* format, ...)
 	{
+		va_list args;
+		va_start(args, format);
 
+//		va_arg(args, int);
+
+		va_end(args);
 	}
 
 	IcsException& operator << (const char* msg)
@@ -24,6 +32,9 @@ public:
 	{
 		return *this;
 	}
+
+private:
+	char message[512];
 };
 
 }

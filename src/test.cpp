@@ -213,6 +213,18 @@ std::string to_json(const std::tuple<T...>& t)
 	return s;
 }
 
+void test_print(const char* format, ...)
+{
+//	va_list args;
+//	va_start(args, format);
+
+//	char* s = va_arg(args, char*);
+
+	std::printf(format);
+
+//	va_end(args);
+}
+
 int main()
 {
 	cout << "start..." << endl;
@@ -220,7 +232,6 @@ int main()
 //	test_std();
 
 	test_server();
-
 	
 	cout << "stop..." << endl;
 	return 0;

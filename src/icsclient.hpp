@@ -17,75 +17,113 @@ using namespace std;
 
 namespace ics{
 
-//----------------------------------------------------------------------------------//
 
-class AuthrizeInfo
-{
-public:
-	friend class IcsSimulateClient;
+typedef protocol::IcsMsgHead<uint32_t, false> ProtocolHead;
+typedef protocol::ProtocolStream<ProtocolHead> ProtocolStream;
 
-	AuthrizeInfo() = delete;
+class ClientHandler;
+class TerminalClient;
 
-	AuthrizeInfo(const AuthrizeInfo& rhs);
-
-	AuthrizeInfo(AuthrizeInfo&& rhs);
-
-	AuthrizeInfo(const string& gw_id, const string& gw_pwd, uint16_t device_kind, const string& ext_info);
-
-	AuthrizeInfo(string&& gw_id, string&& gw_pwd, uint16_t device_kind, string&& ext_info);
-
-	/*
-	AuthrizeInfo(const char* gw_id, const char* gw_pwd, uint16_t device_kind, const char* ext_info);
-	*/
-
-	AuthrizeInfo& operator=(const AuthrizeInfo& rhs);
-
-	AuthrizeInfo& operator=(AuthrizeInfo&& rhs);
-
-	friend ostream& operator<<(ostream& os, const AuthrizeInfo& rhs);	// not a member function
-
-public:
-	string m_gw_id;
-	string m_gw_pwd;
-	uint16_t m_device_kind;
-	string m_ext_info;
-};
-
-//----------------------------------------------------------------------------------//
-
-class IcsClient : public TcpConnection {
+//---------------------------------IcsConnection-------------------------------------------------//
+class IcsConnection : public TcpConnection {
 public:
 
-	IcsClient(asio::ip::tcp::socket&& s, ClientManager& cm);
+	IcsConnection(asio::ip::tcp::socket&& s, ClientManager& cm);
 
-    virtual ~IcsClient();
+    virtual ~IcsConnection();
     
-	IcsClient(IcsClient&& rhs) = delete;
+	IcsConnection(IcsConnection&& rhs) = delete;
 
-	IcsClient(const IcsClient& rhs) = delete;
+	IcsConnection(const IcsConnection& rhs) = delete;
 
+	virtual void start();
 protected:
     virtual void do_read();
     
     virtual void do_write();
     
 private:
-	typedef protocol::IcsMsgHead<uint32_t,false> ProtocolHead;
 
-	typedef protocol::ProtocolStream<ProtocolHead> ProtocolStream;
-
-	void toHexInfo(uint8_t* buf, std::size_t length);
+	void toHexInfo(const char* info, uint8_t* buf, std::size_t length);
 
 	void trySend(MemoryChunk& mc);
 
 	void trySend();
 
+	void replyResponse(uint16_t ackNum);
+
 	bool handleData(uint8_t* buf, std::size_t length);
+	
+private:
+	ClientHandler*			m_clientHandler;
+	std::string				m_connectionID;
+	std::string             m_conn_name;
+	uint16_t				m_deviceKind;
+	ClientManager&			m_client_manager;
 
-	void handleMessage(ProtocolStream& request, ProtocolStream& response);
+	// recv area
+	std::array<uint8_t, 512> m_recvBuff;
+	uint16_t		m_send_num;
+	uint8_t			m_recv_buf[512];
 
+	// send area
+	std::list<MemoryChunk> m_sendList;
+	std::mutex		m_sendLock;
+	bool			m_isSending;
+
+	// business area
+	uint32_t		m_lastBusSerialNum;
+};
+
+//---------------------------------TerminalClient-------------------------------------------------//
+
+class ClientHandler {
+public:
+	ClientHandler(IcsConnection& client)
+	{
+
+	}
+
+	virtual ~ClientHandler()
+	{
+
+	}
+
+	// 处理对端数据
+	virtual void handle(ProtocolStream& request, ProtocolStream& response) throw(std::runtime_error) = 0;
+
+	// 转发消息到对端
+	virtual void dispatch(ProtocolStream& request, ProtocolStream& response) throw(std::runtime_error) = 0;
+
+	// 获取客户端ID
+	virtual std::string& name() = 0;
+};
+
+// 终端连接处理类
+class TerminalClient : public ClientHandler {
+public:
+	TerminalClient(IcsConnection& client);
+
+	
+	virtual void handle(ProtocolStream& request, ProtocolStream& response) throw(std::runtime_error);
+
+	
+	virtual void dispatch(ProtocolStream& request, ProtocolStream& response) throw(std::runtime_error);
+
+	virtual std::string& name();
+private:
+	// handle data from remote terminal report
+	void handleFromTerminal(ProtocolStream& request, ProtocolStream& response);
+
+	// handle data from remote web command
+	void handleFromWeb(ProtocolStream& request, ProtocolStream& response);
+
+	// handle data from another sub-server
+	void handleFromAnother(ProtocolStream& request, ProtocolStream& response);
+
+private:
 	// 终端认证
-	void handleAuthRequest(ProtocolStream& request, ProtocolStream& response) throw(std::logic_error);   
+	void handleAuthRequest(ProtocolStream& request, ProtocolStream& response) throw(std::logic_error);
 
 	// 标准状态上报
 	void handleStdStatusReport(ProtocolStream& request, ProtocolStream& response) throw(std::logic_error);
@@ -107,6 +145,9 @@ private:
 
 	// 业务上报
 	void handleBusinessReport(ProtocolStream& request, ProtocolStream& response) throw(std::logic_error);
+
+	// GPS上报
+	void handleGpsReport(ProtocolStream& request, ProtocolStream& response) throw(std::logic_error);
 
 	// 终端发送时钟同步请求
 	void handleDatetimeSync(ProtocolStream& request, ProtocolStream& response) throw(std::logic_error);
@@ -131,9 +172,11 @@ private:
 
 	// 终端确认取消升级
 	void handleUpgradeCancelAck(ProtocolStream& request, ProtocolStream& response) throw(std::logic_error);
-	
+
+
 private:
 	std::string             m_conn_name;
+	uint16_t				m_deviceKind;
 	ClientManager&			m_client_manager;
 
 	// recv area
@@ -150,50 +193,15 @@ private:
 	uint32_t		m_lastBusSerialNum;
 };
 
-//----------------------------------------------------------------------------------//
-
-#include "log.hpp"
-class SubCommServerClient : public TcpConnection {
+//---------------------------------WebClient-------------------------------------------------//
+// Web连接处理类
+class WebClient : public ClientHandler {
 public:
-	SubCommServerClient(asio::io_service& io)
-		: TcpConnection(asio::ip::tcp::socket(io))
-	{
+	WebClient();
 
-	}
+	// 取出监测点名,找到对应对象转发该消息/文件传输处理
+	void handle(ProtocolStream& request, ProtocolStream& response) throw(std::runtime_error);
 
-	void connectTo(const string& ip, int port)
-	{
-		m_socket.async_connect(asio::ip::tcp::endpoint(asio::ip::address::from_string(ip), port), [this](const asio::error_code& ec)
-			{
-				if (ec)
-				{
-					LOG_DEBUG("connect to server failed");
-				}
-				else
-				{
-					reportHearBeat();
-				}
-			});
-		
-	}
-
-	virtual void do_read()
-	{
-
-	}
-
-	virtual void do_write()
-	{
-
-	}
-
-private:
-	void reportHearBeat()
-	{
-		char buff[126];
-		protocol::ProtocolStream<protocol::IcsMsgHead<uint16_t>> pp(buff, sizeof(buff));
-
-	}
 };
 
 }	// end namespace ics

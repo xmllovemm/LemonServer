@@ -33,6 +33,8 @@ public:
 	{
 		m_signalSet.async_wait([this](asio::error_code ec, int signo)
 			{
+//			std::function<void (int)> waitHandler
+//			waitHandler(signo);
 			switch (signo)
 			{
 			case SIGINT:

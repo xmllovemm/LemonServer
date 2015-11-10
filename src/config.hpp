@@ -63,4 +63,7 @@ timestamp ----> SQL-server:DATETIME,Oracle:DATE,Oracle 9i:TIMESTAMP   YYYY-MM-DD
 #define OTL_ODBC_UNIX
 #endif
 
+// Communicate Server/Sub Server
+#define ICS_CENTER_MODE
+
 #endif	// end _ICS_CONFIG_H
