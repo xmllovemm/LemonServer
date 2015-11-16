@@ -58,24 +58,36 @@ bool MemoryChunk::valid()
 
 
 MemoryPool::MemoryPool(std::size_t totalSize, std::size_t countOfChunk, bool zeroData)
-	: m_buff(new char[totalSize]), m_count(countOfChunk)
 {
-	if (zeroData)
-	{
-		std::memset(m_buff, 0, totalSize);
-	}
-	std::size_t chunkSize = totalSize / countOfChunk;
-	for (size_t i = 0; i < countOfChunk; i++)
-	{
-		MemoryChunk mc(m_buff + i*chunkSize, chunkSize);
-		m_chunkList.push_back(mc);
-//		m_chunkList.push_back(MemoryChunk{ (char*)m_buff + i*chunkSize, chunkSize });
-	}
+	init(totalSize, countOfChunk, zeroData);
+}
+
+MemoryPool::MemoryPool()
+{
+
 }
 
 MemoryPool::~MemoryPool()
 {
 	delete[] m_buff;
+}
+
+void MemoryPool::init(std::size_t totalSize, std::size_t countOfChunk, bool zeroData)
+{
+	m_buff = new char[totalSize];
+	m_count = countOfChunk;
+
+	if (zeroData)
+	{
+		std::memset(m_buff, 0, totalSize);
+	}
+
+	std::size_t chunkSize = totalSize / countOfChunk;
+	for (size_t i = 0; i < countOfChunk; i++)
+	{
+		MemoryChunk mc(m_buff + i*chunkSize, chunkSize);
+		m_chunkList.push_back(mc);
+	}
 }
 
 MemoryChunk MemoryPool::get()
@@ -89,10 +101,15 @@ MemoryChunk MemoryPool::get()
 	return chunk;
 }
 
-void MemoryPool::put(MemoryChunk& chunk)
+void MemoryPool::put(MemoryChunk&& chunk)
 {
 	std::lock_guard<std::mutex> lock(m_chunkLock);
 	m_chunkList.push_back(chunk);
+}
+
+void MemoryPool::put(MemoryChunk& chunk)
+{
+	put(std::move(chunk));
 }
 
 }

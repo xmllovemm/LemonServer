@@ -6,6 +6,8 @@
 #include "config.hpp"
 #include "util.hpp"
 #include "otlv4.h"
+#include "icsexception.hpp"
+#include "mempool.hpp"
 #include <cstdint>
 #include <string>
 #include <stdexcept>
@@ -121,65 +123,98 @@ public:
 };
 
 
-// 与终端交互消息ID枚举
-enum IcsMessageId {
-	terminal_auth_request = 0x0101,			// 端认证请求
-	terminal_auth_response = 0x0102,			// 服务端认证应答
+// ICS消息ID枚举
+// T--terminal, C--center, W--web, P--pushsystem
+enum MessageId {
+	MessageId_min = 0,
 
-	// 升级功能
-	terminal_upgrade_request = 0x0201,		// 服务端发起升级请求
-	terminal_upgrade_deny = 0x0202,			// 终端拒绝升级请求
-	terminal_upgrade_agree = 0x0203,			// 终端接收升级请求
-	terminal_upgrade_file_request = 0x0204,	// 终端向中心索要升级文件片段
-	terminal_upgrade_not_found = 0x0205,		// 中心通知终端当前无升级事务
-	terminal_upgrade_file_response = 0x0206,	// 中心传输升级文件片段
-	terminal_upgrade_result_report = 0x0207,	// 终端报告升级文件传输结果
-	terminal_upgrade_cancel = 0x0208,			// web取消升级事务
-	terminal_upgrade_cancel_ack = 0x0209,		// 终端确认取消升级事务
+	// ------ T and C ------ //
+	T2C_min = 0100,
+	// 认证请求
+	T2C_auth_request = 0x0101,			
+	// 认证应答
+	C2T_auth_response = 0x0102,			
 
-	// 状态上传
-	terminal_std_status_report = 0x0301,			// 标准状态上报
-	terminal_def_status_report = 0x0401,			// 自定义状态上报
+	// 发起升级请求
+	T2C_upgrade_request = 0x0201,
+	// 拒绝升级
+	T2C_upgrade_deny = 0x0202,			
+	// 同意升级
+	T2C_upgrade_agree = 0x0203,		
+	// 索要升级文件片段
+	T2C_upgrade_file_request = 0x0204,	
+	// 当前无升级事务
+	T2C_upgrade_not_found = 0x0205,		
+	// 升级文件片段
+	T2C_upgrade_file_response = 0x0206,
+	// 升级文件传输结果
+	T2C_upgrade_result_report = 0x0207,
+	// 取消升级事务
+	T2C_upgrade_cancel = 0x0208,			
+	// 确认取消升级事务
+	T2C_upgrade_cancel_ack = 0x0209,		
+	
+	// 标准状态上报
+	T2C_std_status_report = 0x0301,
+	// 自定义状态上报
+	T2C_def_status_report = 0x0401,			
+	
+	// 事件上报
+	T2C_event_report = 0x0501,			
 
-	// 事件上报功能
-	terminal_event_report = 0x0501,			// 事件上报
-
-	// 参数查询
-	terminal_param_query_request = 0x0601,			// 中心查询参数
-	terminal_param_query_response = 0x0602,			// 终端回应参数查询
+	// 中心查询参数
+	T2C_param_query_request = 0x0601,			
+	// 终端回应参数查询
+	T2C_param_query_response = 0x0602,			
 
 	// 终端主动上报参数修改
-	terminal_param_alter_report = 0x0701,		// 终端主动上报参数修改
+	T2C_param_alter_report = 0x0701,		
 
-	// 中心修改参数
-	terminal_param_modiy_reuest = 0x0801,		// 中心发起修改请求
-	terminal_param_modiy_response = 0x0802,	// 终端回应参数修改
+	// 中心发起修改请求
+	T2C_param_modiy_reuest = 0x0801,		
+	// 终端回应参数修改
+	T2C_param_modiy_response = 0x0802,	
 
-	// 业务上报功能
-	terminal_bus_report = 0x0901,				// 业务上报
-	terminal_gps_report = 0x0902,				// gps上报
-	
-	// 时钟同步功能
-	terminal_datetime_sync_request = 0x0a01,	// 终端发送时钟同步请求
-	terminal_datetime_sync_response = 0x0a02,	// 中心应答始终同步
+	// 业务上报
+	T2C_bus_report = 0x0901,				
+	// gps上报
+	T2C_gps_report = 0x0902,				
+
+	// 终端发送时钟同步请求
+	T2C_datetime_sync_request = 0x0a01,	
+	// 中心应答始终同步
+	T2C_datetime_sync_response = 0x0a02,	
 
 	// 终端发送心跳
-	terminal_heartbeat = 0x0b01,				// 终端发送心跳到中心
+	T2C_heartbeat = 0x0b01,				
 
 	// 终端上报日志
-	terminal_log_report = 0x0c01,
+	T2C_log_report = 0x0c01,
 
-	terminal_MAX,
-};
+	T2C_max = 0xfff,
 
-// 与web服务器消息ID枚举
-enum WebMessageId{
-	web_send_terminal = 0x2001,
-};
 
-// 与推送服务器消息ID枚举
-enum PushMessageId{
-	pushsystem_request = 0x3001,
+	// ------ T and C ------ //
+	W2C_min = 0x2000,
+	// 发给终端
+	W2C_send_to_terminal = 0x2001,
+	// 连接远端服务器请求
+	W2C_connect_remote_request = 0x2002,
+	// 连接远端服务器结果
+	C2W_connect_remote_result = 0x2003,
+	// 断开某个远端服务器连接
+	W2C_disconnect_remote = 0x2004,
+	W2C_max = 0x2ffff,
+
+	// ------ T and C ------ //
+	// 推送消息
+	C2P_push_message = 0x3001,
+
+	// ------ T and T ------ //
+	// 子服务器转发的终端消息
+	T2T_forward_msg = 0x4001,
+
+	MessageId_max,
 };
 
 // 加密方式
@@ -217,28 +252,28 @@ class IcsMsgHead
 public:
 	static const std::size_t CrcCodeSize = sizeof(CrcCodeType);
 
-	void verify(const void* buf, std::size_t len) const throw(std::logic_error)
+	void verify(const void* buf, std::size_t len) const throw(IcsException)
 	{
 		if (std::memcmp(name, ICS_HEAD_PROTOCOL_NAME, ICS_HEAD_PROTOCOL_NAME_LEN) != 0)
 		{
-			throw std::logic_error("protocol name error");
+			throw IcsException("protocol name error: %c%c%c%c", name[0], name[1], name[2], name[3]);
 		}
 		if (getVersion() != ICS_HEAD_PROTOCOL_VERSION)
 		{
-			throw std::logic_error("protocol version error");
+			throw IcsException("protocol version error: %x", getVersion());
 		}
 		if (getLength() != len)
 		{
-			throw std::logic_error("protocol length error");
+			throw IcsException("protocol length error: %d", getLength());
 		}
 		if (getCrcCode() != crc32_code(buf, len - CrcCodeSize))
 		{
-			throw std::logic_error("protocol crc code error");
+			throw IcsException("protocol crc code error: %x", getCrcCode());
 		}
 	}
 
 	// request
-	void init(uint16_t id, bool response = true)
+	void init(MessageId id, bool response = true)
 	{
 		std::memset(this, 0, sizeof(IcsMsgHead));
 		std::memcpy(this->name, ICS_HEAD_PROTOCOL_NAME, sizeof(this->name));
@@ -248,7 +283,7 @@ public:
 	}
 
 	// response
-	void init(uint16_t id, uint16_t ack_no)
+	void init(MessageId id, uint16_t ack_no)
 	{
 		this->init(id, false);
 		setFlag(0, !ICS_HEAD_ATTR_ACK_FLAG, 0);
@@ -294,9 +329,9 @@ public:
 		*(ics_crccode_t*)((char*)this + getLength() - sizeof(ics_crccode_t)) = ics_byteorder(code);
 	}
 
-	uint16_t getMsgID() const
+	MessageId getMsgID() const
 	{
-		return ics_byteorder(this->id);
+		return (MessageId)ics_byteorder(this->id);
 	}
 
 	uint16_t getLength() const
@@ -341,7 +376,7 @@ public:
 		return ics_byteorder(*(CrcCodeType*)(this->name + getLength() - CrcCodeSize));
 	}
 private:
-	char		name[ICS_HEAD_PROTOCOL_NAME_LEN];		// 协议名称
+	uint8_t		name[ICS_HEAD_PROTOCOL_NAME_LEN];		// 协议名称
 	uint16_t	version;	// 版本号
 	uint16_t	length;	// 消息长度
 	union {
@@ -371,7 +406,7 @@ public:
 		m_version = 0x0101;
 	}
 
-	void verify(void* buf, std::size_t len) throw(std::logic_error)
+	void verify(void* buf, std::size_t len) throw(IcsException)
 	{
 
 	}
@@ -397,14 +432,31 @@ template<class ProtocolHead>
 class ProtocolStream
 {
 public:
-	ProtocolStream(void* buf, std::size_t length)
+	ProtocolStream(void* buf, std::size_t length) :m_memoryPool(nullptr), m_needRelease(true)
 	{
 		reset(buf, length);
 	}
 
+	ProtocolStream(MemoryPool& mp) :m_memoryPool(&mp)
+	{
+		MemoryChunk mc = m_memoryPool->get();
+		reset(mc.getBuff(), mc.getTotalSize());
+	}
+
 	virtual ~ProtocolStream()
 	{
+		if (m_memoryPool != nullptr && m_needRelease)
+		{
+			m_memoryPool->put(toMemoryChunk());
+		}
+	}
 
+	MemoryChunk toMemoryChunk()
+	{
+		MemoryChunk mc(m_head, size());
+		mc.setUsedSize(length());
+		m_needRelease = false;
+		return mc;
 	}
 
 	// set current to the start
@@ -418,7 +470,7 @@ public:
 	{
 		if (buf == nullptr || length == 0)
 		{
-			throw std::logic_error("empty buff cann't init ProtocolStream");
+			throw IcsException("empty buff cann't init ProtocolStream");
 		}
 		m_head = (ProtocolHead*)buf;
 		m_pos = (uint8_t*)(m_head + 1);
@@ -437,7 +489,7 @@ public:
 		return m_end - (uint8_t*)m_head;
 	}
 
-	// get write size
+	// get wrote size
 	inline std::size_t length() const
 	{
 		return m_pos - (uint8_t*)m_head;
@@ -469,22 +521,22 @@ public:
 		*this << crc32_code(m_head, m_pos - (uint8_t*)m_head);
 	}
 
-	ProtocolStream& operator << (uint8_t data) throw(std::overflow_error)
+	ProtocolStream& operator << (uint8_t data) throw(IcsException)
 	{
 		if (sizeof(data) > leftSize())
 		{
-			throw overflow_error("OOM to set uint8_t data");
+			throw IcsException("OOM to set uint8_t data");
 		}
 
 		*m_pos++ = data;
 		return *this;
 	}
 
-	ProtocolStream& operator << (uint16_t data) throw(std::overflow_error)
+	ProtocolStream& operator << (uint16_t data) throw(IcsException)
 	{
 		if (sizeof(data) > leftSize())
 		{
-			throw overflow_error("OOM to set uint16_t data");
+			throw IcsException("OOM to set uint16_t data");
 		}
 
 		*(uint16_t*)m_pos = ics_byteorder(data);
@@ -492,11 +544,11 @@ public:
 		return *this;
 	}
 
-	ProtocolStream& operator << (uint32_t data) throw(std::overflow_error)
+	ProtocolStream& operator << (uint32_t data) throw(IcsException)
 	{
 		if (sizeof(data) > leftSize())
 		{
-			throw overflow_error("OOM to set uint16_t data");
+			throw IcsException("OOM to set uint16_t data");
 		}
 
 		*(uint32_t*)m_pos = ics_byteorder(data);
@@ -504,95 +556,122 @@ public:
 		return *this;
 	}
 
-	ProtocolStream& operator << (const IcsDataTime& data) throw(std::overflow_error)
+	ProtocolStream& operator << (float data) throw(IcsException)
 	{
 		if (sizeof(data) > leftSize())
 		{
-			throw overflow_error("OOM to set IcsDataTime data");
+			throw IcsException("OOM to set float data");
+		}
+#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
+		*(float*)m_pos = data;
+#else
+		uint32_t tmp = ics_byteorder(*(uint32_t*)data);
+		*(uint32_t*)m_pos = tmp;
+#endif
+		m_pos += sizeof(data);
+		return *this;
+	}
+
+	ProtocolStream& operator << (const IcsDataTime& data) throw(IcsException)
+	{
+		if (sizeof(data) > leftSize())
+		{
+			throw IcsException("OOM to set IcsDataTime data");
 		}
 
 		*this << data.year << data.month << data.day << data.hour << data.miniute << data.sec_data;
 		return *this;
 	}
 
-	ProtocolStream& operator << (const ShortString& data) throw(std::overflow_error)
+	template<class LengthType = uint8_t>
+	ProtocolStream& operator << (const char* data) throw(IcsException)
 	{
-		if (data.length() > leftSize())
+		std::size_t len  = std::strlen(data);
+
+		if (len + sizeof(LengthType) > leftSize())
 		{
-			throw overflow_error("OOM to put string data");
+			throw IcsException("OOM to set %d bytes string data",len);
 		}
-		*this << (uint8_t)data.length();
-		memcpy(m_pos, data.data(), data.length());
-		m_pos += data.length();
+		*this << (LengthType)len;
+		memcpy(m_pos, data, len);
+		m_pos += len;
+
 		return *this;
 	}
 
-	ProtocolStream& operator << (const LongString& data) throw(std::overflow_error)
+	ProtocolStream& operator << (const ShortString& data) throw(IcsException)
 	{
-		if (data.length() + sizeof(uint16_t) > leftSize())
-		{
-			throw underflow_error("OOM to set long string data");
-		}
-		*this << (uint16_t)data.length();
-		memcpy(m_pos, data.data(), data.length());
-		m_pos += data.length();
-		return *this;
+		return this->operator<<<uint8_t>(data.c_str());
 	}
 
-	ProtocolStream& operator << (const ProtocolStream& data) throw(std::overflow_error)
+	ProtocolStream& operator << (const LongString& data) throw(IcsException)
+	{
+		return this->operator<<<uint16_t>(data.c_str());
+	}
+
+	ProtocolStream& operator << (const ProtocolStream& data) throw(IcsException)
 	{
 		if (data.leftSize() > leftSize())
 		{
-			throw overflow_error("OOM to put ProtocolStream data");
+			throw IcsException("OOM to set %d bytes ProtocolStream data",data.leftSize());
 		}
 		std::memcpy(m_pos, data.m_pos, data.leftSize());
 		m_pos += data.leftSize();
 		return *this;
 	}
 
-	void verify() const throw(std::logic_error)
+	void moveBack(std::size_t offset) throw(IcsException)
+	{
+		if (m_pos - offset < (uint8_t*)(m_head+1))
+		{
+			throw IcsException("cann't move back %s bytes", offset);
+		}
+		m_pos -= offset;
+	}
+
+	void verify() const throw(IcsException)
 	{
 		// verify head
 		m_head->verify(m_head, size());
 	}
 
-	ProtocolStream& operator >> (uint8_t& data) throw(std::underflow_error)
+	ProtocolStream& operator >> (uint8_t& data) throw(IcsException)
 	{
 		if (sizeof(data) > leftSize())
 		{
-			throw underflow_error("OOM to get uint8_t data");
+			throw IcsException("OOM to get uint8_t data");
 		}
 		data = *m_pos++;
 		return *this;
 	}
 
-	ProtocolStream& operator >> (uint16_t& data) throw(std::underflow_error)
+	ProtocolStream& operator >> (uint16_t& data) throw(IcsException)
 	{
 		if (sizeof(data) > leftSize())
 		{
-			throw underflow_error("OOM to get uint16_t data");
+			throw IcsException("OOM to get uint16_t data");
 		}
 		data = ics_byteorder(*(uint16_t*)m_pos);
 		m_pos += sizeof(data);
 		return *this;
 	}
 
-	ProtocolStream& operator >> (uint32_t& data) throw(std::underflow_error)
+	ProtocolStream& operator >> (uint32_t& data) throw(IcsException)
 	{
 		if (sizeof(data) > leftSize())
 		{
-			throw underflow_error("OOM to get uint32_t data");
+			throw IcsException("OOM to get uint32_t data");
 		}
 		data = ics_byteorder(*(uint32_t*)m_pos);
 		m_pos += sizeof(data);
 		return *this;
 	}
 
-	ProtocolStream& operator >> (float& data) throw(std::underflow_error)
+	ProtocolStream& operator >> (float& data) throw(IcsException)
 	{
 		if (sizeof(data) > leftSize())
 		{
-			throw underflow_error("OOM to get float data");
+			throw IcsException("OOM to get float data");
 		}
 #if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
 		data = *(float*)m_pos;
@@ -604,37 +683,37 @@ public:
 		return *this;
 	}
 
-	ProtocolStream& operator >> (IcsDataTime& data) throw(std::underflow_error)
+	ProtocolStream& operator >> (IcsDataTime& data) throw(IcsException)
 	{
 		if (sizeof(data) > leftSize())
 		{
-			throw underflow_error("OOM to get IcsDataTime data");
+			throw IcsException("OOM to get IcsDataTime data");
 		}
 		*this >> data.year >> data.month >> data.day >> data.hour >> data.miniute >> data.sec_data;
 		return *this;
 	}
 
-	ProtocolStream& operator >> (ShortString& data) throw(std::underflow_error)
+	ProtocolStream& operator >> (ShortString& data) throw(IcsException)
 	{
 		uint8_t len = 0;
 		*this >> len;
 
 		if (len > leftSize())
 		{
-			throw underflow_error("OOM to get string data");
+			throw IcsException("OOM to get %d bytes short string data", len);
 		}
 		data.assign((char*)m_pos, len);
 		m_pos += len;
 		return *this;
 	}
 
-	ProtocolStream& operator >> (LongString& data) throw(std::underflow_error)
+	ProtocolStream& operator >> (LongString& data) throw(IcsException)
 	{
 		uint16_t len;
 		*this >> len;
 		if (len > leftSize())
 		{
-			throw underflow_error("OOM to get long string data");
+			throw IcsException("OOM to get %d bytes long string data", len);
 		}
 
 		data.assign((char*)m_pos, len);
@@ -642,13 +721,12 @@ public:
 		return *this;
 	}
 
-	void assertEmpty() const throw(std::logic_error)
+	void assertEmpty() const throw(IcsException)
 	{
 		if (leftSize() != 0)
 		{
-			char buff[64];
-			std::sprintf(buff, "superfluous data:%d bytes", leftSize());
-			throw std::logic_error(buff);
+			throw IcsException("superfluous data:%d bytes", leftSize());
+
 		}
 	}
 
@@ -668,6 +746,9 @@ protected:
 	// point to the end address of buffer
 	uint8_t*		m_end;
 
+	MemoryPool*		m_memoryPool;
+
+	bool			m_needRelease;
 };
 
 

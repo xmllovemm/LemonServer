@@ -33,8 +33,8 @@ timestamp ----> SQL-server:DATETIME,Oracle:DATE,Oracle 9i:TIMESTAMP   YYYY-MM-DD
 
 */
 
-#ifndef _ICS_CONFIG_H
-#define _ICS_CONFIG_H
+#ifndef _CONFIG_H
+#define _CONFIG_H
 
 // soft version
 #define ICS_VERSION 0x0101
@@ -56,6 +56,7 @@ timestamp ----> SQL-server:DATETIME,Oracle:DATE,Oracle 9i:TIMESTAMP   YYYY-MM-DD
 #define OTL_CONNECT_POOL_ON
 #define OTL_CPP_11_ON
 
+
 #if defined(WIN32) || defined (WIN64)	// in linux
 #pragma warning(disable:4290)
 #pragma warning(disable:4996)
@@ -66,4 +67,4 @@ timestamp ----> SQL-server:DATETIME,Oracle:DATE,Oracle 9i:TIMESTAMP   YYYY-MM-DD
 // Communicate Server/Sub Server
 #define ICS_CENTER_MODE
 
-#endif	// end _ICS_CONFIG_H
+#endif	// end _CONFIG_H

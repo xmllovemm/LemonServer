@@ -6,8 +6,8 @@
 
 namespace ics{
 
-	TcpServer::TcpServer(asio::io_service& service, const std::string& ip, int port, std::function<void(asio::ip::tcp::socket)> do_add_client)
-		: m_io_service(service)
+TcpServer::TcpServer(asio::io_service& service, const std::string& ip, int port, addClientHandler do_add_client)
+	: m_io_service(service)
 	, m_acceptor(m_io_service, asio::ip::tcp::endpoint(asio::ip::address::from_string(ip), port))
 	, m_client_socket(m_io_service)
 	, m_io_service_thread(nullptr)
@@ -17,8 +17,8 @@ namespace ics{
 }
 
 
-	TcpServer::TcpServer(asio::io_service& service, int port, std::function<void(asio::ip::tcp::socket)> do_add_client)
-		: m_io_service(service)
+TcpServer::TcpServer(asio::io_service& service, int port, addClientHandler do_add_client)
+	: m_io_service(service)
 	, m_acceptor(m_io_service, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))
 	, m_client_socket(m_io_service)
 	, m_io_service_thread(nullptr)
@@ -52,7 +52,7 @@ void TcpServer::run_on_thread()
 void TcpServer::stop()
 {
 	LOG_DEBUG("Tcp server stops");
-	m_io_service.stop();
+	m_io_service_thread->join();
 }
 
 asio::io_service& TcpServer::getService()

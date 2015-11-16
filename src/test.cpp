@@ -5,6 +5,7 @@
 #include "signalhandler.hpp"
 #include "mempool.hpp"
 #include "icsclient.hpp"
+#include "icsconfig.hpp"
 #include <iostream>
 #include <string>
 #include <tuple>
@@ -12,35 +13,62 @@
 
 using namespace std;
 
+#if defined(WIN32)
+#define CONFIG_FILE "E:\\workspace\\project_on_github\\LemonServer\\bin\\config.xml"
+#else
+#define CONFIG_FILE "../src/config.xml"
+#endif
+
 #if 1
-ics::DataBase db("commuser", "datang", "mysql");
+ics::DataBase db;
 #else
 ics::DataBase db("sa", "123456", "sqlserver");
 #endif
 
-ics::MemoryPool mp(512 * 10, 10);
+ics::MemoryPool mp;
+ics::IcsConfig config;
 
-void test_server()
+void test_server(const char* configfile)
 {
-	
+	asio::io_service io_service;
+
+	ics::SignalHandler sh(io_service);
+
+	ics::ClientManager<ics::IcsConnection> cm(10);
+
+	config.load(configfile);
+
+	const std::string& ipaddr = config.getAttributeString("listen", "addr");
+
+	int separator = ipaddr.find(':');
+	if (separator == std::string::npos)
+	{
+		cerr << "ip addr is not correct:" << ipaddr << endl;
+		return;
+	}
+	std::string port = ipaddr.substr(separator + 1);
+	std::string ip = ipaddr.substr(0, separator);
+
+	ics::TcpServer clientServer(io_service
+		, ip
+		, std::strtol(port.c_str(), NULL, 10)
+		, [&cm](asio::ip::tcp::socket&& s){
+			cm.createConnection(std::move(s));
+		});
+
 	try {
-		asio::io_service io_service;
+		sh.sync_wait();
+
 
 		ics::DataBase::initialize();
 
+		mp.init(config.getAttributeInt("program", "mempoolsize"), config.getAttributeInt("program", "chunkcount"));
+
+		db.init(config.getAttributeString("database", "username"), config.getAttributeString("database", "password"), config.getAttributeString("database", "dsn"));
+
 		db.open();
 
-		ics::ClientManager cm(10);
-
-		ics::TcpServer s(io_service, 9999, [&cm](asio::ip::tcp::socket s){
-					cm.addClient(std::move(s));
-				});
-		
-		s.run();
-
-		ics::SignalHandler sh(io_service);
-
-		sh.sync_wait();
+		clientServer.run();
 
 		/*
 		ics::SubCommServerClient subclient(io_service);
@@ -48,12 +76,23 @@ void test_server()
 		subclient.connectTo("192.168.50.133", 99);
 		//*/
 
-		io_service.run();
 	}
 	catch (std::exception& ex)
 	{
 		cerr << ex.what() << endl;
 	}
+	catch (ics::IcsException& ex)
+	{
+		cerr << ex.message() << endl;
+	}
+	catch (...)
+	{
+		cerr << "unknown error" << endl;
+	}
+
+
+	io_service.run();
+
 }
 
 bool is_prime(int x)
@@ -118,121 +157,19 @@ void test_std()
 
 
 
-std::string to_json(int v)
-{
-	char buff[64];
-	std::sprintf(buff, "%d", v);
-	return buff;
-}
 
-std::string to_json(double v)
+int main(int argc, char** argv)
 {
-	char buff[64];
-	std::sprintf(buff, "%f", v);
-	return buff;
-}
-
-std::string to_json(const std::string& v)
-{
-	return v;
-}
-
-template<class T>
-std::string to_json(const std::vector<T>& v)
-{
-	std::string s("[");
-	bool first = true;
-	for (auto&& e : v)
+	if (argc != 2)
 	{
-		if (!first)
-		{
-			s += ", ";
-		}
-		else
-		{
-			first = false;
-		}
-		s += "]";
+		cerr << "useage:" << argv[0] << " configfile" << endl;
+		return 0;
 	}
-	return s;
-}
 
-template<class K,class V>
-std::string to_json(const std::map<K, V>& v)
-{
-	std::string s("{");
-	bool first = false;
-	for (auto&& e:v)
-	{
-		if (!first)
-		{
-			s += ", ";
-		}
-		else
-		{
-			first = false;
-		}
-		s += to_json(e.fisrt) + ":" + to_json(e.second);
-	}
-	return s;
-}
-
-template<std::size_t Index, std::size_t N>
-struct tuple_to_json_impl 
-{
-	template<class T>
-	std::string operator()(const T& t) const
-	{
-		std::string s(to_json(std::get<Index>(t)));
-		if (Index < N -1)	// not the last element,then add a separator
-		{
-			s += ", ";
-		}
-		s += tuple_to_json_impl<Index + 1, N>()(t);
-		return s;
-	}
-};
-
-template<std::size_t N>
-struct tuple_to_json_impl<N, N>
-{
-	template<class T>
-	std::string operator()(const T& t) const
-	{
-		return "";
-	}
-};
-
-template<class ...T>
-std::string to_json(const std::tuple<T...>& t)
-{
-	std::string s("[");
-//	s += tuple_to_json_impl<0, std::tuple_size<decltype(t)>()>(t);
-	s += tuple_to_json_impl<0, sizeof...(T)>()(t);
-	s += "]";
-	return s;
-}
-
-void test_print(const char* format, ...)
-{
-//	va_list args;
-//	va_start(args, format);
-
-//	char* s = va_arg(args, char*);
-
-	std::printf(format);
-
-//	va_end(args);
-}
-
-int main()
-{
 	cout << "start..." << endl;
 
-//	test_std();
+	test_server(argv[1]);
 
-	test_server();
-	
 	cout << "stop..." << endl;
 	return 0;
 }

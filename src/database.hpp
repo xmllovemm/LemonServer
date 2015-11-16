@@ -27,6 +27,10 @@ public:
 
 	DataBase(const std::string& uid, const std::string& pwd, const std::string& dsn);
     
+	DataBase();
+
+	void init(const std::string& uid, const std::string& pwd, const std::string& dsn);
+
 	void open(int pool_min_size = 8, int pool_max_size = 16) throw(std::runtime_error);
 
     ~DataBase();
@@ -43,6 +47,28 @@ private:
 
     std::string		m_conn_str;
     
+};
+
+class OtlConnectionGuard {
+public:
+	OtlConnectionGuard(DataBase& db) :m_db(db), m_connection(m_db.getConnection())
+	{
+
+	}
+
+	~OtlConnectionGuard()
+	{
+		m_db.putConnection(std::move(m_connection));
+	}
+
+	otl_connect& connection()
+	{
+		return *m_connection;
+	}
+
+private:
+	DataBase&	m_db;
+	DataBase::OtlConnect m_connection;
 };
 
 }   // namespace ics

@@ -13,6 +13,8 @@ message("Project bin dir:${PROJECT_BINARY_DIR}")
 # set Debug/Release modle
 SET(CMAKE_BUILD_TYPE Debug)
 
+add_definitions("-DTIXML_USE_STL")
+
 # show the detail info when make
 # set(CMAKE_VERBOSE_MAKEFILE on)
 
@@ -52,6 +54,7 @@ add_executable(${target} ${SRC_FILES})
 
 # link dll
 target_link_libraries(${target} pthread)
+target_link_libraries(${target} odbc)
 
 
 

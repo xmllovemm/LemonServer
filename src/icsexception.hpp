@@ -15,26 +15,33 @@ class IcsException{
 public:
 	IcsException(const char* format, ...)
 	{
+		char message[126];
 		va_list args;
+
 		va_start(args, format);
-
-//		va_arg(args, int);
-
+		std::vsnprintf(message, sizeof(message), format, args);
 		va_end(args);
+		m_message = message;
 	}
 
 	IcsException& operator << (const char* msg)
 	{
+		m_message += msg;
 		return *this;
 	}
 
 	IcsException& operator << (const std::string& msg)
 	{
+		m_message += msg;
 		return *this;
 	}
 
+	const std::string& message() const
+	{
+		return m_message;
+	}
 private:
-	char message[512];
+	std::string m_message;
 };
 
 }

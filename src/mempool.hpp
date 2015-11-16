@@ -43,12 +43,17 @@ class MemoryPool {
 public:
 	MemoryPool(std::size_t totalSize, std::size_t countOfChunk, bool zeroData = true);
 
+	MemoryPool();
+
+	void init(std::size_t totalSize, std::size_t countOfChunk, bool zeroData = true);
+
 	~MemoryPool();
 
 	MemoryChunk get();
 
-	void put(MemoryChunk& chunk);
+	void put(MemoryChunk&& chunk);
 
+	void put(MemoryChunk& chunk);
 private:
 	char*		m_buff;
 	std::size_t	m_size;

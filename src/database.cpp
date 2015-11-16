@@ -11,27 +11,34 @@
 
 
 namespace ics {
-	DataBase::DataBase(const std::string& uid, const std::string& pwd, const std::string& dsn)
-	//:m_conn_str("UID=" + uid + ";PWD=" + pwd + ";DSN=" + dsn)
-	: m_conn_str(uid + "/" + pwd + "@" + dsn)
+
+DataBase::DataBase(const std::string& uid, const std::string& pwd, const std::string& dsn)
 {
-	
+	init(uid, pwd, dsn);
 }
-    
+ 
+DataBase::DataBase()
+{
+
+}
+
 DataBase::~DataBase()
 {
 
 }
 
+void DataBase::init(const std::string& uid, const std::string& pwd, const std::string& dsn)
+{
+	m_conn_str = uid + "/" + pwd + "@" + dsn;
+}
+
 void DataBase::open(int pool_min_size, int pool_max_size) throw(std::runtime_error)
 {
-	try {
-		m_conn_pool.open(m_conn_str.c_str(), false, pool_min_size, pool_max_size);
-	}
-	catch (otl_exception& ex)
+	if (m_conn_str.empty())
 	{
-		LOG_ERROR("open connect pool error:" << ex.msg);
+		throw std::runtime_error("connection string is empty");
 	}
+	m_conn_pool.open(m_conn_str.c_str(), false, pool_min_size, pool_max_size);
 }
 
 void DataBase::initialize(bool multi_thread)

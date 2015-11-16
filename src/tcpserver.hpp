@@ -16,12 +16,11 @@ namespace ics {
 
 class TcpServer {
 public:
+	typedef std::function<void(asio::ip::tcp::socket&&)> addClientHandler;
 
-	TcpServer() = delete;
+	TcpServer(asio::io_service& service, const std::string& ip, int port, addClientHandler do_add_client);
 
-	TcpServer(asio::io_service& service, const std::string& ip, int port, std::function<void(asio::ip::tcp::socket)> do_add_client);
-
-	explicit TcpServer(asio::io_service& service, int port, std::function<void(asio::ip::tcp::socket)> do_add_client);
+	TcpServer(asio::io_service& service, int port, addClientHandler do_add_client);
 
 	~TcpServer();
 
@@ -34,6 +33,8 @@ public:
 	asio::io_service& getService();
 
 private:
+	TcpServer() = delete;
+
 	void do_accept();
 
 private:

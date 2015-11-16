@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  
+  <!--program init-->
+  <program>
+    <!--root directory-->
+    <workdir>/tmp</workdir>
+    <!--number of work thread-->
+    <workerthread>4</workerthread>
+    <mempoolsize>10240</mempoolsize>
+    <chunkcount>20</chunkcount>
+  </program>
+
+  <!--listen address: ip:port-->
+  <listen>
+    <addr>127.0.0.1:9999</addr>
+  </listen>
+
+  <!--ics protocol-->
+  <protocol>
+    <heartbeat>40</heartbeat>
+    <onlineIP>127.0.0.1</onlineIP>
+    <onlinePort>9999</onlinePort>
+  </protocol>
+  
+ 
+  <!--log file-->
+  <log>
+    <!--log director-->
+    <filename>message</filename>
+    <!--max size of log file(MB)-->
+    <filesize>10</filesize>
+    <!--total count of log file-->
+    <filecount>5</filecount>
+    <!--log level,must be one of debug/warn/error-->
+    <level>debug</level> 
+  </log>
+ 
+  <!--database info-->
+  <database>
+    <username>commuser</username>
+    <password>datang</password>
+    <dsn>mysql</dsn>
+    <count>4</count>
+  </database>
+  
+</root>
