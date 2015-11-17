@@ -26,7 +26,7 @@ IcsConnection::~IcsConnection()
 	{
 		if (!m_connName.empty())
 		{
-			m_client_manager.removeConnection(m_connName);
+			m_client_manager.removeTerminalConn(m_connName);
 		}
 		delete m_messageHandler;
 	}
@@ -50,33 +50,72 @@ void IcsConnection::setName(std::string& name)
 {
 	if (!name.empty() && name != m_connName)
 	{
-		m_client_manager.addConnection(name, this);
+		m_client_manager.addTerminalConn(name, this);
 		m_connName = std::move(name);
 	}
 }
 
-// 转发消息
-void IcsConnection::forwardMessage(const std::string& name, ProtocolStream& message)
+// 转发消息给终端
+bool IcsConnection::forwardToTerminal(const std::string& name, ProtocolStream& message)
 {
-	auto conn = m_client_manager.findConnection(name);
+	bool ret = false;
+	auto conn = m_client_manager.findTerminalConn(name);
+
 	if (conn == nullptr)
 	{
 		LOG_DEBUG("the connection: " << name << " not found");
-		return;
+		return ret;
 	}
 
-	conn->sendMessage(message);
+	try {
+		ProtocolStream response(mp);
+		conn->m_messageHandler->dispatch(*conn, message, response);
+		if (!response.empty())
+		{
+			response.getHead()->setSendNum(conn->m_sendSerialNum++);
+			response.serailzeToData();
+			conn->trySend(message.toMemoryChunk());
+		}
+		ret = true;
+	}
+	catch (IcsException& ex)
+	{
+		LOG_ERROR("forward message std::exception:" << ex.message());
+	}
+	catch (otl_exception& ex)
+	{
+		LOG_ERROR("forward message otl_exception:" << ex.msg);
+	}
+	catch (...)
+	{
+		LOG_ERROR("forward message unknown error");
+	}
+
+	return ret;
 }
 
-// 发送消息
-void IcsConnection::sendMessage(ProtocolStream& message)
+// 转发消息到全部的中心服务器
+bool IcsConnection::forwardToCenter(ProtocolStream& message)
 {
-	message.getHead()->setSendNum(m_sendSerialNum);
-	message.serailzeToData();
+	bool ret = false;
+	auto connList = m_client_manager.getCenterConnList();
+	
+	// 有中心服务器连接
+	if (!connList.empty())
+	{
+		message.serailzeToData();
+		MemoryChunk mc = message.toMemoryChunk();
 
-	trySend(message.toMemoryChunk());
+		for (auto it = connList.begin(); it != connList.end(); it++)
+		{
+			// 找到该链接直接发送
+			(*it)->trySend(mc.clone(mp));
+		}
+
+		message.release();
+	}
+	return ret;
 }
-
 
 void IcsConnection::do_read()
 {
@@ -173,6 +212,7 @@ void IcsConnection::assertIcsMessage(ProtocolStream& message)
 			IcsException("first package's size:%d is not more than IcsMsgHead", (int)message.size());
 		}
 
+		// 根据消息ID判断处理类型
 		protocol::MessageId msgid = message.getHead()->getMsgID();
 		if (msgid > protocol::MessageId::T2C_min && msgid < protocol::MessageId::T2C_max)
 		{
@@ -187,13 +227,14 @@ void IcsConnection::assertIcsMessage(ProtocolStream& message)
 			m_messageHandler = new ProxyTerminalHandler();
 		}
 
-		// 根据消息ID判断处理类型
 		m_messageHandler = new TerminalHandler();
 	}
 }
 
 bool IcsConnection::handleData(uint8_t* buf, std::size_t length)
 {
+	bool ret = false;
+
 	// show debug info
 	this->toHexInfo("recv", buf, length);
 
@@ -225,23 +266,22 @@ bool IcsConnection::handleData(uint8_t* buf, std::size_t length)
 			response.serailzeToData();
 			trySend(response.toMemoryChunk());
 		}
+		ret = true;
 	}
 	catch (IcsException& ex)
 	{
 		LOG_ERROR("handle message [" << head->getMsgID() << "] std::exception:" << ex.message());
-		return false;
 	}
 	catch (otl_exception& ex)
 	{
 		LOG_ERROR("handle message [" << head->getMsgID() << "] otl_exception:" << ex.msg);
-		return false;
 	}
 	catch (...)
 	{
 		LOG_ERROR("handle message [" << head->getMsgID() << "] unknown error");
-		return false;
 	}
-	return true;
+
+	return ret;
 }
 
 
@@ -253,16 +293,8 @@ TerminalHandler::TerminalHandler()
 	m_heartbeatTime = config.getAttributeInt("protocol", "heartbeat");
 }
 
-
 void TerminalHandler::handle(IcsConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-
-#if defined(ICS_CENTER_MODE)
-//	request >> m_conn_name;
-#else
-
-#endif
-
 	switch (request.getHead()->getMsgID())
 	{
 	case protocol::T2C_auth_request:
@@ -305,11 +337,35 @@ void TerminalHandler::handle(IcsConnection& conn, ProtocolStream& request, Proto
 		throw IcsException("unknown terminal message id: %d ", request.getHead()->getMsgID());
 		break;
 	}
+
+#if defined(ICS_CENTER_MODE)
+#else
+	request.rewind();
+	ProtocolStream forwardStream(mp);
+	forwardStream << m_conn_name << request;
+	conn.forwardToCenter(forwardStream);
+#endif
+
 }
 
-void TerminalHandler::dispatch(IcsConnection& conn, ProtocolStream& request) throw(IcsException, otl_exception)
+void TerminalHandler::dispatch(IcsConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
+	protocol::ShortString terminalName;
+	uint16_t messageID;
+	uint32_t requestID;
+	request >> terminalName >> messageID >> requestID;
 
+	if (messageID <= protocol::MessageId::T2C_min || messageID >= protocol::MessageId::T2C_max)
+	{
+		throw IcsException("dispatch message=%d is not one of T2C", messageID);
+	}
+
+	// 记录该请求ID转发结果
+
+	response.getHead()->init((protocol::MessageId)messageID, false);
+
+	request.moveBack(sizeof(requestID));
+	response << request;
 }
 
 #define UPGRADE_FILE_SEGMENG_SIZE 1024
@@ -1061,6 +1117,7 @@ void TerminalHandler::handleUpgradeCancelAck(IcsConnection& conn, ProtocolStream
 //*/
 }
 
+
 //---------------------------------ProxyTerminalHandler-------------------------------------------------//
 ProxyTerminalHandler::ProxyTerminalHandler()
 {
@@ -1083,7 +1140,7 @@ void ProxyTerminalHandler::handle(IcsConnection& conn, ProtocolStream& request, 
 	m_handler.handle(conn, request, response);
 }
 
-void ProxyTerminalHandler::dispatch(ProtocolStream& request)  throw(IcsException, otl_exception)
+void ProxyTerminalHandler::dispatch(IcsConnection& conn, ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception)
 {
 	throw IcsException("ProxyTerminalHandler never handle message, id: %d ", request.getHead()->getMsgID());
 }
@@ -1120,7 +1177,7 @@ void WebHandler::handle(IcsConnection& conn, ProtocolStream& request, ProtocolSt
 }
 
 // never uesd
-void WebHandler::dispatch(IcsConnection& conn, ProtocolStream& request)  throw(IcsException, otl_exception)
+void WebHandler::dispatch(IcsConnection& conn, ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception)
 {
 	throw IcsException("WebHandler never handle message, id: %d ", request.getHead()->getMsgID());
 }
@@ -1132,12 +1189,17 @@ void WebHandler::handleForward(IcsConnection& conn, ProtocolStream& request, Pro
 	uint16_t messageID;
 	uint32_t requestID;
 	request >> terminalName >> messageID >> requestID;
-	request.moveBack(sizeof(requestID));
+	request.rewind();
 
-	response.getHead()->init((protocol::MessageId)messageID, (uint16_t)0);
-	response << request;
+	// 根据终端ID转发该消息
+	bool result = conn.forwardToTerminal(terminalName, request);
 
-	conn.forwardMessage(terminalName, response);
+	// 转发结果记录到数据库
+	{
+		OtlConnectionGuard connection(db);
+		otl_stream s(1, "{ call sp_web_command_status(:requestID<int,in>,:msgID<int,in>,:stat<int,in>) }", connection.connection());
+		s << (int)requestID << (int)messageID << (result ? 0 : 1);
+	}
 }
 
 // 连接远端子服务器
@@ -1167,7 +1229,7 @@ void WebHandler::handleConnectRemote(IcsConnection& conn, ProtocolStream& reques
 	bool connectResult = true;
 
 	// 回应web连接结果:0-成功,1-失败
-	response << remoteID << (uint8_t)!connectResult;
+	response << remoteID << (uint8_t)(connectResult ? 0 : 1);
 }
 
 // 文件传输请求
@@ -1181,6 +1243,27 @@ void WebHandler::handleTransFileFrament(IcsConnection& conn, ProtocolStream& req
 {
 
 }
+
+
+//---------------------------------CenterServerHandler-------------------------------------------------//
+// 子服务器处理中心消息
+CenterServerHandler::CenterServerHandler()
+{
+
+}
+
+// 处理中心消息
+void CenterServerHandler::handle(IcsConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
+{
+
+}
+
+// 将消息转发到中心
+void CenterServerHandler::dispatch(IcsConnection& conn, ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception)
+{
+
+}
+
 
 
 }// end namespace ics

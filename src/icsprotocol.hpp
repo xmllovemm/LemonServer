@@ -432,12 +432,12 @@ template<class ProtocolHead>
 class ProtocolStream
 {
 public:
-	ProtocolStream(void* buf, std::size_t length) :m_memoryPool(nullptr), m_needRelease(true)
+	ProtocolStream(void* buf, std::size_t length) :m_memoryPool(nullptr), m_needRelease(false)
 	{
 		reset(buf, length);
 	}
 
-	ProtocolStream(MemoryPool& mp) :m_memoryPool(&mp)
+	ProtocolStream(MemoryPool& mp) : m_memoryPool(&mp), m_needRelease(true)
 	{
 		MemoryChunk mc = m_memoryPool->get();
 		reset(mc.getBuff(), mc.getTotalSize());
@@ -445,10 +445,7 @@ public:
 
 	virtual ~ProtocolStream()
 	{
-		if (m_memoryPool != nullptr && m_needRelease)
-		{
-			m_memoryPool->put(toMemoryChunk());
-		}
+		release();
 	}
 
 	MemoryChunk toMemoryChunk()
@@ -457,6 +454,15 @@ public:
 		mc.setUsedSize(length());
 		m_needRelease = false;
 		return mc;
+	}
+
+	void release()
+	{
+		if (m_memoryPool != nullptr && m_needRelease)
+		{
+			m_needRelease = false;
+			m_memoryPool->put(toMemoryChunk());
+		}
 	}
 
 	// set current to the start

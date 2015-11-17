@@ -7,8 +7,8 @@
     <workdir>/tmp</workdir>
     <!--number of work thread-->
     <workerthread>4</workerthread>
-    <mempoolsize>10240</mempoolsize>
-    <chunkcount>20</chunkcount>
+    <chunksize>126</chunksize>
+    <chunkcount>50</chunkcount>
   </program>
 
   <!--listen address: ip:port-->

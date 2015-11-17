@@ -24,7 +24,7 @@ typedef protocol::ProtocolStream<ProtocolHead> ProtocolStream;
 
 class MessageHandlerImpl;
 
-//---------------------------------IcsConnection-------------------------------------------------//
+// ICS协议连接类
 class IcsConnection : public Connection<icstcp> {
 public:
 	typedef Connection<icstcp>::socket socket;
@@ -33,6 +33,7 @@ public:
 
     virtual ~IcsConnection();
     
+	// 开始收发数据
 	virtual void start();
 
 	// 获取客户端ID
@@ -41,12 +42,11 @@ public:
 	// 设置客户端ID
 	void setName(std::string& name);
 
-	// 转发消息
-	void forwardMessage(const std::string& name, ProtocolStream& message);
+	// 转发消息给终端
+	bool forwardToTerminal(const std::string& name, ProtocolStream& message);
 
-	// 发送消息
-	void sendMessage(ProtocolStream& message);
-
+	// 转发消息到全部的中心服务器
+	bool forwardToCenter(ProtocolStream& message);
 protected:
     void do_read();
     
@@ -86,8 +86,9 @@ private:
 	uint16_t		m_sendSerialNum;
 };
 
-//---------------------------------TerminalHandler-------------------------------------------------//
 
+
+// ICS协议处理接口类
 class MessageHandlerImpl {
 public:
 	MessageHandlerImpl() {}
@@ -98,8 +99,9 @@ public:
 	virtual void handle(IcsConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException,otl_exception) = 0;
 
 	// 转发消息到对端
-	virtual void dispatch(IcsConnection& conn, ProtocolStream& request)  throw(IcsException, otl_exception) = 0;
+	virtual void dispatch(IcsConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception) = 0;
 };
+
 
 // 终端连接处理类
 class TerminalHandler : public MessageHandlerImpl {
@@ -110,7 +112,7 @@ public:
 	virtual void handle(IcsConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 将该消息转发到终端
-	virtual void dispatch(IcsConnection& conn, ProtocolStream& request) throw(IcsException, otl_exception);
+	virtual void dispatch(IcsConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 private:
 	// 终端认证
@@ -191,7 +193,8 @@ private:
 	uint16_t		m_heartbeatTime;
 };
 
-// 子服务终端连接处理类
+
+// 中心处理子服务器消息类
 class ProxyTerminalHandler : public TerminalHandler {
 public:
 	ProxyTerminalHandler();
@@ -199,15 +202,14 @@ public:
 	// 处理远端服务器转发的终端数据
 	virtual void handle(IcsConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
-	
-	virtual void dispatch(ProtocolStream& request)  throw(IcsException, otl_exception);
+	virtual void dispatch(IcsConnection& conn, ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception);
 
 private:
 	std::unordered_map<std::string, std::string> m_nameMap;
 	TerminalHandler m_handler;
 };
 
-//---------------------------------WebHandler-------------------------------------------------//
+
 // Web连接处理类
 class WebHandler : public MessageHandlerImpl {
 public:
@@ -217,7 +219,7 @@ public:
 	virtual void handle(IcsConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// never uesd
-	virtual void dispatch(IcsConnection& conn, ProtocolStream& request)  throw(IcsException, otl_exception);
+	virtual void dispatch(IcsConnection& conn, ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception);
 
 private:
 	// 转发到对应终端
@@ -231,6 +233,20 @@ private:
 
 	// 文件片段处理
 	void handleTransFileFrament(IcsConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
+
+};
+
+
+// 子服务器处理中心消息类
+class CenterServerHandler : public TerminalHandler {
+public:
+	CenterServerHandler();
+
+	// 处理中心消息
+	virtual void handle(IcsConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
+
+	// 将消息转发到中心
+	virtual void dispatch(IcsConnection& conn, ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception);
 
 };
 

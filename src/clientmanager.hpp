@@ -8,6 +8,7 @@
 #include "log.hpp"
 #include <map>
 #include <mutex>
+#include <list>
 
 namespace ics {
 
@@ -33,14 +34,14 @@ public:
 		c->start();
 	}
 
-	void addConnection(const std::string& name, Connection* conn)
+	void addTerminalConn(const std::string& name, Connection* conn)
 	{
 		if (name.empty() || conn == nullptr)
 		{
 			return;
 		}
-		std::lock_guard<std::mutex> lock(m_ConnectionLock);
-		auto& it = m_ConnectionMap[name];
+		std::lock_guard<std::mutex> lock(m_terminalConnMapLock);
+		auto& it = m_terminalConnMap[name];
 		if (it != nullptr)
 		{
 			it->replaced();
@@ -49,26 +50,38 @@ public:
 		it = conn;
 	}
 
-	void removeConnection(const std::string& name)
+	void removeTerminalConn(const std::string& name)
 	{
-		std::lock_guard<std::mutex> lock(m_ConnectionLock);
-		auto it = m_ConnectionMap.find(name);
-		if (it != m_ConnectionMap.end())
+		std::lock_guard<std::mutex> lock(m_terminalConnMapLock);
+		auto it = m_terminalConnMap.find(name);
+		if (it != m_terminalConnMap.end())
 		{
 			delete it->second;
-			m_ConnectionMap.erase(it);
+			m_terminalConnMap.erase(it);
 		}
 	}
 
-	Connection* findConnection(const std::string& name)
+	Connection* findTerminalConn(const std::string& name)
 	{
-		auto it = m_ConnectionMap.find(name);
+		auto it = m_terminalConnMap.find(name);
 		return it->second;
 	}
 
+	void addCenterConn(Connection* conn)
+	{
+
+	}
+
+	const std::list<Connection*> getCenterConnList()
+	{
+		return m_centerConnList;
+	}
+
 private:
-	std::map<std::string, Connection*>	m_ConnectionMap;
-	std::mutex	m_ConnectionLock;
+	std::map<std::string, Connection*>	m_terminalConnMap;
+	std::mutex	m_terminalConnMapLock;
+
+	std::list<Connection*> m_centerConnList;
 	//    std::shared_ptr<std::thread>	m_thread;
 
 };

@@ -22,6 +22,14 @@ MemoryChunk::MemoryChunk()
 
 }
 
+MemoryChunk MemoryChunk::clone(MemoryPool& mp)
+{
+	MemoryChunk mc = mp.get();
+	mc.m_usedSize = m_usedSize > mc.m_totalSize ? mc.m_totalSize : m_usedSize;
+	std::memcpy(mc.m_buff, m_buff, mc.m_usedSize);
+	return mc;
+}
+
 MemoryChunk& MemoryChunk::operator = (const MemoryChunk& rhs)
 {
 	m_buff = rhs.m_buff;
@@ -57,9 +65,9 @@ bool MemoryChunk::valid()
 
 
 
-MemoryPool::MemoryPool(std::size_t totalSize, std::size_t countOfChunk, bool zeroData)
+MemoryPool::MemoryPool(std::size_t chunkSize, std::size_t countOfChunk, bool zeroData)
 {
-	init(totalSize, countOfChunk, zeroData);
+	init(chunkSize, countOfChunk, zeroData);
 }
 
 MemoryPool::MemoryPool()
@@ -72,20 +80,20 @@ MemoryPool::~MemoryPool()
 	delete[] m_buff;
 }
 
-void MemoryPool::init(std::size_t totalSize, std::size_t countOfChunk, bool zeroData)
+void MemoryPool::init(std::size_t chunkSize, std::size_t countOfChunk, bool zeroData)
 {
-	m_buff = new char[totalSize];
-	m_count = countOfChunk;
+	m_chunkSize = chunkSize;
+	m_chunkCount = countOfChunk;
+	m_buff = new char[m_chunkSize * m_chunkCount];
 
 	if (zeroData)
 	{
-		std::memset(m_buff, 0, totalSize);
+		std::memset(m_buff, 0, m_chunkSize * m_chunkCount);
 	}
 
-	std::size_t chunkSize = totalSize / countOfChunk;
-	for (size_t i = 0; i < countOfChunk; i++)
+	for (size_t i = 0; i < m_chunkCount; i++)
 	{
-		MemoryChunk mc(m_buff + i*chunkSize, chunkSize);
+		MemoryChunk mc(m_buff + i*m_chunkSize, m_chunkSize);
 		m_chunkList.push_back(mc);
 	}
 }

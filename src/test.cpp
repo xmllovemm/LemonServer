@@ -62,7 +62,7 @@ void test_server(const char* configfile)
 
 		ics::DataBase::initialize();
 
-		mp.init(config.getAttributeInt("program", "mempoolsize"), config.getAttributeInt("program", "chunkcount"));
+		mp.init(config.getAttributeInt("program", "chunksize"), config.getAttributeInt("program", "chunkcount"));
 
 		db.init(config.getAttributeString("database", "username"), config.getAttributeString("database", "password"), config.getAttributeString("database", "dsn"));
 

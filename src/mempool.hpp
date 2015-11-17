@@ -9,6 +9,8 @@
 
 namespace ics {
 
+class MemoryPool;
+
 class MemoryChunk {
 public:
 	MemoryChunk(void* buf, std::size_t length);
@@ -17,7 +19,7 @@ public:
 
 	MemoryChunk(const MemoryChunk& rhs);
 
-
+	MemoryChunk clone(MemoryPool& mp);
 
 	MemoryChunk& operator = (const MemoryChunk& rhs);
 
@@ -41,11 +43,11 @@ private:
 
 class MemoryPool {
 public:
-	MemoryPool(std::size_t totalSize, std::size_t countOfChunk, bool zeroData = true);
+	MemoryPool(std::size_t chunkSize, std::size_t countOfChunk, bool zeroData = true);
 
 	MemoryPool();
 
-	void init(std::size_t totalSize, std::size_t countOfChunk, bool zeroData = true);
+	void init(std::size_t chunkSize, std::size_t countOfChunk, bool zeroData = true);
 
 	~MemoryPool();
 
@@ -56,8 +58,8 @@ public:
 	void put(MemoryChunk& chunk);
 private:
 	char*		m_buff;
-	std::size_t	m_size;
-	std::size_t	m_count;
+	std::size_t	m_chunkSize;
+	std::size_t	m_chunkCount;
 
 	std::list<MemoryChunk>	m_chunkList;
 	std::mutex		m_chunkLock;
