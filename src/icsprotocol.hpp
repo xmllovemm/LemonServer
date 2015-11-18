@@ -759,7 +759,13 @@ protected:
 
 
 
+
 }	// end protocol
+
+typedef protocol::IcsMsgHead<uint32_t, false> ProtocolHead;
+
+typedef protocol::ProtocolStream<ProtocolHead> ProtocolStream;
+
 }	// end ics
 
 #endif	// end _ICS_PROTOCOL_H

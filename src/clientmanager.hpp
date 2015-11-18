@@ -84,6 +84,7 @@ private:
 	std::list<Connection*> m_centerConnList;
 	//    std::shared_ptr<std::thread>	m_thread;
 
+//	std::unordered_map<std::string, std::shared_ptr<Connection>> m_connectionMap;
 };
 
 }

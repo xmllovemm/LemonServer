@@ -26,7 +26,13 @@ ics::DataBase db("sa", "123456", "sqlserver");
 #endif
 
 ics::MemoryPool mp;
+
 ics::IcsConfig config;
+
+ics::ClientManager<ics::IcsConnection<ics::icstcp>> tcpClientManager(10);
+
+ics::ClientManager<ics::IcsConnection<ics::icsudp>> udpClientManager(10);
+
 
 void test_server(const char* configfile)
 {
@@ -34,10 +40,10 @@ void test_server(const char* configfile)
 
 	ics::SignalHandler sh(io_service);
 
-	ics::ClientManager<ics::IcsConnection> cm(10);
-
+	// load config file
 	config.load(configfile);
 
+	// get listen address
 	const std::string& ipaddr = config.getAttributeString("listen", "addr");
 
 	int separator = ipaddr.find(':');
@@ -46,19 +52,19 @@ void test_server(const char* configfile)
 		cerr << "ip addr is not correct:" << ipaddr << endl;
 		return;
 	}
+
 	std::string port = ipaddr.substr(separator + 1);
 	std::string ip = ipaddr.substr(0, separator);
 
 	ics::TcpServer clientServer(io_service
 		, ip
 		, std::strtol(port.c_str(), NULL, 10)
-		, [&cm](asio::ip::tcp::socket&& s){
-			cm.createConnection(std::move(s));
+		, [](asio::ip::tcp::socket&& s){
+			tcpClientManager.createConnection(std::move(s));
 		});
 
 	try {
 		sh.sync_wait();
-
 
 		ics::DataBase::initialize();
 
@@ -76,6 +82,8 @@ void test_server(const char* configfile)
 		subclient.connectTo("192.168.50.133", 99);
 		//*/
 
+		io_service.run();
+
 	}
 	catch (std::exception& ex)
 	{
@@ -91,7 +99,6 @@ void test_server(const char* configfile)
 	}
 
 
-	io_service.run();
 
 }
 
@@ -156,7 +163,18 @@ void test_std()
 }
 
 
+class Test : public std::enable_shared_from_this<Test> {
+public:
+	Test()
+	{
+		cout << "construct..." << endl;
+	}
 
+	~Test()
+	{
+		cout << "destruct..." << endl;
+	}
+};
 
 int main(int argc, char** argv)
 {
@@ -168,7 +186,11 @@ int main(int argc, char** argv)
 
 	cout << "start..." << endl;
 
-	test_server(argv[1]);
+	std::unique_ptr<Test> it= std::make_unique<Test>();
+
+	std::shared_ptr<Test> ano = it->shared_from_this();
+
+//	test_server(argv[1]);
 
 	cout << "stop..." << endl;
 	return 0;
