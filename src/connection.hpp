@@ -11,17 +11,34 @@
 
 
 #include "config.hpp"
+#include "icsclient.hpp"
 #include "icsprotocol.hpp"
 #include "clientmanager.hpp"
-#include "icsclient.hpp"
 #include "log.hpp"
+#include "database.hpp"
+#include "icsconfig.hpp"
+#include "mempool.hpp"
+#include <asio.hpp>
+#include <string>
+#include <mutex>
+
+
+extern ics::DataBase db;
+extern ics::MemoryPool mp;
+extern ics::IcsConfig config;
 
 namespace ics {
-
+	///*
 class MessageHandlerImpl;
-
+class TerminalHandler;
+class ProxyTerminalHandler;
+class WebHandler;
+class CenterServerHandler;
+//*/
 template<class Connection>
 class ClientManager;
+
+
 
 typedef asio::ip::tcp icstcp;
 
@@ -39,9 +56,9 @@ public:
 
 	IcsConnection(socket&& s, ClientManager<_thisType>& cm)
 		: m_socket(std::forward<socket>(s))
-		, m_messageHandler(nullptr)
 		, m_client_manager(cm)
 		, m_isSending(false)
+		, m_request(mp)
 		, m_sendSerialNum(0)
 	{
 
@@ -49,13 +66,9 @@ public:
 
 	~IcsConnection()
 	{
-		if (m_messageHandler != nullptr)
+		if (m_msgHandler && !m_connName.empty())
 		{
-			if (!m_connName.empty())
-			{
-				m_client_manager.removeTerminalConn(m_connName);
-			}
-			delete m_messageHandler;
+			m_client_manager.removeTerminalConn(m_connName);
 		}
 		LOG_DEBUG(m_connName << " has been deleted");
 	}
@@ -66,6 +79,7 @@ public:
 		//	do_write();	// nothing to write
 	}
 
+	// 该终端被替换
 	void replaced(bool flag = true)
 	{
 		m_replaced = flag;
@@ -101,7 +115,7 @@ public:
 
 		try {
 			ProtocolStream response(mp);
-			conn->m_messageHandler->dispatch(*conn, message, response);
+			conn->m_msgHandler->dispatch(*conn, message, response);
 			if (!response.empty())
 			{
 				response.getHead()->setSendNum(conn->m_sendSerialNum++);
@@ -136,12 +150,12 @@ public:
 		if (!connList.empty())
 		{
 			message.serailzeToData();
-			MemoryChunk mc = message.toMemoryChunk();
+			MemoryChunk_ptr mc = message.toMemoryChunk();
 
 			for (auto it = connList.begin(); it != connList.end(); it++)
 			{
 				// 找到该链接直接发送
-				(*it)->trySend(mc.clone(mp));
+				(*it)->trySend(mc->clone(mp));
 			}
 
 			message.release();
@@ -149,23 +163,24 @@ public:
 		return ret;
 	}
 
+private:
 	void do_read()
 	{
 		// wait response
 		m_socket.async_read_some(asio::buffer(m_recvBuff, sizeof(m_recvBuff)),
 			[this](const std::error_code& ec, std::size_t length)
-		{
-			// no error and handle message
-			if (!ec && handleData(m_recvBuff, length))
 			{
-				// continue to read		
-				do_read();
-			}
-			else
-			{
-				do_error(shutdown_type::shutdown_both);
-			}
-		});
+				// no error and handle message
+				if (!ec && this->handleData(m_recvBuff, length))
+				{
+					// continue to read		
+					this->do_read();
+				}
+				else
+				{
+					this->do_error(shutdown_type::shutdown_both);
+				}
+			});
 	}
 
 	void do_write()
@@ -195,33 +210,34 @@ public:
 		std::lock_guard<std::mutex> lock(m_sendLock);
 		if (!m_isSending && !m_sendList.empty())
 		{
-			MemoryChunk& chunk = m_sendList.front();
-			m_socket.async_send(asio::buffer(chunk.getBuff(), chunk.getUsedSize()),
-				[this](const std::error_code& ec, std::size_t length)
-			{
-				if (!ec && length == m_sendList.front().getUsedSize())
-				{
-					MemoryChunk& mc = m_sendList.front();
-					this->toHexInfo("send", (uint8_t*)mc.getBuff(), mc.getUsedSize());
-					mp.put(mc);
-					m_sendList.pop_front();
-					m_isSending = false;
-					trySend();
-				}
-				else
-				{
-					LOG_DEBUG(m_connName << " send data error");
-					do_error(shutdown_type::shutdown_both);
-				}
-			});
+			
+			MemoryChunk_ptr& chunk = m_sendList.front();
+			m_socket.async_send(asio::buffer(chunk->getBuff(), chunk->getUsedSize()),
+					[this](const std::error_code& ec, std::size_t length)
+						{
+							MemoryChunk_ptr& chunk = m_sendList.front();
+							if (!ec && length == chunk->getUsedSize())
+							{
+								this->toHexInfo("send", (uint8_t*)chunk->getBuff(), chunk->getUsedSize());
+								m_sendList.pop_front();				
+								m_isSending = false;
+								trySend();
+							}
+							else
+							{
+								LOG_DEBUG(m_connName << " send data error");
+								do_error(shutdown_type::shutdown_both);
+							}
+						});
+			
 		}
 	}
 
-	void trySend(MemoryChunk&& mc)
+	void trySend(MemoryChunk_ptr&& mc)
 	{
 		{
 			std::lock_guard<std::mutex> lock(m_sendLock);
-			m_sendList.push_back(mc);
+			m_sendList.push_back(std::move(mc));
 		}
 		trySend();
 	}
@@ -237,7 +253,7 @@ public:
 
 	void assertIcsMessage(ProtocolStream& message)
 	{
-		if (m_messageHandler == nullptr)
+		if (!m_msgHandler)
 		{
 			if (message.size() < sizeof(ProtocolHead)+ProtocolHead::CrcCodeSize)
 			{
@@ -248,33 +264,54 @@ public:
 			protocol::MessageId msgid = message.getHead()->getMsgID();
 			if (msgid > protocol::MessageId::T2C_min && msgid < protocol::MessageId::T2C_max)
 			{
-				m_messageHandler = new TerminalHandler();
+				m_msgHandler.reset(new TerminalHandler());
 			}
 			else if (msgid > protocol::MessageId::W2C_min && msgid < protocol::MessageId::W2C_max)
 			{
-				m_messageHandler = new WebHandler();
+				m_msgHandler.reset(new WebHandler());
 			}
 			else if (msgid == protocol::MessageId::T2T_forward_msg)
 			{
-				m_messageHandler = new ProxyTerminalHandler();
+				m_msgHandler.reset(new ProxyTerminalHandler());
 			}
-
-			m_messageHandler = new TerminalHandler();
+			else
+			{
+				throw IcsException("unkown protocol");
+			}
 		}
 	}
 
 	bool handleData(uint8_t* buf, std::size_t length)
 	{
-		bool ret = false;
-
 		// show debug info
 		this->toHexInfo("recv", buf, length);
 
-		ProtocolStream request(buf, length);
-		ProtocolHead* head = request.getHead();
+		// assemble a complete ICS message and handle it
+		try {
+			while (m_request.appendData(buf, length))
+			{
+				if (!handleMessage(m_request))
+				{
+					return false;
+				}
+			}
+		}
+		catch (IcsException& ex)
+		{
+			LOG_ERROR(ex.message());
+			return false;
+		}
+
+		return true;
+	}
+
+	bool handleMessage(ProtocolStream&	request)
+	{
+		bool ret = false;
+		ProtocolHead* head = m_request.getHead();
 
 		try {
-			request.verify();
+			m_request.verify();
 
 			if (head->isResponse())	// ignore response message from terminal
 			{
@@ -285,7 +322,7 @@ public:
 
 			ProtocolStream response(mp);
 
-			m_messageHandler->handle(*this, request, response);
+			m_msgHandler->handle(*this, m_request, response);
 
 			if (head->needResposne())
 			{
@@ -296,7 +333,7 @@ public:
 			{
 				response.getHead()->setSendNum(m_sendSerialNum++);
 				response.serailzeToData();
-				trySend(response.toMemoryChunk());
+				trySend(std::move(response.toMemoryChunk()));
 			}
 			ret = true;
 		}
@@ -312,12 +349,8 @@ public:
 		{
 			LOG_ERROR("handle message [" << (int)(head->getMsgID()) << "] unknown error");
 		}
-
 		return ret;
 	}
-
-
-
 private:
 	// tcp socket
 	socket	m_socket;
@@ -325,15 +358,22 @@ private:
 	// replaced by another TcpConnection
 	bool	m_replaced;
 
-	MessageHandlerImpl*		m_messageHandler;
+	/// message handler
+	std::unique_ptr<MessageHandlerImpl> m_msgHandler;
+
+	/// connection name
 	std::string             m_connName;
+
+	/// client manager
 	ClientManager<_thisType>&	m_client_manager;
 
 	// recv area
 	uint8_t			m_recvBuff[512];
+	std::array<uint8_t, 512> m_recvBuffer;
+	ProtocolStream	m_request;
 
 	// send area
-	std::list<MemoryChunk> m_sendList;
+	std::list<MemoryChunk_ptr> m_sendList;
 	std::mutex		m_sendLock;
 	bool			m_isSending;
 	uint16_t		m_sendSerialNum;

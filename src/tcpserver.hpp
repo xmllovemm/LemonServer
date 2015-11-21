@@ -8,6 +8,7 @@ ics server
 #define _ICS_TCP_SERVER_H
 
 #include "config.hpp"
+#include <asio.hpp>
 #include <string>
 #include <thread>
 
@@ -16,22 +17,17 @@ namespace ics {
 
 class TcpServer {
 public:
-	typedef std::function<void(asio::ip::tcp::socket&&)> addClientHandler;
+	typedef std::function<void(asio::ip::tcp::socket&&)> AddClientHandler;
 
-	TcpServer(asio::io_service& service, const std::string& ip, int port, addClientHandler do_add_client);
+	TcpServer(asio::io_service& service);
 
-	TcpServer(asio::io_service& service, int port, addClientHandler do_add_client);
+	void init(const std::string& addr, AddClientHandler do_add_client);
 
 	~TcpServer();
-
-	void run();
 
 	void run_on_thread();
 
 	void stop();
-
-	asio::io_service& getService();
-
 private:
 	TcpServer() = delete;
 
@@ -40,10 +36,9 @@ private:
 private:
 	asio::io_service&		m_io_service;
 	asio::ip::tcp::acceptor	m_acceptor;
-	asio::ip::tcp::socket	m_client_socket;
+	asio::ip::tcp::socket	m_clientSocket;
 	std::thread*			m_io_service_thread;
-
-	std::function<void(asio::ip::tcp::socket)> m_do_add_client;
+	AddClientHandler		m_do_add_client;
 
 };
 

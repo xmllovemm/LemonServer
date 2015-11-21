@@ -13,33 +13,38 @@ class MemoryPool;
 
 class MemoryChunk {
 public:
-	MemoryChunk(void* buf, std::size_t length);
+	MemoryChunk() = delete;
 
-	MemoryChunk();
+	MemoryChunk(MemoryPool& mp);
 
-	MemoryChunk(const MemoryChunk& rhs);
+	~MemoryChunk();
+
+	MemoryChunk(MemoryChunk&& rhs);
 
 	MemoryChunk clone(MemoryPool& mp);
 
-	MemoryChunk& operator = (const MemoryChunk& rhs);
+	MemoryChunk& operator = (MemoryChunk&& rhs);
 
 	void* getBuff();
 
 	// get used size
-	std::size_t getUsedSize();
+	std::size_t getUsedSize() const;
 
 	void setUsedSize(std::size_t n);
 
 	// get tatol size
-	std::size_t getTotalSize();
+	std::size_t getTotalSize() const;
 
-	bool valid();
+	bool valid() const;
 
-private:
-	void*		m_buff;
+public:
+	uint8_t*		m_buff;
 	std::size_t	m_usedSize;
 	std::size_t	m_totalSize;
+	MemoryPool&	m_memPool;
 };
+
+typedef std::unique_ptr<MemoryChunk> MemoryChunk_ptr;
 
 class MemoryPool {
 public:
@@ -51,17 +56,17 @@ public:
 
 	~MemoryPool();
 
-	MemoryChunk get();
+	MemoryChunk_ptr get();
 
-	void put(MemoryChunk&& chunk);
+	void put(MemoryChunk_ptr&& chunk);
 
-	void put(MemoryChunk& chunk);
+	std::size_t chunkSize() const;
 private:
 	char*		m_buff;
 	std::size_t	m_chunkSize;
 	std::size_t	m_chunkCount;
 
-	std::list<MemoryChunk>	m_chunkList;
+	std::list<MemoryChunk_ptr>	m_chunkList;
 	std::mutex		m_chunkLock;
 };
 

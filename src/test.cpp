@@ -38,33 +38,22 @@ void test_server(const char* configfile)
 {
 	asio::io_service io_service;
 
-	ics::SignalHandler sh(io_service);
+	ics::TcpServer clientServer(io_service);
 
-	// load config file
-	config.load(configfile);
+	asio::signal_set signals(io_service);
 
-	// get listen address
-	const std::string& ipaddr = config.getAttributeString("listen", "addr");
+	signals.add(SIGINT);
+	signals.add(SIGTERM);
 
-	int separator = ipaddr.find(':');
-	if (separator == std::string::npos)
-	{
-		cerr << "ip addr is not correct:" << ipaddr << endl;
-		return;
-	}
-
-	std::string port = ipaddr.substr(separator + 1);
-	std::string ip = ipaddr.substr(0, separator);
-
-	ics::TcpServer clientServer(io_service
-		, ip
-		, std::strtol(port.c_str(), NULL, 10)
-		, [](asio::ip::tcp::socket&& s){
-			tcpClientManager.createConnection(std::move(s));
+	signals.async_wait([&io_service](asio::error_code ec, int signo)
+		{
+			cout << "catch a signal " << signo << ",exit..." << endl;
+			io_service.stop();
 		});
 
 	try {
-		sh.sync_wait();
+		// load config file
+		config.load(configfile);
 
 		ics::DataBase::initialize();
 
@@ -74,32 +63,30 @@ void test_server(const char* configfile)
 
 		db.open();
 
-		clientServer.run();
-
-		/*
-		ics::SubCommServerClient subclient(io_service);
-
-		subclient.connectTo("192.168.50.133", 99);
-		//*/
+		clientServer.init(config.getAttributeString("listen", "addr")
+			,[](asio::ip::tcp::socket&& s){
+				tcpClientManager.createConnection(std::move(s));
+			});
 
 		io_service.run();
 
 	}
 	catch (std::exception& ex)
 	{
-		cerr << ex.what() << endl;
+		cerr << "init failed std exception: " << ex.what() << endl;
 	}
 	catch (ics::IcsException& ex)
 	{
-		cerr << ex.message() << endl;
+		cerr << "init failed ics exception: " << ex.message() << endl;
+	}
+	catch (otl_exception& ex)
+	{
+		cerr << "init failed database exception: " << ex.msg << endl;
 	}
 	catch (...)
 	{
 		cerr << "unknown error" << endl;
 	}
-
-
-
 }
 
 bool is_prime(int x)
@@ -162,19 +149,7 @@ void test_std()
 	th2.join();
 }
 
-
-class Test : public std::enable_shared_from_this<Test> {
-public:
-	Test()
-	{
-		cout << "construct..." << endl;
-	}
-
-	~Test()
-	{
-		cout << "destruct..." << endl;
-	}
-};
+#include <regex>
 
 int main(int argc, char** argv)
 {
@@ -185,12 +160,8 @@ int main(int argc, char** argv)
 	}
 
 	cout << "start..." << endl;
-
-	std::unique_ptr<Test> it= std::make_unique<Test>();
-
-	std::shared_ptr<Test> ano = it->shared_from_this();
-
-//	test_server(argv[1]);
+	
+	test_server(argv[1]);
 
 	cout << "stop..." << endl;
 	return 0;

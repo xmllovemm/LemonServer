@@ -30,6 +30,7 @@ public:
 
 	void createConnection(socket&& s)
 	{
+//		LOG_DEBUG("new client : " << s.);
 		Connection* c = new Connection(std::move(s), *this);
 		c->start();
 	}

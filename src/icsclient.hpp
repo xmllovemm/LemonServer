@@ -8,6 +8,7 @@
 #include "icsprotocol.hpp"
 #include "clientmanager.hpp"
 #include "mempool.hpp"
+#include <asio.hpp>
 #include <string>
 #include <unordered_map>
 #include <list>

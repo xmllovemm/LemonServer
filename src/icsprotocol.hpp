@@ -432,55 +432,50 @@ template<class ProtocolHead>
 class ProtocolStream
 {
 public:
-	ProtocolStream(void* buf, std::size_t length) :m_memoryPool(nullptr), m_needRelease(false)
+	ProtocolStream(MemoryPool& mp) : m_memoryPool(mp), m_chunkPtr(std::make_unique<MemoryChunk>(mp))
 	{
-		reset(buf, length);
+//		m_chunkPtr = std::move(m_memoryPool.get());
+		
+		rewind();
 	}
 
-	ProtocolStream(MemoryPool& mp) : m_memoryPool(&mp), m_needRelease(true)
+	ProtocolStream(ProtocolStream&& rhs) : m_memoryPool(rhs.m_memoryPool), m_chunkPtr(std::move(rhs.m_chunkPtr))
 	{
-		MemoryChunk mc = m_memoryPool->get();
-		reset(mc.getBuff(), mc.getTotalSize());
+		rewind();
 	}
 
-	virtual ~ProtocolStream()
+	~ProtocolStream()
 	{
-		release();
+
 	}
 
-	MemoryChunk toMemoryChunk()
+	MemoryChunk_ptr toMemoryChunk()
 	{
-		MemoryChunk mc(m_head, size());
-		mc.setUsedSize(length());
-		m_needRelease = false;
-		return mc;
+		if (!m_chunkPtr)
+		{
+			throw IcsException("MemoryChunk_ptr has been moved");
+		}
+
+		m_chunkPtr->setUsedSize(length());
+		m_released = true;
+
+		return std::move(m_chunkPtr);
 	}
 
 	void release()
 	{
-		if (m_memoryPool != nullptr && m_needRelease)
+		if (m_chunkPtr)
 		{
-			m_needRelease = false;
-			m_memoryPool->put(toMemoryChunk());
+			m_memoryPool.put(std::move(m_chunkPtr));
 		}
 	}
 
 	// set current to the start
 	inline void rewind()
 	{
+		m_head = (ProtocolHead*)m_chunkPtr->m_buff;
 		m_pos = (uint8_t*)(m_head + 1);
-	}
-
-	// reset the buffer
-	inline void reset(void* buf, std::size_t length)
-	{
-		if (buf == nullptr || length == 0)
-		{
-			throw IcsException("empty buff cann't init ProtocolStream");
-		}
-		m_head = (ProtocolHead*)buf;
-		m_pos = (uint8_t*)(m_head + 1);
-		m_end = (uint8_t*)buf + length;
+		m_end = (uint8_t*)m_head + m_chunkPtr->m_totalSize;
 	}
 
 	// get the protocol head
@@ -507,16 +502,36 @@ public:
 		return m_pos == (uint8_t*)(m_head + 1);
 	}
 
-	// 
-	bool appendData(void* buf, std::size_t& len)
+	// assemble a complete message,
+	bool appendData(uint8_t* buf, std::size_t& len) throw (IcsException)
 	{
-		
-		std::size_t need_size = m_head->getLength();
-		if (true)
+		if (len == 0)
 		{
-
+			return false;
 		}
 
+		// there must have a complete head
+		if (m_chunkPtr->m_usedSize < sizeof(ProtocolHead))
+		{
+			std::size_t headSize = sizeof(ProtocolHead) - m_chunkPtr->m_usedSize;
+			if (headSize > len)
+			{
+				
+			}
+			std::memcpy(m_chunkPtr->m_buff, buf, headSize);
+		}
+
+		std::size_t need_size = m_head->getLength() - m_chunkPtr->m_usedSize;
+		if (need_size > m_chunkPtr->m_totalSize - m_chunkPtr->m_usedSize)
+		{
+			throw IcsException("message length=%d is to big", need_size + m_chunkPtr->m_usedSize);
+		}
+		if (need_size < len)
+		{
+			len -= need_size;
+		}
+		std::memcpy(m_chunkPtr->m_buff + m_chunkPtr->m_usedSize, buf, need_size);
+		m_end = m_chunkPtr->m_buff + m_chunkPtr->m_usedSize + need_size;
 		return true;
 	}
 
@@ -752,9 +767,12 @@ protected:
 	// point to the end address of buffer
 	uint8_t*		m_end;
 
-	MemoryPool*		m_memoryPool;
+	MemoryPool&		m_memoryPool;
 
-	bool			m_needRelease;
+	MemoryChunk_ptr	m_chunkPtr;
+
+	// has been released
+	bool			m_released;
 };
 
 
