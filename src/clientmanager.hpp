@@ -3,7 +3,7 @@
 #ifndef _Connection_MANAGER_H
 #define _Connection_MANAGER_H
 
-#include "config.hpp" 
+//#include "config.hpp" 
 #include "connection.hpp"
 #include "log.hpp"
 #include <map>

@@ -44,8 +44,13 @@ timestamp ----> SQL-server:DATETIME,Oracle:DATE,Oracle 9i:TIMESTAMP   YYYY-MM-DD
 #ifndef ASIO_STANDALONE
 #define ASIO_STANDALONE
 #endif
-#include <asio.hpp>
+#ifndef ASIO_HEADER_ONLY
+#define ASIO_HEADER_ONLY
+#endif
 
+#ifdef WIN32
+#include <asio.hpp>
+#endif
 
 // byte order
 #define ICS_USE_LITTLE_ENDIAN

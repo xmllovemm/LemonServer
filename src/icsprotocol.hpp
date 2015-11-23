@@ -8,6 +8,7 @@
 #include "otlv4.h"
 #include "icsexception.hpp"
 #include "mempool.hpp"
+#include <cstring>
 #include <cstdint>
 #include <string>
 #include <stdexcept>
@@ -514,11 +515,14 @@ public:
 		if (m_chunkPtr->m_usedSize < sizeof(ProtocolHead))
 		{
 			std::size_t headSize = sizeof(ProtocolHead) - m_chunkPtr->m_usedSize;
+			
+
+			std::memcpy(m_chunkPtr->m_buff + m_chunkPtr->m_usedSize, buf, headSize);
 			if (headSize > len)
 			{
-				
+//				throw
 			}
-			std::memcpy(m_chunkPtr->m_buff, buf, headSize);
+			
 		}
 
 		std::size_t need_size = m_head->getLength() - m_chunkPtr->m_usedSize;

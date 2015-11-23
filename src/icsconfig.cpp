@@ -1,7 +1,6 @@
 
 
 #include "icsconfig.hpp"
-#include "log.hpp"
 
 namespace ics {
 

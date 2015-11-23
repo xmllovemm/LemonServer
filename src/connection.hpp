@@ -11,33 +11,31 @@
 
 
 #include "config.hpp"
+#include "log.hpp"
 #include "icsclient.hpp"
 #include "icsprotocol.hpp"
 #include "clientmanager.hpp"
-#include "log.hpp"
-#include "database.hpp"
-#include "icsconfig.hpp"
 #include "mempool.hpp"
+#include <asio.hpp>
 #include <asio.hpp>
 #include <string>
 #include <mutex>
 
 
-extern ics::DataBase db;
 extern ics::MemoryPool mp;
-extern ics::IcsConfig config;
 
 namespace ics {
-	///*
+
+///*
 class MessageHandlerImpl;
 class TerminalHandler;
 class ProxyTerminalHandler;
 class WebHandler;
 class CenterServerHandler;
 //*/
+
 template<class Connection>
 class ClientManager;
-
 
 
 typedef asio::ip::tcp icstcp;
@@ -56,9 +54,10 @@ public:
 
 	IcsConnection(socket&& s, ClientManager<_thisType>& cm)
 		: m_socket(std::forward<socket>(s))
+		, m_replaced(false)
 		, m_client_manager(cm)
-		, m_isSending(false)
 		, m_request(mp)
+		, m_isSending(false)
 		, m_sendSerialNum(0)
 	{
 
@@ -265,14 +264,17 @@ private:
 			if (msgid > protocol::MessageId::T2C_min && msgid < protocol::MessageId::T2C_max)
 			{
 				m_msgHandler.reset(new TerminalHandler());
+//				m_msgHandler = make_unique<TerminalHandler>();
 			}
 			else if (msgid > protocol::MessageId::W2C_min && msgid < protocol::MessageId::W2C_max)
 			{
 				m_msgHandler.reset(new WebHandler());
+//				m_msgHandler = make_unique<WebHandler>();
 			}
 			else if (msgid == protocol::MessageId::T2T_forward_msg)
 			{
-				m_msgHandler.reset(new ProxyTerminalHandler());
+//				m_msgHandler.reset(new ProxyTerminalHandler());
+				m_msgHandler = make_unique<ProxyTerminalHandler>();
 			}
 			else
 			{

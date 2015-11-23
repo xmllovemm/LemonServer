@@ -4,10 +4,7 @@
 #define _ICS_CLIENT_H
 
 #include "config.hpp"
-#include "connection.hpp"
 #include "icsprotocol.hpp"
-#include "clientmanager.hpp"
-#include "mempool.hpp"
 #include <asio.hpp>
 #include <string>
 #include <unordered_map>
@@ -23,6 +20,7 @@ template<class T>
 class IcsConnection;
 
 typedef IcsConnection<asio::ip::tcp> TcpConnection;
+
 
 
 // ICS协议处理接口类

@@ -3,9 +3,10 @@
 #ifndef _MEMORY_POOL_H
 #define _MEMORY_POOL_H
 
-#include "config.hpp"
+//#include "config.hpp"
 #include <mutex>
 #include <list>
+#include <memory>
 
 namespace ics {
 
@@ -38,10 +39,10 @@ public:
 	bool valid() const;
 
 public:
+	MemoryPool&	m_memPool;
 	uint8_t*		m_buff;
 	std::size_t	m_usedSize;
 	std::size_t	m_totalSize;
-	MemoryPool&	m_memPool;
 };
 
 typedef std::unique_ptr<MemoryChunk> MemoryChunk_ptr;

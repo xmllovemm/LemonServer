@@ -69,7 +69,7 @@ bool character_convert(const char* from_code, const std::string& src, std::size_
 	char* pppout = outBuff;
 	char** pout = &pppout;
 
-	if (iconv(fd, pin, &inLen, pout, &outLen) != -1)
+	if (iconv(fd, pin, &inLen, pout, &outLen) != (size_t)-1)
 	{
 		ret = true;
 		dest = outBuff;

@@ -23,9 +23,9 @@ set(CMAKE_C_COMPILER "/usr/local/gcc-5.2/bin/gcc")
 set(CMAKE_C_FLAGS_DEBUG "-g -Wall")
 set(CMAKE_C_FLAGS_RELEASE "-O2 -Wall")
 
-set(CMAKE_CXX_COMPILER "/usr/local/gcc-5.2/bin/g++")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -std=c++14 -Wall")
-set(CMAKE_CXX_FLAGS_RELEASE "-O2 -std=c++14 -Wall")
+#set(CMAKE_CXX_COMPILER "/usr/local/gcc-5.2/bin/g++")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -std=c++14 -Wall -fno-use-linker-plugin")
+set(CMAKE_CXX_FLAGS_RELEASE "-O2 -std=c++14 -Wall -fno-use-linker-plugin")
 
 message("Project CMAKE_CXX_COMPILER:${CMAKE_CXX_COMPILER}")
 

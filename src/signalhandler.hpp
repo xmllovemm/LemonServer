@@ -2,7 +2,7 @@
 #ifndef _SIGNAL_HANDLER_H
 #define _SIGNAL_HANDLER_H
 
-#include "config.hpp"
+//#include "config.hpp"
 #include "log.hpp"
 #include <asio/signal_set.hpp>
 #include <signal.h>
