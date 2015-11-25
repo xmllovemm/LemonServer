@@ -20,7 +20,7 @@ template<class T>
 class IcsConnection;
 
 typedef IcsConnection<asio::ip::tcp> TcpConnection;
-
+typedef IcsConnection<asio::ip::udp> UdpConnection;
 
 
 // ICS协议处理接口类
@@ -31,9 +31,11 @@ public:
 	virtual ~MessageHandlerImpl(){}
 
 	// 处理对端数据
-	virtual void handle(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException,otl_exception) = 0;
+	
+	virtual void handle(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception) = 0;
 
 	// 转发消息到对端
+	
 	virtual void dispatch(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception) = 0;
 };
 
@@ -44,61 +46,80 @@ public:
 	TerminalHandler();
 
 	// 处理终端发送数据
+	
 	virtual void handle(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 将该消息转发到终端
+	
 	virtual void dispatch(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 private:
 	// 终端认证
+	
 	void handleAuthRequest(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 标准状态上报
+	
 	void handleStdStatusReport(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 自定义状态上报
+	
 	void handleDefStatusReport(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 事件上报
+	
 	void handleEventsReport(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 终端回应参数查询
+	
 	void handleParamQueryResponse(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 终端主动上报参数修改
+	
 	void handleParamAlertReport(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 终端回应参数修改
+	
 	void handleParamModifyResponse(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 业务上报
+	
 	void handleBusinessReport(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// GPS上报
+	
 	void handleGpsReport(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 终端发送时钟同步请求
+	
 	void handleDatetimeSync(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 终端上报日志
+	
 	void handleLogReport(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 终端发送心跳到中心
+	
 	void handleHeartbeat(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 终端拒绝升级请求
+	
 	void handleDenyUpgrade(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 终端接收升级请求
+	
 	void handleAgreeUpgrade(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 索要升级文件片段
+	
 	void handleRequestFile(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 升级文件传输结果
+	
 	void handleUpgradeResult(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 终端确认取消升级
+	
 	void handleUpgradeCancelAck(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 
@@ -129,6 +150,7 @@ private:
 };
 
 
+
 // 中心处理子服务器消息类
 class ProxyTerminalHandler : public TerminalHandler {
 public:
@@ -157,6 +179,7 @@ public:
 	virtual void dispatch(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception);
 
 private:
+
 	// 转发到对应终端
 	void handleForward(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
@@ -184,6 +207,60 @@ public:
 	virtual void dispatch(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception);
 
 };
+
+
+// 推送服务器消息处理类
+class PushServerHandler : public TerminalHandler {
+public:
+	PushServerHandler();
+
+	// 处理推送服务器返回消息
+	virtual void handle(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
+
+	// never
+	virtual void dispatch(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception);
+
+};
+
+
+#define UPGRADEFILE_MAXSIZE 102400
+// 文件升级
+class FileUpgradeManager
+{
+public:
+
+	// 升级文件信息
+	struct FileInfo
+	{
+		void* file_content;
+		uint32_t file_length;
+		string file_name;
+	};
+
+	FileUpgradeManager();
+
+	~FileUpgradeManager();
+
+	std::shared_ptr<FileInfo> getFileInfo(uint32_t fileid);
+
+public:
+	static FileUpgradeManager* getInstance();
+
+private:
+	std::shared_ptr<FileInfo> loadFileInfo(uint32_t fileid);
+
+private:
+	// 文件id映射表
+	std::unordered_map<uint32_t, std::shared_ptr<FileInfo>> m_fileMap;
+
+	// 加载文件互斥锁
+	std::mutex		m_loadFileLock;
+
+private:
+	static FileUpgradeManager* s_instance;
+};
+
+
 
 }	// end namespace ics
 

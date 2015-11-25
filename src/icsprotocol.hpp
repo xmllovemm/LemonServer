@@ -463,6 +463,11 @@ public:
 		return std::move(m_chunkPtr);
 	}
 
+	asio::buffer toBuffer()
+	{
+		return asio::buffer(m_chunkPtr->m_buff, m_chunkPtr->m_totalSize);
+	}
+
 	void release()
 	{
 		if (m_chunkPtr)
@@ -471,72 +476,87 @@ public:
 		}
 	}
 
-	// set current to the start
+	/// set current to the start
 	inline void rewind()
 	{
 		m_head = (ProtocolHead*)m_chunkPtr->m_buff;
 		m_pos = (uint8_t*)(m_head + 1);
 		m_end = (uint8_t*)m_head + m_chunkPtr->m_totalSize;
+		m_chunkPtr->m_usedSize = 0;
 	}
 
-	// get the protocol head
+	/// get the protocol head
 	inline ProtocolHead* getHead() const
 	{
 		return m_head;
 	}
 
-	// get total size
+	/// get total size
 	inline std::size_t size() const
 	{
 		return m_end - (uint8_t*)m_head;
 	}
 
-	// get wrote size
+	/// get wrote size
 	inline std::size_t length() const
 	{
 		return m_pos - (uint8_t*)m_head;
 	}
 
-	// there is no more data to get
+	/// there is no more data to get
 	inline bool empty() const
 	{
 		return m_pos == (uint8_t*)(m_head + 1);
 	}
 
-	// assemble a complete message,
-	bool appendData(uint8_t* buf, std::size_t& len) throw (IcsException)
+	/// assemble a complete message, true: generate one,false: need more data
+	bool assembleMessage(uint8_t* & buf, std::size_t& len) throw (IcsException)
 	{
+		bool ret = false;
 		if (len == 0)
 		{
-			return false;
+			return ret;
 		}
 
-		// there must have a complete head
+		/// copy length of buff
+		std::size_t copySize = 0;
+
+		/// have a complete head ?
 		if (m_chunkPtr->m_usedSize < sizeof(ProtocolHead))
 		{
-			std::size_t headSize = sizeof(ProtocolHead) - m_chunkPtr->m_usedSize;
-			
-
-			std::memcpy(m_chunkPtr->m_buff + m_chunkPtr->m_usedSize, buf, headSize);
-			if (headSize > len)
+			copySize = sizeof(ProtocolHead) - m_chunkPtr->m_usedSize;
+			if (copySize > len)
 			{
-//				throw
+				copySize = len;
+			}		
+		}
+		else
+		{
+			copySize = m_head->getLength() - m_chunkPtr->m_usedSize;
+
+			if (copySize > m_chunkPtr->m_totalSize - m_chunkPtr->m_usedSize)
+			{
+				throw IcsException("message length=%d is too big than buff length=%d", m_head->getLength(), m_chunkPtr->m_totalSize);
 			}
-			
+
+			if (copySize < len)
+			{
+				copySize = len;
+			}
+			else
+			{
+				ret = true;
+			}
 		}
 
-		std::size_t need_size = m_head->getLength() - m_chunkPtr->m_usedSize;
-		if (need_size > m_chunkPtr->m_totalSize - m_chunkPtr->m_usedSize)
-		{
-			throw IcsException("message length=%d is to big", need_size + m_chunkPtr->m_usedSize);
-		}
-		if (need_size < len)
-		{
-			len -= need_size;
-		}
-		std::memcpy(m_chunkPtr->m_buff + m_chunkPtr->m_usedSize, buf, need_size);
-		m_end = m_chunkPtr->m_buff + m_chunkPtr->m_usedSize + need_size;
-		return true;
+		std::memcpy(m_chunkPtr->m_buff + m_chunkPtr->m_usedSize, buf, copySize);
+		len -= copySize;
+		buf += copySize;
+		m_chunkPtr->m_usedSize += copySize;
+		m_end = m_chunkPtr->m_buff + m_chunkPtr->m_usedSize;
+
+		return ret;
+
 	}
 
 	// -----------------------set data----------------------- 
@@ -643,6 +663,16 @@ public:
 		std::memcpy(m_pos, data.m_pos, data.leftSize());
 		m_pos += data.leftSize();
 		return *this;
+	}
+
+	void append(const void* data, std::size_t len)
+	{
+		if (len > leftSize())
+		{
+			throw IcsException("OOM to set %d bytes buff data", len);
+		}
+		memcpy(m_pos, data, len);
+		m_pos += len;
 	}
 
 	void moveBack(std::size_t offset) throw(IcsException)

@@ -12,7 +12,7 @@
 
 #include "config.hpp"
 #include "log.hpp"
-#include "icsclient.hpp"
+#include "messagehandler.hpp"
 #include "icsprotocol.hpp"
 #include "clientmanager.hpp"
 #include "mempool.hpp"
@@ -69,13 +69,14 @@ public:
 		{
 			m_client_manager.removeTerminalConn(m_connName);
 		}
+		m_socket.close();
 		LOG_DEBUG(m_connName << " has been deleted");
 	}
 
 	void start()
 	{
 		do_read();
-		//	do_write();	// nothing to write
+		do_write();
 	}
 
 	// 该终端被替换
@@ -162,15 +163,22 @@ public:
 		return ret;
 	}
 
+	// 直接发送到该链接对端
+	void directSend(ProtocolStream& message)
+	{
+		message.getHead()->setSendNum(m_sendSerialNum);
+		message.serailzeToData();
+		trySend(message.toMemoryChunk());
+	}
 private:
 	void do_read()
 	{
 		// wait response
-		m_socket.async_read_some(asio::buffer(m_recvBuff, sizeof(m_recvBuff)),
+		m_socket.async_read_some(asio::buffer(m_recvBuff),
 			[this](const std::error_code& ec, std::size_t length)
 			{
 				// no error and handle message
-				if (!ec && this->handleData(m_recvBuff, length))
+				if (!ec && this->handleData(m_recvBuff.data(), length))
 				{
 					// continue to read		
 					this->do_read();
@@ -190,6 +198,7 @@ private:
 	void do_error(shutdown_type type)
 	{
 		m_socket.shutdown(type);
+		delete this;
 	}
 
 	void toHexInfo(const char* info, uint8_t* data, std::size_t length)
@@ -208,8 +217,7 @@ private:
 	{
 		std::lock_guard<std::mutex> lock(m_sendLock);
 		if (!m_isSending && !m_sendList.empty())
-		{
-			
+		{			
 			MemoryChunk_ptr& chunk = m_sendList.front();
 			m_socket.async_send(asio::buffer(chunk->getBuff(), chunk->getUsedSize()),
 					[this](const std::error_code& ec, std::size_t length)
@@ -218,7 +226,7 @@ private:
 							if (!ec && length == chunk->getUsedSize())
 							{
 								this->toHexInfo("send", (uint8_t*)chunk->getBuff(), chunk->getUsedSize());
-								m_sendList.pop_front();				
+								m_sendList.pop_front();			
 								m_isSending = false;
 								trySend();
 							}
@@ -285,16 +293,17 @@ private:
 
 	bool handleData(uint8_t* buf, std::size_t length)
 	{
-		// show debug info
+		/// show debug info
 		this->toHexInfo("recv", buf, length);
 
-		// assemble a complete ICS message and handle it
 		try {
-			while (m_request.appendData(buf, length))
+			while (length != 0)
 			{
-				if (!handleMessage(m_request))
+				/// assemble a complete ICS message and handle it
+				if (m_request.assembleMessage(buf, length))
 				{
-					return false;
+					handleMessage(m_request);
+					m_request.rewind();
 				}
 			}
 		}
@@ -307,51 +316,59 @@ private:
 		return true;
 	}
 
-	bool handleMessage(ProtocolStream&	request)
+	void handleMessage(ProtocolStream&	request)
 	{
-		bool ret = false;
 		ProtocolHead* head = m_request.getHead();
 
 		try {
+			/// verify ics protocol
 			m_request.verify();
 
-			if (head->isResponse())	// ignore response message from terminal
+			/// it must be one of ICS message
+			assertIcsMessage(request);
+
+			/// ignore response message from terminal
+			if (head->isResponse())	
 			{
-				return true;
+				return;
 			}
 
-			assertIcsMessage(request);
 
 			ProtocolStream response(mp);
 
-			m_msgHandler->handle(*this, m_request, response);
+			/// handle message
+//			m_msgHandler->handle(*this, m_request, response);
 
+			/// prepare response
 			if (head->needResposne())
 			{
 				response.getHead()->init(protocol::MessageId::MessageId_min, head->getSendNum());	// head->getMsgID()
 			}
 
+			/// send response message
 			if (!response.empty() || head->needResposne())
 			{
 				response.getHead()->setSendNum(m_sendSerialNum++);
 				response.serailzeToData();
-				trySend(std::move(response.toMemoryChunk()));
+				trySend(response.toMemoryChunk());
 			}
-			ret = true;
 		}
 		catch (IcsException& ex)
 		{
-			LOG_ERROR("handle message [" << (int)(head->getMsgID()) << "] std::exception:" << ex.message());
+			throw IcsException("handle message [%04x] IcsException:", (uint32_t)head->getMsgID(), ex.message().c_str());
 		}
 		catch (otl_exception& ex)
 		{
-			LOG_ERROR("handle message [" << (int)(head->getMsgID()) << "] otl_exception:" << ex.msg);
+			throw IcsException("handle message [%04x] otl_exception:", (uint32_t)head->getMsgID(), ex.msg);
+		}
+		catch (std::exception& ex)
+		{
+			throw IcsException("handle message [%04x] std::exception:", (uint32_t)head->getMsgID(), ex.what());
 		}
 		catch (...)
 		{
-			LOG_ERROR("handle message [" << (int)(head->getMsgID()) << "] unknown error");
+			throw IcsException("handle message [%04x] unknown error", (uint32_t)head->getMsgID());
 		}
-		return ret;
 	}
 private:
 	// tcp socket
@@ -370,8 +387,8 @@ private:
 	ClientManager<_thisType>&	m_client_manager;
 
 	// recv area
-	uint8_t			m_recvBuff[512];
-	std::array<uint8_t, 512> m_recvBuffer;
+//	uint8_t			m_recvBuff[512];
+	std::array<uint8_t, 512> m_recvBuff;
 	ProtocolStream	m_request;
 
 	// send area
@@ -382,6 +399,79 @@ private:
 };
 
 
+template<class ProtocolType>
+class BaseConnection {
+public:
+	typedef typename asio::basic_stream_socket<ProtocolType> socket;
+
+	BaseConnection(socket&& s) :m_socket(std::move(s)), m_request(mp)
+	{
+
+	}
+
+	void start()
+	{
+		do_read();
+	}
+
+protected:
+
+	void do_read()
+	{
+		// wait response
+		m_socket.async_read_some(m_request.toBuffer(),
+			[this](const std::error_code& ec, std::size_t length)
+		{
+			// no error and handle message
+			if (!ec && (length > sizeof(ProtocolHead) + ProtocolHead::CrcCodeSize))
+			{
+				handleData(m_request, length);
+			}
+
+			// 自删除
+			delete this;
+		});
+		
+	}
+
+	void handleData(ProtocolStream& request, std::size_t len)
+	{
+		
+		protocol::MessageId msgid = message.getHead()->getMsgID();
+
+		// 根据消息ID判断处理类型
+		if (msgid > protocol::MessageId::T2C_min && msgid < protocol::MessageId::T2C_max)
+		{
+			m_msgHandler.reset(new TerminalHandler());
+			//				m_msgHandler = make_unique<TerminalHandler>();
+		}
+		else if (msgid > protocol::MessageId::W2C_min && msgid < protocol::MessageId::W2C_max)
+		{
+			m_msgHandler.reset(new WebHandler());
+			//				m_msgHandler = make_unique<WebHandler>();
+		}
+		else if (msgid == protocol::MessageId::T2T_forward_msg)
+		{
+			//				m_msgHandler.reset(new ProxyTerminalHandler());
+			m_msgHandler = make_unique<ProxyTerminalHandler>();
+		}
+		else
+		{
+			throw IcsException("unkown protocol");
+		}
+	}
+	
+private:
+	socket m_socket;
+	std::array<uint8_t, 512> m_recvBuff;
+	ProtocolStream	m_request;
+
+};
+
+class IcsConnectionHandler {
+public:
+
+};
 
 }
 

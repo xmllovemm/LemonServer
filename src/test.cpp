@@ -1,11 +1,12 @@
 ﻿
+#include "log.hpp"
 #include "tcpserver.hpp"
 #include "clientmanager.hpp"
 #include "database.hpp"
-//#include "signalhandler.hpp"
 #include "mempool.hpp"
-//#include "icsclient.hpp"
 #include "icsconfig.hpp"
+#include "icspushsystem.hpp"
+#include "util.hpp"
 #include <iostream>
 #include <string>
 #include <tuple>
@@ -33,6 +34,7 @@ ics::ClientManager<ics::IcsConnection<ics::icstcp>> tcpClientManager(10);
 
 ics::ClientManager<ics::IcsConnection<ics::icsudp>> udpClientManager(10);
 
+ics::PushSystem pushSystem;
 
 void test_server(const char* configfile)
 {
@@ -55,7 +57,14 @@ void test_server(const char* configfile)
 		// load config file
 		config.load(configfile);
 
+		// init log file
+		init_log(config.getAttributeString("log", "configfile").c_str());
+
+		ics::be_daemon(config.getAttributeString("program", "workdir").c_str());
+
 		ics::DataBase::initialize();
+
+		pushSystem.init(config.getAttributeString("pushmsg", "serverip"), config.getAttributeInt("pushmsg", "serverport"));
 
 		mp.init(config.getAttributeInt("program", "chunksize"), config.getAttributeInt("program", "chunkcount"));
 
@@ -150,6 +159,28 @@ void test_std()
 }
 
 #include <regex>
+
+class Base {
+public:
+	void start()
+	{
+		do_read();
+	}
+
+private:
+	void do_read()
+	{
+		cout << "post do read" << endl;
+		// handleData()
+	}
+
+	void handleData()
+	{
+		// is ics protocol
+		// generate 
+	}
+
+};
 
 int main(int argc, char** argv)
 {

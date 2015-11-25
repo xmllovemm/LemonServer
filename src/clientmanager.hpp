@@ -3,7 +3,6 @@
 #ifndef _Connection_MANAGER_H
 #define _Connection_MANAGER_H
 
-//#include "config.hpp" 
 #include "connection.hpp"
 #include "log.hpp"
 #include <map>
@@ -30,7 +29,6 @@ public:
 
 	void createConnection(socket&& s)
 	{
-//		LOG_DEBUG("new client : " << s.);
 		Connection* c = new Connection(std::move(s), *this);
 		c->start();
 	}
@@ -49,6 +47,8 @@ public:
 			delete it;
 		}
 		it = conn;
+
+		LOG_DEBUG("add " << name << ", total client:" << m_terminalConnMap.size());
 	}
 
 	void removeTerminalConn(const std::string& name)
@@ -57,8 +57,9 @@ public:
 		auto it = m_terminalConnMap.find(name);
 		if (it != m_terminalConnMap.end())
 		{
-			delete it->second;
+//			delete it->second;
 			m_terminalConnMap.erase(it);
+			LOG_DEBUG("remove " << name << ", total client:" << m_terminalConnMap.size());
 		}
 	}
 

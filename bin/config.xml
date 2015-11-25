@@ -4,7 +4,7 @@
   <!--program init-->
   <program>
     <!--root directory-->
-    <workdir>/tmp</workdir>
+    <workdir>/home/xml/workspace/test/icsserver/bin</workdir>
     <!--number of work thread-->
     <workerthread>4</workerthread>
     <chunksize>126</chunksize>
@@ -22,18 +22,15 @@
     <onlineIP>127.0.0.1</onlineIP>
     <onlinePort>9999</onlinePort>
   </protocol>
-  
+
+  <pushmsg>
+    <serverip>192.168.50.133</serverip>
+    <serverport>9900</serverport>
+  </pushmsg>
  
   <!--log file-->
   <log>
-    <!--log director-->
-    <filename>message</filename>
-    <!--max size of log file(MB)-->
-    <filesize>10</filesize>
-    <!--total count of log file-->
-    <filecount>5</filecount>
-    <!--log level,must be one of debug/warn/error-->
-    <level>debug</level> 
+    <configfile>log4cplus.properties</configfile>
   </log>
  
   <!--database info-->

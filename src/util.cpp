@@ -1,7 +1,7 @@
 
 
 #include "util.hpp"
-#include "log.hpp"
+#include "config.hpp"
 #include <chrono>
 #include <iomanip>
 #include <string.h>
@@ -9,15 +9,15 @@
 #ifdef WIN32
 #include <windows.h>
 #else
+#include <unistd.h>
 #include <iconv.h>
 #include <errno.h>
 #endif
 
 namespace ics {
 
-bool character_convert(const char* from_code, const std::string& src, std::size_t len, const char* to_code, std::string& dest)
+void character_convert(const char* from_code, const std::string& src, std::size_t len, const char* to_code, std::string& dest) throw (IcsException)
 {
-	bool ret = false;
 #ifdef WIN32
 	/*
 	struct {
@@ -41,21 +41,16 @@ bool character_convert(const char* from_code, const std::string& src, std::size_
 	// gbk --> utf-8
 	WCHAR buff[126];
 	char strBuf[126];
-	if (::MultiByteToWideChar(CP_ACP, 0, src.c_str(), -1, buff, sizeof(buff) / sizeof(buff[0]))> 0 && ::WideCharToMultiByte(CP_UTF8, 0, buff, -1, strBuf, sizeof(strBuf), 0, 0)>0)
+	if (::MultiByteToWideChar(CP_ACP, 0, src.c_str(), -1, buff, sizeof(buff) / sizeof(buff[0]))> 0 && ::WideCharToMultiByte(CP_UTF8, 0, buff, -1, strBuf, sizeof(strBuf), 0, 0) == 0)
 	{
-		ret = true;
-	}
-	else
-	{
-		LOG_WARN("MultiByteToWideChar/WideCharToMultiByte failed");
+		throw IcsException("MultiByteToWideChar/WideCharToMultiByte failed");
 	}
 	dest = strBuf;
 #else
 	iconv_t fd = iconv_open(to_code, from_code);
 	if (fd == (iconv_t)-1)
 	{
-		LOG_WARN("iconv_open error as: " << strerror(errno));
-		return ret;
+		throw IcsException("iconv_open error as: %s", strerror(errno));
 	}
 	std::size_t inLen = src.length();
 	std::size_t outLen = 255;
@@ -71,17 +66,32 @@ bool character_convert(const char* from_code, const std::string& src, std::size_
 
 	if (iconv(fd, pin, &inLen, pout, &outLen) != (size_t)-1)
 	{
-		ret = true;
 		dest = outBuff;
 	}
 	else
 	{
-		LOG_WARN("iconv error as: " << strerror(errno));
+		IcsException("iconv error as: %s", strerror(errno));
 	}
 	iconv_close(fd);
 #endif
-	return ret;
 }
+
+
+void be_daemon(const char* root_dir) throw (IcsException)
+{
+#ifndef WIN32
+	if (!daemon(1, 1) == 0 && !chroot(root_dir) && !chdir("/"))
+	{
+		throw IcsException("be daemon error: %s", strerror(errno));
+	}
+
+#else
+
+#endif
+
+}
+
+
 
 static const uint32_t Crc32Table[] =
 {

@@ -1,14 +1,21 @@
 ﻿
-#include "icsclient.hpp"
+#include "messagehandler.hpp"
 #include "log.hpp"
 #include "connection.hpp"
 #include "database.hpp"
 #include "icsconfig.hpp"
 #include <cstdio>
 
+#ifdef WIN32
+#include <Windows.h>
+#else
+#include <sys/mman.h>
+#endif
+
 extern ics::DataBase db;
 extern ics::MemoryPool mp;
 extern ics::IcsConfig config;
+extern ics::ClientManager<ics::IcsConnection<ics::icsudp>> udpClientManager;
 
 namespace ics{
 
@@ -76,6 +83,7 @@ void TerminalHandler::handle(TcpConnection& conn, ProtocolStream& request, Proto
 
 }
 
+
 void TerminalHandler::dispatch(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	protocol::ShortString terminalName;
@@ -99,6 +107,7 @@ void TerminalHandler::dispatch(TcpConnection& conn, ProtocolStream& request, Pro
 #define UPGRADE_FILE_SEGMENG_SIZE 1024
 
 // 终端认证
+
 void TerminalHandler::handleAuthRequest(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	if (!m_conn_name.empty())
@@ -156,6 +165,7 @@ void TerminalHandler::handleAuthRequest(TcpConnection& conn, ProtocolStream& req
 }
 
 // 标准状态上报
+
 void TerminalHandler::handleStdStatusReport(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException,otl_exception,otl_exception)
 {
 	uint32_t status_type;	// 标准状态类别
@@ -195,6 +205,7 @@ void TerminalHandler::handleStdStatusReport(TcpConnection& conn, ProtocolStream&
 }
 
 // 自定义状态上报
+
 void TerminalHandler::handleDefStatusReport(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	/*
@@ -246,6 +257,7 @@ void TerminalHandler::handleDefStatusReport(TcpConnection& conn, ProtocolStream&
 }
 
 // 事件上报
+
 void TerminalHandler::handleEventsReport(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	protocol::IcsDataTime event_time, recv_time;	//	事件发生时间 接收时间
@@ -284,6 +296,7 @@ void TerminalHandler::handleEventsReport(TcpConnection& conn, ProtocolStream& re
 }
 
 // 业务上报
+
 void TerminalHandler::handleBusinessReport(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception)
 {
 	protocol::IcsDataTime report_time, recv_time;			// 业务采集时间 接收时间
@@ -453,6 +466,7 @@ void TerminalHandler::handleBusinessReport(TcpConnection& conn, ProtocolStream& 
 }
 
 // GPS上报
+
 void TerminalHandler::handleGpsReport(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	union
@@ -482,6 +496,7 @@ void TerminalHandler::handleGpsReport(TcpConnection& conn, ProtocolStream& reque
 }
 
 // 终端回应参数查询
+
 void TerminalHandler::handleParamQueryResponse(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	/*
@@ -516,6 +531,7 @@ void TerminalHandler::handleParamQueryResponse(TcpConnection& conn, ProtocolStre
 }
 
 // 终端主动上报参数修改
+
 void TerminalHandler::handleParamAlertReport(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	/*
@@ -550,6 +566,7 @@ void TerminalHandler::handleParamAlertReport(TcpConnection& conn, ProtocolStream
 }
 
 // 终端回应参数修改
+
 void TerminalHandler::handleParamModifyResponse(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	/*
@@ -582,6 +599,7 @@ void TerminalHandler::handleParamModifyResponse(TcpConnection& conn, ProtocolStr
 }
 
 // 终端发送时钟同步请求
+
 void TerminalHandler::handleDatetimeSync(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	protocol::IcsDataTime dt1, dt2;
@@ -595,6 +613,7 @@ void TerminalHandler::handleDatetimeSync(TcpConnection& conn, ProtocolStream& re
 }
 
 // 终端上报日志
+
 void TerminalHandler::handleLogReport(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	protocol::IcsDataTime status_time;		//	时间
@@ -608,11 +627,7 @@ void TerminalHandler::handleLogReport(TcpConnection& conn, ProtocolStream& reque
 
 	if (encode_type == 1)	// 0-UTF-8,1-GB2312
 	{
-		if (!character_convert("GB2312",log_value,log_value.length(),"UTF-8",log_value))
-		{
-			LOG_ERROR("编码转换失败");
-			throw IcsException("convert character failed");
-		}
+		character_convert("GB2312", log_value, log_value.length(), "UTF-8", log_value);
 	}
 	else if (encode_type != 0)
 	{
@@ -629,6 +644,7 @@ void TerminalHandler::handleLogReport(TcpConnection& conn, ProtocolStream& reque
 }
 
 // 终端发送心跳到中心
+
 void TerminalHandler::handleHeartbeat(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 
@@ -637,121 +653,74 @@ void TerminalHandler::handleHeartbeat(TcpConnection& conn, ProtocolStream& reque
 // 终端拒绝升级请求
 void TerminalHandler::handleDenyUpgrade(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	/*
-
-	MessageBuffer request(msghead + 1, msghead->length - sizeof(IcsMsgHead)-sizeof(uint32_t));	// 消息体内容
-
 	uint32_t request_id;	// 请求id
 	string reason;	// 拒绝升级原因
 
 	request >> request_id >> reason;
 
-	// verify length
-	if (!request.empty())
-	{
-		LOG_WARN("reply deny upgrade message has superfluous data:" << request.leftSize());
-		return false;
-	}
+	request.assertEmpty();
 
-	vector<Variant> params;
-	params.push_back(terminal->m_monitorID);
-	params.push_back(int(request_id));
-	params.push_back(reason);
+	OtlConnectionGuard connGuard(db);
+	otl_stream s(1
+		, "{ call sp_upgrade_refuse(:id<char[33],in>,:reqID<int,in>,:reason<char[126],in>) }"
+		, connGuard.connection());
 
-	if (!IcsTerminal::s_core_api->CORE_CALL_SP(params,
-		"sp_upgrade_refuse(:F1<char[33],in>,:F2<int,in>,:F3<char[126],in>)",
-		terminal->m_dbName, terminal->m_dbSource))
-	{
-		LOG_ERROR("execute sp sp_upgrade_refuse error");
-		return false;
-	}
-
-	//*/
-
+	s << m_conn_name << int(request_id) << reason;
 }
 
 // 终端接收升级请求
+
 void TerminalHandler::handleAgreeUpgrade(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	/*
-
-	
-	MessageBuffer request(msghead + 1, msghead->length - sizeof(IcsMsgHead)-sizeof(uint32_t));	// 消息体内容
-
 	uint32_t request_id;	// 文件id
-
 	request >> request_id;
+	request.assertEmpty();
 
-	if (!request.empty())
-	{
-		LOG_ERROR("reply agree upgrade message has superfluous data:" << request.leftSize());
-		return false;
-	}
+	OtlConnectionGuard connGuard(db);
+	otl_stream s(1
+		, "{ call sp_upgrade_accept(:id<char[33],in>,:reqID<int,in>) }"
+		, connGuard.connection());
 
-	vector<Variant> params;
-	params.push_back(terminal->m_monitorID);
-	params.push_back(int(request_id));
-
-	if (!IcsTerminal::s_core_api->CORE_CALL_SP(params,
-		"sp_upgrade_accept(:F1<char[33],in>,:F2<int,in>)",
-		terminal->m_dbName, terminal->m_dbSource))
-	{
-		LOG_ERROR("execute sp sp_upgrade_accept error");
-		return false;
-	}
-//*/
+	s << m_conn_name << int(request_id);
 }
 
 // 索要升级文件片段
+
 void TerminalHandler::handleRequestFile(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	/*
-
 	
-	MessageBuffer request(msghead + 1, msghead->length - sizeof(IcsMsgHead)-sizeof(uint32_t));	// 消息体内容
-
 	uint32_t file_id, request_id, fragment_offset, received_size;
 
 	uint16_t fragment_length;
 
 	request >> file_id >> request_id >> fragment_offset >> fragment_length >> received_size;
 
-	if (!request.empty())
-	{
-		LOG_WARN("request upgrade file message has superfluous data:" << request.leftSize());
-		return false;
-	}
-
-	// 
-	vector<Variant> params;
+	request.assertEmpty();
 
 	// 设置升级进度(查询该请求id对应的状态)
-	params.clear();
-	params.push_back(int(request_id));
-	params.push_back((int)received_size);
-	params.push_back(1);
-	if (!IcsTerminal::s_core_api->CORE_CALL_SP(params,
-		"sp_upgrade_set_progress(:F1<int,in>,:F2<int,in>,:G1<int,out>)",
-		terminal->m_dbName, terminal->m_dbSource))
-	{
-		LOG_ERROR("execute sp sp_upgrade_set_progress error");
-		return false;
-	}
+	OtlConnectionGuard connGuard(db);
+	otl_stream s(1
+		, "{ call sp_upgrade_set_progress(:F1<int,in>,:F2<int,in>,@stat) }"
+		, connGuard.connection());
+
+	s << m_conn_name << (int)request_id << (int)received_size;
+
+	otl_stream queryResutl(1, "select @stat :#<int>", connGuard.connection());
+
+	int result = 0;
+
+	queryResutl >> result;
 
 	// 查找文件
-	const FileUpgradeManager::FileInfo* fileInfo = FileUpgradeManager::getInstance()->getFileInfo(file_id);
-	// reply message
-	boost::shared_ptr<CBlock> sendPackage = IcsTerminal::s_core_api->CORE_CREATE_BLOCK();
-	MessageBuffer input_buf(sendPackage->getpointer<char>(sizeof(IcsMsgHead), 64), UPGRADE_FILE_SEGMENG_SIZE + sizeof(IcsMsgHead)+sizeof(uint32_t)* 5);
+	auto fileInfo = FileUpgradeManager::getInstance()->getFileInfo(file_id);
 
 
 	// 查看是否已取消升级
-	if (boost::get<int>(params[2]) == 0 && fileInfo)	// 正常状态且找到该文件
+	if (result == 0 && fileInfo)	// 正常状态且找到该文件
 	{
 		if (fragment_offset > fileInfo->file_length)	// 超出文件大小
 		{
-			LOG_WARN("require file offset (" << fragment_offset << ") is more than file's length (" << fileInfo->file_length << ")");
-			return false;
+			throw IcsException("require file offset [%d] is more than file's length [%d]", fragment_offset, fileInfo->file_length);
 		}
 		else if (fragment_offset + fragment_length > fileInfo->file_length)	// 超过文件大小则取剩余大小
 		{
@@ -763,86 +732,52 @@ void TerminalHandler::handleRequestFile(TcpConnection& conn, ProtocolStream& req
 			fragment_length = UPGRADE_FILE_SEGMENG_SIZE;
 		}
 
-		input_buf << file_id << request_id << fragment_offset << fragment_length;
-		input_buf.append((char*)fileInfo->file_content + fragment_offset, fragment_length);
+		response << file_id << request_id << fragment_offset << fragment_length;
 
-		// send
-		terminal->sendBlockdata(sendPackage, ICS_PROTOCOL_VERSION_11, IcsMsg_upgrade_file_response, input_buf.size());
+		response.append((char*)fileInfo->file_content + fragment_offset, fragment_length);
 
 	}
 	else	// 无升级事务
-	{
-		// send
-		terminal->sendBlockdata(sendPackage, ICS_PROTOCOL_VERSION_11, IcsMsg_upgrade_not_found, input_buf.size());
-
+	{	
+		response.getHead()->init(protocol::MessageId::T2C_upgrade_not_found, request.getHead()->getAckNum());
 	}
-//*/
 }
 
 // 升级文件传输结果
+
 void TerminalHandler::handleUpgradeResult(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	/*
-
-	
-	MessageBuffer request(msghead + 1, msghead->length - sizeof(IcsMsgHead)-sizeof(uint32_t));	// 消息体内容
-
 	uint32_t request_id;	// 文件id
 	string upgrade_result;	// 升级结果
 
 	request >> request_id >> upgrade_result;
 
-	if (!request.empty())
-	{
-		LOG_WARN("report upgrade result message has superfluous data:" << request.leftSize());
-		return false;
-	}
+	request.assertEmpty();
 
-	vector<Variant> params;
-	params.push_back(int(request_id));
-	params.push_back(upgrade_result);
+	OtlConnectionGuard connGuard(db);
+	otl_stream s(1
+		, "{ call sp_upgrade_result(:F1<int,in>,:F3<char[126],in>) }"
+		, connGuard.connection());
 
-	if (!IcsTerminal::s_core_api->CORE_CALL_SP(params,
-		"sp_upgrade_result(:F1<int,in>,:F3<char[126],in>)",
-		terminal->m_dbName, terminal->m_dbSource))
-	{
-		LOG_ERROR("execute sp sp_upgrade_result error");
-		return false;
-	}
-//*/
-
+	s << (int)request_id << upgrade_result;
 }
 
 // 终端确认取消升级
+
 void TerminalHandler::handleUpgradeCancelAck(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-
-	
-
-	
-
 	uint32_t request_id;	// 文件id
 
 	request >> request_id;
 
-	/*
-	if (!request.empty())
-	{
-		LOG_WARN("report upgrade cancel ack message has superfluous data:" << request.leftSize());
-		return false;
-	}
+	request.assertEmpty();
 
-	vector<Variant> params;
-	params.push_back(int(request_id));
+	OtlConnectionGuard connGuard(db);
+	otl_stream s(1
+		, "{ call sp_upgrade_cancel_ack(:F1<int,in>) }"
+		, connGuard.connection());
 
-	if (!IcsTerminal::s_core_api->CORE_CALL_SP(params,
-		"sp_upgrade_cancel_ack(:F1<int,in>)",
-		terminal->m_dbName, terminal->m_dbSource))
-	{
-		LOG_ERROR("execute sp sp_upgrade_cancel_ack error");
-		return false;
-	}
-//*/
+	s << (int)request_id;
 }
 
 
@@ -862,7 +797,21 @@ void ProxyTerminalHandler::handle(TcpConnection& conn, ProtocolStream& request, 
 	if (it.empty())
 	{
 		// find in database
+		OtlConnectionGuard connGuard(db);
+		otl_stream s(1
+			, "{ call sp_log_report(:id<char[32],in>,@localID) }"
+			, connGuard.connection());
+		s << connName;
 
+		otl_stream queryResult(1
+			, "{ select @localID :#<char[32],in>) }"
+			, connGuard.connection());
+		queryResult >> it;
+		if (it.empty())
+		{
+			LOG_INFO("the remote name " << connName << " don't have local name");
+			return;
+		}
 	}
 	m_handler.m_conn_name = it;
 	m_handler.handle(conn, request, response);
@@ -891,6 +840,7 @@ void WebHandler::handle(TcpConnection& conn, ProtocolStream& request, ProtocolSt
 		break;
 
 	case protocol::MessageId::W2C_disconnect_remote:
+
 		break;
 
 	case protocol::MessageId::W2C_send_to_terminal:
@@ -901,7 +851,6 @@ void WebHandler::handle(TcpConnection& conn, ProtocolStream& request, ProtocolSt
 		throw IcsException("unknown web message id: %d ", request.getHead()->getMsgID());
 		break;
 	}
-
 }
 
 // never uesd
@@ -993,5 +942,142 @@ void CenterServerHandler::dispatch(TcpConnection& conn, ProtocolStream& request,
 }
 
 
+//---------------------------------CenterServerHandler-------------------------------------------------//
+PushServerHandler::PushServerHandler()
+{
+
+}
+
+// 处理推送服务器返回消息
+void PushServerHandler::handle(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
+{
+
+}
+
+// never
+void PushServerHandler::dispatch(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception)
+{
+	throw IcsException("");
+}
+
+
+//--------------------------------- FileUpgradeManager -------------------------------------------------//
+FileUpgradeManager* FileUpgradeManager::s_instance = NULL;
+
+FileUpgradeManager::FileUpgradeManager()
+{
+}
+
+FileUpgradeManager::~FileUpgradeManager()
+{
+}
+
+FileUpgradeManager* FileUpgradeManager::getInstance()
+{
+	if (!s_instance)
+	{
+		s_instance = new FileUpgradeManager();
+	}
+
+	return s_instance;
+}
+
+std::shared_ptr<FileUpgradeManager::FileInfo> FileUpgradeManager::getFileInfo(uint32_t fileid)
+{
+	auto it = m_fileMap.find(fileid);
+	if (it != m_fileMap.end())	// 已找到
+	{
+		return it->second;
+	}
+	else	// 未找到,尝试加载
+	{
+		return loadFileInfo(fileid);
+	}
+}
+
+std::shared_ptr<FileUpgradeManager::FileInfo> FileUpgradeManager::loadFileInfo(uint32_t fileid)
+{
+	// 获取加载锁
+	std::lock_guard<std::mutex> lock(m_loadFileLock);
+
+	// 尝试查找文件id对应内容
+	if (m_fileMap.find(fileid) != m_fileMap.end())
+	{
+		return m_fileMap[fileid];
+	}
+
+	// 创建新的文件信息
+	auto fileInfo = std::make_shared<FileInfo>();
+
+	// 根据文件id从数据库读取文件路径
+	{
+		OtlConnectionGuard connGuard(db);
+		otl_stream s(1, "{ sp_upgrade_getfile(:F1<int,in>,@filename) }", connGuard.connection());
+		s << (int)fileid;
+
+		otl_stream queryResult(1, "{ sp_upgrade_getfile(:F1<int,in>,@filename) }", connGuard.connection());
+		queryResult >> fileInfo->file_name;
+
+		if (fileInfo->file_name.empty())
+		{
+			LOG_ERROR("cann't find upgrade file by fileid: " << fileid);
+		}
+	}
+#ifndef WIN32
+	// 打开文件
+	int fd = open(fileInfo->file_name.c_str(), O_RDONLY);
+	if (fd < 0)
+	{
+		throw IcsException("open file %s failed,as %s", fileInfo->file_name, strerror(errno));
+	}
+
+	// 获取文件大小
+	fileInfo->file_length = lseek(fd, 0, SEEK_END);
+
+	// 文件大小不能超过最大限制
+	if (fileInfo->file_length > UPGRADEFILE_MAXSIZE)
+	{
+		close(fd);
+		throw IcsException("file %s 's size it too big", fileInfo->file_name.c_str());
+	}
+
+	// 文件内容映射到内存
+	fileInfo->file_content = mmap(NULL, fileInfo->file_length, PROT_READ, MAP_PRIVATE, fd, 0);
+	if (fileInfo->file_content == MAP_FAILED)
+	{
+		close(fd);
+		throw IcsException("mmap file %s failed,as %s", fileInfo->file_name.c_str(), strerror(errno));
+	}
+#else
+	/// open file read only
+	HANDLE hFile = CreateFile(fileInfo->file_name.c_str(), GENERIC_READ, READ_CONTROL, 0, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, NULL);
+	if (hFile == INVALID_HANDLE_VALUE)
+	{
+		throw IcsException("CreateFile %s failed", fileInfo->file_name.c_str());
+	}
+
+	/// 创建一个文件映射内核对象
+	HANDLE hFileMap = CreateFileMapping(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
+	CloseHandle(hFile);
+	if (hFileMap == INVALID_HANDLE_VALUE)
+	{
+		throw IcsException("CreateFileMapping %s failed", fileInfo->file_name.c_str());
+	}
+
+	/// 把文件数据映射到进程的地址空间
+	fileInfo->file_content = MapViewOfFile(hFileMap, FILE_MAP_READ, 0, 0, 0);
+	if (!fileInfo->file_content)
+	{
+		CloseHandle(hFileMap);
+		throw IcsException("");
+	}
+#endif
+
+	// 新的文件信息加入到文件映射表
+	m_fileMap[fileid] = fileInfo;
+
+	// 成功返回
+	return fileInfo;
+}
 
 }// end namespace ics

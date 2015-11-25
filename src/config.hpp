@@ -62,12 +62,17 @@ timestamp ----> SQL-server:DATETIME,Oracle:DATE,Oracle 9i:TIMESTAMP   YYYY-MM-DD
 #define OTL_CPP_11_ON
 
 
-#if defined(WIN32) || defined (WIN64)	// in linux
+#if defined(WIN32) || defined (WIN64)	// in windows
 #pragma warning(disable:4290)
 #pragma warning(disable:4996)
-#else	// in windows
+
+#else	// in linux
+
+#define LOG_USE_LOG4CPLUS	// log configure
 #define OTL_ODBC_UNIX
 #endif
+
+
 
 // Communicate Server/Sub Server
 #define ICS_CENTER_MODE

@@ -23,7 +23,8 @@ set(CMAKE_C_COMPILER "/usr/local/gcc-5.2/bin/gcc")
 set(CMAKE_C_FLAGS_DEBUG "-g -Wall")
 set(CMAKE_C_FLAGS_RELEASE "-O2 -Wall")
 
-#set(CMAKE_CXX_COMPILER "/usr/local/gcc-5.2/bin/g++")
+set(CMAKE_CXX_COMPILER "/usr/local/gcc-5.2/bin/g++")
+#set(CMAKE_CXX_COMPILER "/usr/bin/g++")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -std=c++14 -Wall -fno-use-linker-plugin")
 set(CMAKE_CXX_FLAGS_RELEASE "-O2 -std=c++14 -Wall -fno-use-linker-plugin")
 
@@ -40,7 +41,7 @@ link_directories(
 )
 
 # target name
-set(target "ics-client")
+set(target "icsserver")
 
 
 # set output bin directory
@@ -61,7 +62,8 @@ add_executable(${target} ${SRC_FILES})
 # link dll
 target_link_libraries(${target} pthread)
 target_link_libraries(${target} odbc)
-
+target_link_libraries(${target} log4cplus)
+target_link_libraries(${target} rt)
 
 
 # -------------useful function------------------ #
