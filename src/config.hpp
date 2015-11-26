@@ -68,7 +68,7 @@ timestamp ----> SQL-server:DATETIME,Oracle:DATE,Oracle 9i:TIMESTAMP   YYYY-MM-DD
 
 #else	// in linux
 
-#define LOG_USE_LOG4CPLUS	// log configure
+//#define LOG_USE_LOG4CPLUS	// log configure
 #define OTL_ODBC_UNIX
 #endif
 

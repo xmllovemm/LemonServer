@@ -7,6 +7,7 @@
 #include "icsconfig.hpp"
 #include "icspushsystem.hpp"
 #include "util.hpp"
+#include "connection.hpp"
 #include <iostream>
 #include <string>
 #include <tuple>
@@ -26,13 +27,13 @@ ics::DataBase db;
 ics::DataBase db("sa", "123456", "sqlserver");
 #endif
 
-ics::MemoryPool mp;
+ics::MemoryPool g_memoryPool;
 
 ics::IcsConfig config;
 
-ics::ClientManager<ics::IcsConnection<ics::icstcp>> tcpClientManager(10);
+ics::ClientManager<ics::IcsConnection<asio::ip::tcp>> tcpClientManager(10);
 
-ics::ClientManager<ics::IcsConnection<ics::icsudp>> udpClientManager(10);
+ics::ClientManager<ics::IcsConnection<asio::ip::udp>> udpClientManager(10);
 
 ics::PushSystem pushSystem;
 
@@ -60,13 +61,16 @@ void test_server(const char* configfile)
 		// init log file
 		init_log(config.getAttributeString("log", "configfile").c_str());
 
-		ics::be_daemon(config.getAttributeString("program", "workdir").c_str());
+		if (config.getAttributeInt("program", "daemon"))
+		{
+			ics::be_daemon(config.getAttributeString("program", "workdir").c_str());
+		}
 
 		ics::DataBase::initialize();
 
 		pushSystem.init(config.getAttributeString("pushmsg", "serverip"), config.getAttributeInt("pushmsg", "serverport"));
 
-		mp.init(config.getAttributeInt("program", "chunksize"), config.getAttributeInt("program", "chunkcount"));
+		g_memoryPool.init(config.getAttributeInt("program", "chunksize"), config.getAttributeInt("program", "chunkcount"));
 
 		db.init(config.getAttributeString("database", "username"), config.getAttributeString("database", "password"), config.getAttributeString("database", "dsn"));
 

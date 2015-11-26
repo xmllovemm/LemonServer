@@ -20,43 +20,50 @@
 #include <asio.hpp>
 #include <string>
 #include <mutex>
+#include <asio/async_result.hpp>
 
 
-extern ics::MemoryPool mp;
+
+namespace ics {
+template<class ProtoType>
+class IcsConnection;
+
+template<class Connection>
+class ClientManager;
+}
+
+extern ics::MemoryPool g_memoryPool;
+
+extern ics::ClientManager<ics::IcsConnection<asio::ip::tcp>> tcpClientManager;
+
+extern ics::ClientManager<ics::IcsConnection<asio::ip::udp>> udpClientManager;
+
 
 namespace ics {
 
-///*
+
 class MessageHandlerImpl;
 class TerminalHandler;
 class ProxyTerminalHandler;
 class WebHandler;
 class CenterServerHandler;
-//*/
-
-template<class Connection>
-class ClientManager;
-
-
-typedef asio::ip::tcp icstcp;
-
-typedef asio::ip::udp icsudp;
 
 // ICS协议连接类
-template<class ProtocolType = icstcp>
+template<class ProtoType>
 class IcsConnection {
 public:
-	typedef typename asio::basic_stream_socket<ProtocolType> socket;
+	typedef typename ProtoType::socket socket;
 
-	typedef  IcsConnection<ProtocolType> _thisType;
+	typedef typename ProtoType::endpoint endpoint;
+
+	typedef  IcsConnection<ProtoType> _thisType;
 
 	typedef typename socket::shutdown_type shutdown_type;
 
-	IcsConnection(socket&& s, ClientManager<_thisType>& cm)
+	IcsConnection(socket&& s)
 		: m_socket(std::forward<socket>(s))
 		, m_replaced(false)
-		, m_client_manager(cm)
-		, m_request(mp)
+		, m_request(g_memoryPool)
 		, m_isSending(false)
 		, m_sendSerialNum(0)
 	{
@@ -67,9 +74,9 @@ public:
 	{
 		if (m_msgHandler && !m_connName.empty())
 		{
-			m_client_manager.removeTerminalConn(m_connName);
+//			m_client_manager.removeTerminalConn(m_connName);
 		}
-		m_socket.close();
+//		m_socket.close();
 		LOG_DEBUG(m_connName << " has been deleted");
 	}
 
@@ -96,7 +103,7 @@ public:
 	{
 		if (!name.empty() && name != m_connName)
 		{
-			m_client_manager.addTerminalConn(name, this);
+//			m_client_manager.addTerminalConn(name, this);
 			m_connName = std::move(name);
 		}
 	}
@@ -105,7 +112,7 @@ public:
 	bool forwardToTerminal(const std::string& name, ProtocolStream& message)
 	{
 		bool ret = false;
-		auto conn = m_client_manager.findTerminalConn(name);
+		auto conn = this;// tcpClientManager.findTerminalConn(name);
 
 		if (conn == nullptr)
 		{
@@ -114,7 +121,7 @@ public:
 		}
 
 		try {
-			ProtocolStream response(mp);
+			ProtocolStream response(g_memoryPool);
 			conn->m_msgHandler->dispatch(*conn, message, response);
 			if (!response.empty())
 			{
@@ -143,8 +150,9 @@ public:
 	// 转发消息到全部的中心服务器
 	bool forwardToCenter(ProtocolStream& message)
 	{
+		/*
 		bool ret = false;
-		auto connList = m_client_manager.getCenterConnList();
+		auto connList = tcpClientManager.getCenterConnList();
 
 		// 有中心服务器连接
 		if (!connList.empty())
@@ -155,12 +163,13 @@ public:
 			for (auto it = connList.begin(); it != connList.end(); it++)
 			{
 				// 找到该链接直接发送
-				(*it)->trySend(mc->clone(mp));
+				(*it)->trySend(mc->clone(g_memoryPool));
 			}
 
 			message.release();
 		}
 		return ret;
+		*/
 	}
 
 	// 直接发送到该链接对端
@@ -173,6 +182,7 @@ public:
 private:
 	void do_read()
 	{
+		/*
 		// wait response
 		m_socket.async_read_some(asio::buffer(m_recvBuff),
 			[this](const std::error_code& ec, std::size_t length)
@@ -188,6 +198,7 @@ private:
 					this->do_error(shutdown_type::shutdown_both);
 				}
 			});
+		*/
 	}
 
 	void do_write()
@@ -197,7 +208,7 @@ private:
 
 	void do_error(shutdown_type type)
 	{
-		m_socket.shutdown(type);
+//		m_socket.shutdown(type);
 		delete this;
 	}
 
@@ -218,13 +229,14 @@ private:
 		std::lock_guard<std::mutex> lock(m_sendLock);
 		if (!m_isSending && !m_sendList.empty())
 		{			
-			MemoryChunk_ptr& chunk = m_sendList.front();
-			m_socket.async_send(asio::buffer(chunk->getBuff(), chunk->getUsedSize()),
+			/*
+			MemoryChunk_ptr& chunk = m_sendList.front();		
+			m_socket.async_write_all(chunk->getBuff(), chunk->getUsedSize()),
 					[this](const std::error_code& ec, std::size_t length)
 						{
-							MemoryChunk_ptr& chunk = m_sendList.front();
-							if (!ec && length == chunk->getUsedSize())
+							if (!ec)
 							{
+								MemoryChunk_ptr& chunk = m_sendList.front();
 								this->toHexInfo("send", (uint8_t*)chunk->getBuff(), chunk->getUsedSize());
 								m_sendList.pop_front();			
 								m_isSending = false;
@@ -236,7 +248,7 @@ private:
 								do_error(shutdown_type::shutdown_both);
 							}
 						});
-			
+			*/
 		}
 	}
 
@@ -251,7 +263,7 @@ private:
 
 	void replyResponse(uint16_t ackNum)
 	{
-		ProtocolStream response(mp);
+		ProtocolStream response(g_memoryPool);
 		response.getHead()->init(protocol::MessageId::MessageId_min, ackNum);
 		response.getHead()->setSendNum(m_sendSerialNum++);
 
@@ -334,7 +346,7 @@ private:
 			}
 
 
-			ProtocolStream response(mp);
+			ProtocolStream response(g_memoryPool);
 
 			/// handle message
 //			m_msgHandler->handle(*this, m_request, response);
@@ -371,7 +383,7 @@ private:
 		}
 	}
 private:
-	// tcp socket
+	// tcp/udp socket
 	socket	m_socket;
 
 	// replaced by another TcpConnection
@@ -384,7 +396,7 @@ private:
 	std::string             m_connName;
 
 	/// client manager
-	ClientManager<_thisType>&	m_client_manager;
+//	ClientManager<_thisType>&	m_client_manager;
 
 	// recv area
 //	uint8_t			m_recvBuff[512];
@@ -400,11 +412,11 @@ private:
 
 
 template<class ProtocolType>
-class BaseConnection {
+class ProtoType {
 public:
 	typedef typename asio::basic_stream_socket<ProtocolType> socket;
 
-	BaseConnection(socket&& s) :m_socket(std::move(s)), m_request(mp)
+	ProtoType(socket&& s) :m_socket(std::move(s)), m_request(g_memoryPool)
 	{
 
 	}
@@ -419,6 +431,7 @@ protected:
 	void do_read()
 	{
 		// wait response
+		/*
 		m_socket.async_read_some(m_request.toBuffer(),
 			[this](const std::error_code& ec, std::size_t length)
 		{
@@ -431,13 +444,13 @@ protected:
 			// 自删除
 			delete this;
 		});
-		
+		*/
 	}
 
 	void handleData(ProtocolStream& request, std::size_t len)
 	{
-		
-		protocol::MessageId msgid = message.getHead()->getMsgID();
+		/*
+		protocol::MessageId msgid = request.getHead()->getMsgID();
 
 		// 根据消息ID判断处理类型
 		if (msgid > protocol::MessageId::T2C_min && msgid < protocol::MessageId::T2C_max)
@@ -459,6 +472,7 @@ protected:
 		{
 			throw IcsException("unkown protocol");
 		}
+		*/
 	}
 	
 private:

@@ -463,10 +463,10 @@ public:
 		return std::move(m_chunkPtr);
 	}
 
-	asio::buffer toBuffer()
-	{
-		return asio::buffer(m_chunkPtr->m_buff, m_chunkPtr->m_totalSize);
-	}
+//	asio::buffer toBuffer()
+//	{
+//		return asio::buffer(m_chunkPtr->m_buff, m_chunkPtr->m_totalSize);
+//	}
 
 	void release()
 	{

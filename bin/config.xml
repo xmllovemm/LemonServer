@@ -5,6 +5,8 @@
   <program>
     <!--root directory-->
     <workdir>/home/xml/workspace/test/icsserver/bin</workdir>
+    <!--be a daemon process-->
+    <daemon>0</daemon>
     <!--number of work thread-->
     <workerthread>4</workerthread>
     <chunksize>126</chunksize>

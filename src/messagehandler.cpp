@@ -15,7 +15,13 @@
 extern ics::DataBase db;
 extern ics::MemoryPool mp;
 extern ics::IcsConfig config;
-extern ics::ClientManager<ics::IcsConnection<ics::icsudp>> udpClientManager;
+
+class TcpBaseConnection;
+
+
+extern ics::ClientManager<ics::IcsConnection<asio::ip::tcp>> tcpClientManager;
+
+extern ics::ClientManager<ics::IcsConnection<asio::ip::udp>> udpClientManager;
 
 namespace ics{
 

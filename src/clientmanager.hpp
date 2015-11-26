@@ -3,7 +3,7 @@
 #ifndef _Connection_MANAGER_H
 #define _Connection_MANAGER_H
 
-#include "connection.hpp"
+//#include "connection.hpp"
 #include "log.hpp"
 #include <map>
 #include <mutex>
@@ -29,7 +29,7 @@ public:
 
 	void createConnection(socket&& s)
 	{
-		Connection* c = new Connection(std::move(s), *this);
+		Connection* c = new Connection(std::move(s));
 		c->start();
 	}
 
@@ -84,7 +84,7 @@ private:
 	std::mutex	m_terminalConnMapLock;
 
 	std::list<Connection*> m_centerConnList;
-	//    std::shared_ptr<std::thread>	m_thread;
+//    std::shared_ptr<std::thread>	m_thread;
 
 //	std::unordered_map<std::string, std::shared_ptr<Connection>> m_connectionMap;
 };

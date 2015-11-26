@@ -25,8 +25,8 @@ set(CMAKE_C_FLAGS_RELEASE "-O2 -Wall")
 
 set(CMAKE_CXX_COMPILER "/usr/local/gcc-5.2/bin/g++")
 #set(CMAKE_CXX_COMPILER "/usr/bin/g++")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -std=c++14 -Wall -fno-use-linker-plugin")
-set(CMAKE_CXX_FLAGS_RELEASE "-O2 -std=c++14 -Wall -fno-use-linker-plugin")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -std=c++14 -Wall -fno-use-linker-plugin -Wno-deprecated-declarations")
+set(CMAKE_CXX_FLAGS_RELEASE "-O2 -std=c++14 -Wall -fno-use-linker-plugin -Wno-deprecated-declarations")
 
 message("Project CMAKE_CXX_COMPILER:${CMAKE_CXX_COMPILER}")
 
