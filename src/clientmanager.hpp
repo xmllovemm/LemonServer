@@ -3,11 +3,11 @@
 #ifndef _Connection_MANAGER_H
 #define _Connection_MANAGER_H
 
-//#include "connection.hpp"
 #include "log.hpp"
-#include <map>
 #include <mutex>
 #include <list>
+#include <unordered_map>
+#include <memory>
 
 namespace ics {
 
@@ -29,8 +29,8 @@ public:
 
 	void createConnection(socket&& s)
 	{
-		Connection* c = new Connection(std::move(s));
-		c->start();
+//		Connection* c = new Connection(std::move(s));
+//		c->start();
 	}
 
 	void addTerminalConn(const std::string& name, Connection* conn)
@@ -43,8 +43,8 @@ public:
 		auto& it = m_terminalConnMap[name];
 		if (it != nullptr)
 		{
-			it->replaced();
-			delete it;
+//			it->replaced();
+//			delete it;
 		}
 		it = conn;
 
@@ -73,20 +73,20 @@ public:
 	{
 
 	}
-
-	const std::list<Connection*> getCenterConnList()
+	
+	const std::list<Connection*>& getCenterConnList()
 	{
 		return m_centerConnList;
 	}
-
+	
 private:
-	std::map<std::string, Connection*>	m_terminalConnMap;
+	std::unordered_map<std::string, Connection*>	m_terminalConnMap;
 	std::mutex	m_terminalConnMapLock;
 
 	std::list<Connection*> m_centerConnList;
 //    std::shared_ptr<std::thread>	m_thread;
 
-//	std::unordered_map<std::string, std::shared_ptr<Connection>> m_connectionMap;
+	std::unordered_map<std::string, std::shared_ptr<Connection>> m_connectionMap;
 };
 
 }

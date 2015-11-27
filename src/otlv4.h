@@ -201,8 +201,8 @@
 #if !defined(OTL_STLPORT)
 #include <iostream>
 #include <iomanip>
-#define OTL_SETFILL std::setfill('0')
-#define OTL_SETW(s) std::setw(s.frac_precision)
+#define OTL_SETFILL ::std::setfill('0')
+#define OTL_SETW(s) ::std::setw(s.frac_precision)
 #else
 #endif
 
@@ -1337,7 +1337,7 @@ private:
 #if defined(OTL_UNCAUGHT_EXCEPTION_ON)
 #include <exception>
 #if !defined(OTL_STLPORT)
-inline bool otl_uncaught_exception() { return std::uncaught_exception(); }
+inline bool otl_uncaught_exception() { return ::std::uncaught_exception(); }
 #else
 inline bool otl_uncaught_exception() {
 #if defined(OTL_STLPORT_USES_STD_ALIAS_NAMESPACE)
@@ -1397,7 +1397,7 @@ inline bool otl_uncaught_exception() { return false; }
 #if defined(OTL_STLPORT)
 #define OTL_STRING_CONTAINER OTL_STLPORT_NAMESPACE::string
 #else
-#define OTL_STRING_CONTAINER std::string
+#define OTL_STRING_CONTAINER ::std::string
 #endif
 
 #endif
@@ -1405,7 +1405,7 @@ inline bool otl_uncaught_exception() { return false; }
 #if defined(OTL_STLPORT)
 #define STD_NAMESPACE_PREFIX OTL_STLPORT_NAMESPACE::
 #else
-#define STD_NAMESPACE_PREFIX std::
+#define STD_NAMESPACE_PREFIX ::std::
 #endif
 
 #endif
@@ -1818,7 +1818,7 @@ public:
         temp_col_type = new short int[OTL_SCAST(size_t,container_size_)];
         temp_col_size = new int[OTL_SCAST(size_t,container_size_)];
       }
-      catch (const std::bad_alloc &) {
+      catch (const ::std::bad_alloc &) {
         delete[] temp_col_ndx;
         delete[] temp_col_type;
         delete[] temp_col_size;
@@ -3360,7 +3360,7 @@ const int otl_max_default_pool_size = 32;
 #include <string>
 class otl_ltstr {
 public:
-  bool operator()(const std::string &s1, const std::string &s2) const {
+  bool operator()(const ::std::string &s1, const ::std::string &s2) const {
     return strcmp(s1.c_str(), s2.c_str()) < 0;
   }
 };
@@ -3406,7 +3406,7 @@ public:
 #if defined(OTL_ACE)
   otl_tmpl_vector<otl_stream_shell_generic *> s;
 #elif defined(OTL_UNICODE_STRING_TYPE)
-  std::vector<otl_stream_shell_generic *> s;
+  ::std::vector<otl_stream_shell_generic *> s;
 #else
   STD_NAMESPACE_PREFIX vector<otl_stream_shell_generic *> s;
 #endif
@@ -3454,8 +3454,8 @@ public:
   typedef ACE_RB_Tree_Node<OTL_STRING_CONTAINER, cache_entry_type>
   ace_map_entry;
 #elif defined(OTL_UNICODE_STRING_TYPE)
-  typedef std::map<std::string, cache_entry_type, otl_ltstr> sc_type;
-  typedef std::vector<otl_stream_shell_generic *> vec_type;
+  typedef ::std::map<::std::string, cache_entry_type, otl_ltstr> sc_type;
+  typedef ::std::vector<otl_stream_shell_generic *> vec_type;
 #else
   typedef STD_NAMESPACE_PREFIX
   map<OTL_STRING_CONTAINER, cache_entry_type, otl_ltstr> sc_type;
@@ -3514,7 +3514,7 @@ public:
     max_size = amax_size;
   }
 #if defined(OTL_UNICODE_STRING_TYPE)
-  otl_stream_shell_generic *find(const std::string &stmtxt)
+  otl_stream_shell_generic *find(const ::std::string &stmtxt)
 #else
   otl_stream_shell_generic *find(const OTL_STRING_CONTAINER &stmtxt)
 #endif
@@ -3549,7 +3549,7 @@ public:
   }
 
 #if defined(OTL_UNICODE_STRING_TYPE)
-  void remove(const otl_stream_shell_generic *s, const std::string &stmtxt)
+  void remove(const otl_stream_shell_generic *s, const ::std::string &stmtxt)
 #else
   void remove(const otl_stream_shell_generic *s,
               const OTL_STRING_CONTAINER &stmtxt)
@@ -3592,7 +3592,7 @@ public:
 
   void add(otl_stream_shell_generic *s, const char *stm_text) {
 #if defined(OTL_UNICODE_STRING_TYPE)
-    std::string stmtxt(stm_text);
+    ::std::string stmtxt(stm_text);
 #else
     OTL_STRING_CONTAINER stmtxt(stm_text);
 #endif
@@ -4398,7 +4398,7 @@ private:
 #error OTL_EXCEPTION_DERIVED_FROM is already defined. \
 OTL_EXCEPTION_IS_DERIVED_FROM_STD_EXCEPTION cannot be used
 #endif
-#define OTL_EXCEPTION_DERIVED_FROM std::exception
+#define OTL_EXCEPTION_DERIVED_FROM ::std::exception
 
 #if defined(UNICODE) || defined(_UNICODE)
 
@@ -5730,7 +5730,7 @@ public:
         temp_inout = new short[OTL_SCAST(size_t,container_size_)];
         temp_pl_tab_size = new int[OTL_SCAST(size_t,container_size_)];
       }
-      catch (const std::bad_alloc &) {
+      catch (const ::std::bad_alloc &) {
         delete[] temp_hv;
         delete[] temp_inout;
         delete[] temp_pl_tab_size;
@@ -14379,7 +14379,7 @@ public:
 #endif
 
 #if defined(OTL_UNICODE_STRING_TYPE) && defined(OTL_STREAM_POOLING_ON)
-  std::string orig_sql_stm;
+  ::std::string orig_sql_stm;
 #endif
 
   otl_stream_shell()
@@ -15514,25 +15514,25 @@ OTL_THROWS_OTL_EXCEPTION:
 #if defined(OTL_STREAM_POOL_USES_STREAM_LABEL_AS_KEY)
       const char *temp_label = sqlstm_label ? sqlstm_label : sqlstm;
 #if defined(OTL_UNICODE_STRING_TYPE)
-      std::string sql_stm(temp_label);
+      ::std::string sql_stm(temp_label);
 #else
       OTL_STRING_CONTAINER sql_stm(temp_label);
 #endif
       sql_stm += delimiter;
 #if defined(OTL_UNICODE_STRING_TYPE)
-      sql_stm += std::string(temp_buf);
+      sql_stm += ::std::string(temp_buf);
 #else
       sql_stm += OTL_STRING_CONTAINER(temp_buf);
 #endif
 #else
 #if defined(OTL_UNICODE_STRING_TYPE)
-      std::string sql_stm(sqlstm);
+      ::std::string sql_stm(sqlstm);
 #else
       OTL_STRING_CONTAINER sql_stm(sqlstm);
 #endif
       sql_stm += delimiter;
 #if defined(OTL_UNICODE_STRING_TYPE)
-      sql_stm += std::string(temp_buf);
+      sql_stm += ::std::string(temp_buf);
 #else
       sql_stm += OTL_STRING_CONTAINER(temp_buf);
 #endif
@@ -15543,7 +15543,7 @@ OTL_THROWS_OTL_EXCEPTION:
           otl_itoa(OTL_SCAST(int, temp_override.get_col_type(i)), temp_buf);
           sql_stm += delimiter;
 #if defined(OTL_UNICODE_STRING_TYPE)
-          sql_stm += std::string(temp_buf);
+          sql_stm += ::std::string(temp_buf);
 #else
           sql_stm += OTL_STRING_CONTAINER(temp_buf);
 #endif
@@ -25185,7 +25185,7 @@ public:
      defined(OTL_UNICODE_STRING_TYPE)) &&                                      \
     defined(OTL_STREAM_POOLING_ON)
 #if defined(OTL_UNICODE_STRING_TYPE)
-  std::string orig_sql_stm;
+  ::std::string orig_sql_stm;
 #else
   OTL_STRING_CONTAINER orig_sql_stm;
 #endif
@@ -26881,9 +26881,9 @@ OTL_THROWS_OTL_EXCEPTION:
 #if defined(OTL_STREAM_POOL_USES_STREAM_LABEL_AS_KEY)
       const char *temp_label = sqlstm_label ? sqlstm_label : sqlstm;
 #if defined(OTL_UNICODE_STRING_TYPE)
-      std::string sql_stm(temp_label);
+      ::std::string sql_stm(temp_label);
       sql_stm += delimiter;
-      sql_stm += std::string(temp_buf);
+      sql_stm += ::std::string(temp_buf);
 #else
       OTL_STRING_CONTAINER sql_stm(temp_label);
       sql_stm += delimiter;
@@ -26891,13 +26891,13 @@ OTL_THROWS_OTL_EXCEPTION:
 #endif
 #else
 #if defined(OTL_UNICODE_STRING_TYPE)
-      std::string sql_stm(sqlstm);
+      ::std::string sql_stm(sqlstm);
 #else
       OTL_STRING_CONTAINER sql_stm(sqlstm);
 #endif
       sql_stm += delimiter;
 #if defined(OTL_UNICODE_STRING_TYPE)
-      sql_stm += std::string(temp_buf);
+      sql_stm += ::std::string(temp_buf);
 #else
       sql_stm += OTL_STRING_CONTAINER(temp_buf);
 #endif
@@ -26908,7 +26908,7 @@ OTL_THROWS_OTL_EXCEPTION:
           otl_itoa(OTL_SCAST(int, temp_override.get_col_type(i)), temp_buf);
           sql_stm += delimiter;
 #if defined(OTL_UNICODE_STRING_TYPE)
-          sql_stm += std::string(temp_buf);
+          sql_stm += ::std::string(temp_buf);
 #else
           sql_stm += OTL_STRING_CONTAINER(temp_buf);
 #endif
@@ -30963,7 +30963,7 @@ inline void otl_read_from_stream(OTLStreamType &s, OutputIterator result)
   while (!s.eof()) {
     s >> v;
 #if defined(OTL_CPP_11_ON) || defined(_MSC_VER) && (_MSC_VER >= 1600)
-    *result++ = std::move(v);
+    *result++ = ::std::move(v);
 #else
     *result++ = v;
 #endif
@@ -31006,15 +31006,15 @@ inline void __otl_write_row(OTLStreamType &s) OTL_THROWS_OTL_EXCEPTION {
 template <typename OTLStreamType, typename Arg1, typename... Args>
 inline void __otl_write_row(OTLStreamType &s, Arg1 &&arg1,
                             Args &&... args) OTL_THROWS_OTL_EXCEPTION {
-  s << std::forward<Arg1>(arg1);
-  __otl_write_row(s, std::forward<Args>(args)...);
+  s << ::std::forward<Arg1>(arg1);
+  __otl_write_row(s, ::std::forward<Args>(args)...);
 }
 
 template <typename OTLStreamType, typename Arg1, typename... Args>
 inline void otl_write_row(OTLStreamType &s, Arg1 &&arg1,
                           Args &&... args) OTL_THROWS_OTL_EXCEPTION {
-  s << std::forward<Arg1>(arg1);
-  __otl_write_row(s, std::forward<Args>(args)...);
+  s << ::std::forward<Arg1>(arg1);
+  __otl_write_row(s, ::std::forward<Args>(args)...);
 }
 
 #else
@@ -31258,33 +31258,33 @@ inline void otl_read_row(S &s, T1 &t1, T2 &t2, T3 &t3, T4 &t4, T5 &t5, T6 &t6,
 
 template <typename S, typename T1>
 inline void otl_write_row(S &s, T1 &&t1) OTL_THROWS_OTL_EXCEPTION {
-  s << std::forward<T1>(t1);
+  s << ::std::forward<T1>(t1);
   s.check_end_of_row();
 }
 
 template <typename S, typename T1, typename T2>
 inline void otl_write_row(S &s, T1 &&t1, T2 &&t2) OTL_THROWS_OTL_EXCEPTION {
-  s << std::forward<T1>(t1);
-  s << std::forward<T2>(t2);
+  s << ::std::forward<T1>(t1);
+  s << ::std::forward<T2>(t2);
   s.check_end_of_row();
 }
 
 template <typename S, typename T1, typename T2, typename T3>
 inline void otl_write_row(S &s, T1 &&t1, T2 &&t2,
                           T3 &&t3) OTL_THROWS_OTL_EXCEPTION {
-  s << std::forward<T1>(t1);
-  s << std::forward<T2>(t2);
-  s << std::forward<T3>(t3);
+  s << ::std::forward<T1>(t1);
+  s << ::std::forward<T2>(t2);
+  s << ::std::forward<T3>(t3);
   s.check_end_of_row();
 }
 
 template <typename S, typename T1, typename T2, typename T3, typename T4>
 inline void otl_write_row(S &s, T1 &&t1, T2 &&t2, T3 &&t3,
                           T4 &&t4) OTL_THROWS_OTL_EXCEPTION {
-  s << std::forward<T1>(t1);
-  s << std::forward<T2>(t2);
-  s << std::forward<T3>(t3);
-  s << std::forward<T4>(t4);
+  s << ::std::forward<T1>(t1);
+  s << ::std::forward<T2>(t2);
+  s << ::std::forward<T3>(t3);
+  s << ::std::forward<T4>(t4);
   s.check_end_of_row();
 }
 
@@ -31292,11 +31292,11 @@ template <typename S, typename T1, typename T2, typename T3, typename T4,
           typename T5>
 inline void otl_write_row(S &s, T1 &&t1, T2 &&t2, T3 &&t3, T4 &&t4,
                           T5 &&t5) OTL_THROWS_OTL_EXCEPTION {
-  s << std::forward<T1>(t1);
-  s << std::forward<T2>(t2);
-  s << std::forward<T3>(t3);
-  s << std::forward<T4>(t4);
-  s << std::forward<T5>(t5);
+  s << ::std::forward<T1>(t1);
+  s << ::std::forward<T2>(t2);
+  s << ::std::forward<T3>(t3);
+  s << ::std::forward<T4>(t4);
+  s << ::std::forward<T5>(t5);
   s.check_end_of_row();
 }
 
@@ -31304,12 +31304,12 @@ template <typename S, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6>
 inline void otl_write_row(S &s, T1 &&t1, T2 &&t2, T3 &&t3, T4 &&t4, T5 &&t5,
                           T6 &&t6) OTL_THROWS_OTL_EXCEPTION {
-  s << std::forward<T1>(t1);
-  s << std::forward<T2>(t2);
-  s << std::forward<T3>(t3);
-  s << std::forward<T4>(t4);
-  s << std::forward<T5>(t5);
-  s << std::forward<T6>(t6);
+  s << ::std::forward<T1>(t1);
+  s << ::std::forward<T2>(t2);
+  s << ::std::forward<T3>(t3);
+  s << ::std::forward<T4>(t4);
+  s << ::std::forward<T5>(t5);
+  s << ::std::forward<T6>(t6);
   s.check_end_of_row();
 }
 
@@ -31317,13 +31317,13 @@ template <typename S, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7>
 inline void otl_write_row(S &s, T1 &&t1, T2 &&t2, T3 &&t3, T4 &&t4, T5 &&t5,
                           T6 &&t6, T7 &&t7) OTL_THROWS_OTL_EXCEPTION {
-  s << std::forward<T1>(t1);
-  s << std::forward<T2>(t2);
-  s << std::forward<T3>(t3);
-  s << std::forward<T4>(t4);
-  s << std::forward<T5>(t5);
-  s << std::forward<T6>(t6);
-  s << std::forward<T7>(t7);
+  s << ::std::forward<T1>(t1);
+  s << ::std::forward<T2>(t2);
+  s << ::std::forward<T3>(t3);
+  s << ::std::forward<T4>(t4);
+  s << ::std::forward<T5>(t5);
+  s << ::std::forward<T6>(t6);
+  s << ::std::forward<T7>(t7);
   s.check_end_of_row();
 }
 
@@ -31331,14 +31331,14 @@ template <typename S, typename T1, typename T2, typename T3, typename T4,
           typename T5, typename T6, typename T7, typename T8>
 inline void otl_write_row(S &s, T1 &&t1, T2 &&t2, T3 &&t3, T4 &&t4, T5 &&t5,
                           T6 &&t6, T7 &&t7, T8 &&t8) OTL_THROWS_OTL_EXCEPTION {
-  s << std::forward<T1>(t1);
-  s << std::forward<T2>(t2);
-  s << std::forward<T3>(t3);
-  s << std::forward<T4>(t4);
-  s << std::forward<T5>(t5);
-  s << std::forward<T6>(t6);
-  s << std::forward<T7>(t7);
-  s << std::forward<T8>(t8);
+  s << ::std::forward<T1>(t1);
+  s << ::std::forward<T2>(t2);
+  s << ::std::forward<T3>(t3);
+  s << ::std::forward<T4>(t4);
+  s << ::std::forward<T5>(t5);
+  s << ::std::forward<T6>(t6);
+  s << ::std::forward<T7>(t7);
+  s << ::std::forward<T8>(t8);
   s.check_end_of_row();
 }
 
@@ -31347,15 +31347,15 @@ template <typename S, typename T1, typename T2, typename T3, typename T4,
 inline void otl_write_row(S &s, T1 &&t1, T2 &&t2, T3 &&t3, T4 &&t4, T5 &&t5,
                           T6 &&t6, T7 &&t7, T8 &&t8,
                           T9 &&t9) OTL_THROWS_OTL_EXCEPTION {
-  s << std::forward<T1>(t1);
-  s << std::forward<T2>(t2);
-  s << std::forward<T3>(t3);
-  s << std::forward<T4>(t4);
-  s << std::forward<T5>(t5);
-  s << std::forward<T6>(t6);
-  s << std::forward<T7>(t7);
-  s << std::forward<T8>(t8);
-  s << std::forward<T9>(t9);
+  s << ::std::forward<T1>(t1);
+  s << ::std::forward<T2>(t2);
+  s << ::std::forward<T3>(t3);
+  s << ::std::forward<T4>(t4);
+  s << ::std::forward<T5>(t5);
+  s << ::std::forward<T6>(t6);
+  s << ::std::forward<T7>(t7);
+  s << ::std::forward<T8>(t8);
+  s << ::std::forward<T9>(t9);
   s.check_end_of_row();
 }
 
@@ -31365,16 +31365,16 @@ template <typename S, typename T1, typename T2, typename T3, typename T4,
 inline void otl_write_row(S &s, T1 &&t1, T2 &&t2, T3 &&t3, T4 &&t4, T5 &&t5,
                           T6 &&t6, T7 &&t7, T8 &&t8, T9 &&t9,
                           T10 &&t10) OTL_THROWS_OTL_EXCEPTION {
-  s << std::forward<T1>(t1);
-  s << std::forward<T2>(t2);
-  s << std::forward<T3>(t3);
-  s << std::forward<T4>(t4);
-  s << std::forward<T5>(t5);
-  s << std::forward<T6>(t6);
-  s << std::forward<T7>(t7);
-  s << std::forward<T8>(t8);
-  s << std::forward<T9>(t9);
-  s << std::forward<T10>(t10);
+  s << ::std::forward<T1>(t1);
+  s << ::std::forward<T2>(t2);
+  s << ::std::forward<T3>(t3);
+  s << ::std::forward<T4>(t4);
+  s << ::std::forward<T5>(t5);
+  s << ::std::forward<T6>(t6);
+  s << ::std::forward<T7>(t7);
+  s << ::std::forward<T8>(t8);
+  s << ::std::forward<T9>(t9);
+  s << ::std::forward<T10>(t10);
   s.check_end_of_row();
 }
 
@@ -31384,17 +31384,17 @@ template <typename S, typename T1, typename T2, typename T3, typename T4,
 inline void otl_write_row(S &s, T1 &&t1, T2 &&t2, T3 &&t3, T4 &&t4, T5 &&t5,
                           T6 &&t6, T7 &&t7, T8 &&t8, T9 &&t9, T10 &&t10,
                           T11 &&t11) OTL_THROWS_OTL_EXCEPTION {
-  s << std::forward<T1>(t1);
-  s << std::forward<T2>(t2);
-  s << std::forward<T3>(t3);
-  s << std::forward<T4>(t4);
-  s << std::forward<T5>(t5);
-  s << std::forward<T6>(t6);
-  s << std::forward<T7>(t7);
-  s << std::forward<T8>(t8);
-  s << std::forward<T9>(t9);
-  s << std::forward<T10>(t10);
-  s << std::forward<T11>(t11);
+  s << ::std::forward<T1>(t1);
+  s << ::std::forward<T2>(t2);
+  s << ::std::forward<T3>(t3);
+  s << ::std::forward<T4>(t4);
+  s << ::std::forward<T5>(t5);
+  s << ::std::forward<T6>(t6);
+  s << ::std::forward<T7>(t7);
+  s << ::std::forward<T8>(t8);
+  s << ::std::forward<T9>(t9);
+  s << ::std::forward<T10>(t10);
+  s << ::std::forward<T11>(t11);
   s.check_end_of_row();
 }
 
@@ -31404,18 +31404,18 @@ template <typename S, typename T1, typename T2, typename T3, typename T4,
 inline void otl_write_row(S &s, T1 &&t1, T2 &&t2, T3 &&t3, T4 &&t4, T5 &&t5,
                           T6 &&t6, T7 &&t7, T8 &&t8, T9 &&t9, T10 &&t10,
                           T11 &&t11, T12 &&t12) OTL_THROWS_OTL_EXCEPTION {
-  s << std::forward<T1>(t1);
-  s << std::forward<T2>(t2);
-  s << std::forward<T3>(t3);
-  s << std::forward<T4>(t4);
-  s << std::forward<T5>(t5);
-  s << std::forward<T6>(t6);
-  s << std::forward<T7>(t7);
-  s << std::forward<T8>(t8);
-  s << std::forward<T9>(t9);
-  s << std::forward<T10>(t10);
-  s << std::forward<T11>(t11);
-  s << std::forward<T12>(t12);
+  s << ::std::forward<T1>(t1);
+  s << ::std::forward<T2>(t2);
+  s << ::std::forward<T3>(t3);
+  s << ::std::forward<T4>(t4);
+  s << ::std::forward<T5>(t5);
+  s << ::std::forward<T6>(t6);
+  s << ::std::forward<T7>(t7);
+  s << ::std::forward<T8>(t8);
+  s << ::std::forward<T9>(t9);
+  s << ::std::forward<T10>(t10);
+  s << ::std::forward<T11>(t11);
+  s << ::std::forward<T12>(t12);
   s.check_end_of_row();
 }
 
@@ -31425,19 +31425,19 @@ template <typename S, typename T1, typename T2, typename T3, typename T4,
 inline void otl_write_row(S &s, T1 &t1, T2 &t2, T3 &t3, T4 &t4, T5 &t5, T6 &t6,
                           T7 &t7, T8 &t8, T9 &t9, T10 &t10, T11 &t11, T12 &t12,
                           T13 &t13) OTL_THROWS_OTL_EXCEPTION {
-  s << std::forward<T1>(t1);
-  s << std::forward<T2>(t2);
-  s << std::forward<T3>(t3);
-  s << std::forward<T4>(t4);
-  s << std::forward<T5>(t5);
-  s << std::forward<T6>(t6);
-  s << std::forward<T7>(t7);
-  s << std::forward<T8>(t8);
-  s << std::forward<T9>(t9);
-  s << std::forward<T10>(t10);
-  s << std::forward<T11>(t11);
-  s << std::forward<T12>(t12);
-  s << std::forward<T13>(t13);
+  s << ::std::forward<T1>(t1);
+  s << ::std::forward<T2>(t2);
+  s << ::std::forward<T3>(t3);
+  s << ::std::forward<T4>(t4);
+  s << ::std::forward<T5>(t5);
+  s << ::std::forward<T6>(t6);
+  s << ::std::forward<T7>(t7);
+  s << ::std::forward<T8>(t8);
+  s << ::std::forward<T9>(t9);
+  s << ::std::forward<T10>(t10);
+  s << ::std::forward<T11>(t11);
+  s << ::std::forward<T12>(t12);
+  s << ::std::forward<T13>(t13);
   s.check_end_of_row();
 }
 
@@ -31448,20 +31448,20 @@ inline void otl_write_row(S &s, T1 &&t1, T2 &&t2, T3 &&t3, T4 &&t4, T5 &&t5,
                           T6 &&t6, T7 &&t7, T8 &&t8, T9 &&t9, T10 &&t10,
                           T11 &&t11, T12 &&t12, T13 &&t13,
                           T14 &&t14) OTL_THROWS_OTL_EXCEPTION {
-  s << std::forward<T1>(t1);
-  s << std::forward<T2>(t2);
-  s << std::forward<T3>(t3);
-  s << std::forward<T4>(t4);
-  s << std::forward<T5>(t5);
-  s << std::forward<T6>(t6);
-  s << std::forward<T7>(t7);
-  s << std::forward<T8>(t8);
-  s << std::forward<T9>(t9);
-  s << std::forward<T10>(t10);
-  s << std::forward<T11>(t11);
-  s << std::forward<T12>(t12);
-  s << std::forward<T13>(t13);
-  s << std::forward<T14>(t14);
+  s << ::std::forward<T1>(t1);
+  s << ::std::forward<T2>(t2);
+  s << ::std::forward<T3>(t3);
+  s << ::std::forward<T4>(t4);
+  s << ::std::forward<T5>(t5);
+  s << ::std::forward<T6>(t6);
+  s << ::std::forward<T7>(t7);
+  s << ::std::forward<T8>(t8);
+  s << ::std::forward<T9>(t9);
+  s << ::std::forward<T10>(t10);
+  s << ::std::forward<T11>(t11);
+  s << ::std::forward<T12>(t12);
+  s << ::std::forward<T13>(t13);
+  s << ::std::forward<T14>(t14);
   s.check_end_of_row();
 }
 
@@ -31473,21 +31473,21 @@ inline void otl_write_row(S &s, T1 &&t1, T2 &&t2, T3 &&t3, T4 &&t4, T5 &&t5,
                           T6 &&t6, T7 &&t7, T8 &&t8, T9 &&t9, T10 &&t10,
                           T11 &&t11, T12 &&t12, T13 &&t13, T14 &&t14,
                           T15 &&t15) OTL_THROWS_OTL_EXCEPTION {
-  s << std::forward<T1>(t1);
-  s << std::forward<T2>(t2);
-  s << std::forward<T3>(t3);
-  s << std::forward<T4>(t4);
-  s << std::forward<T5>(t5);
-  s << std::forward<T6>(t6);
-  s << std::forward<T7>(t7);
-  s << std::forward<T8>(t8);
-  s << std::forward<T9>(t9);
-  s << std::forward<T10>(t10);
-  s << std::forward<T11>(t11);
-  s << std::forward<T12>(t12);
-  s << std::forward<T13>(t13);
-  s << std::forward<T14>(t14);
-  s << std::forward<T15>(t15);
+  s << ::std::forward<T1>(t1);
+  s << ::std::forward<T2>(t2);
+  s << ::std::forward<T3>(t3);
+  s << ::std::forward<T4>(t4);
+  s << ::std::forward<T5>(t5);
+  s << ::std::forward<T6>(t6);
+  s << ::std::forward<T7>(t7);
+  s << ::std::forward<T8>(t8);
+  s << ::std::forward<T9>(t9);
+  s << ::std::forward<T10>(t10);
+  s << ::std::forward<T11>(t11);
+  s << ::std::forward<T12>(t12);
+  s << ::std::forward<T13>(t13);
+  s << ::std::forward<T14>(t14);
+  s << ::std::forward<T15>(t15);
   s.check_end_of_row();
 }
 
@@ -31990,7 +31990,7 @@ inline void otl_write_row(S &s, const T1 &t1, const T2 &t2, const T3 &t3,
   class otl_connect_pool{
   public:
 
-    typedef std::unique_ptr<OTLConnect> connect_ptr;
+    typedef ::std::unique_ptr<OTLConnect> connect_ptr;
 
     // Default constructor
     otl_connect_pool()
@@ -32017,7 +32017,7 @@ inline void otl_write_row(S &s, const T1 &t1, const T2 &t2, const T3 &t3,
               const size_t new_min_pool_size=8,
               const size_t new_max_pool_size=32)
       OTL_THROWS_OTL_EXCEPTION{
-      std::lock_guard<std::recursive_mutex> guard(mutex_);
+      ::std::lock_guard<::std::recursive_mutex> guard(mutex_);
       if(pool_open_)close(true);
       pool_open_=true;
       min_pool_size_=new_min_pool_size;
@@ -32038,7 +32038,7 @@ inline void otl_write_row(S &s, const T1 &t1, const T2 &t2, const T3 &t3,
     // pool is empty or closed, return an empty unique pointer.
     connect_ptr get() OTL_NO_THROW{
       connect_ptr ptr;
-      std::lock_guard<std::recursive_mutex> guard(mutex_);
+      ::std::lock_guard<::std::recursive_mutex> guard(mutex_);
       if(pool_open_ && pool_.size()>0){
         // if the pool is not empty, return an element from the
         // the end of the pool.
@@ -32052,7 +32052,7 @@ inline void otl_write_row(S &s, const T1 &t1, const T2 &t2, const T3 &t3,
     // is transferred / moved from the caller to the pool. Return
     // false if the pool is full or closed.
     bool put(connect_ptr&& p) OTL_NO_THROW{
-      std::lock_guard<std::recursive_mutex> guard(mutex_);
+      ::std::lock_guard<::std::recursive_mutex> guard(mutex_);
       if(!pool_open_)return false;
       if(pool_.size()<max_pool_size_){
         // if the pool is not filled up to its maximum size, add the
@@ -32069,7 +32069,7 @@ inline void otl_write_row(S &s, const T1 &t1, const T2 &t2, const T3 &t3,
     // connections.
     void shrink_pool(const size_t new_min_pool_size, 
                      const bool ignore_errors=false) OTL_THROWS_OTL_EXCEPTION{
-      std::lock_guard<std::recursive_mutex> guard(mutex_);
+      ::std::lock_guard<::std::recursive_mutex> guard(mutex_);
       if(!pool_open_)return;
       if(pool_.size()<new_min_pool_size)
         // if the pool size is already smaller than the specified
@@ -32103,7 +32103,7 @@ inline void otl_write_row(S &s, const T1 &t1, const T2 &t2, const T3 &t3,
 
     // change max pool size
     void change_max_pool_size(const size_t new_max_pool_size) OTL_THROWS_OTL_EXCEPTION {
-      std::lock_guard<std::recursive_mutex> guard(mutex_);
+      ::std::lock_guard<::std::recursive_mutex> guard(mutex_);
       if(max_pool_size_<new_max_pool_size){
         max_pool_size_=new_max_pool_size;
       }else if(max_pool_size_>new_max_pool_size){
@@ -32117,7 +32117,7 @@ inline void otl_write_row(S &s, const T1 &t1, const T2 &t2, const T3 &t3,
 
     // Close the pool
     void close(const bool ignore_errors=false) OTL_THROWS_OTL_EXCEPTION{
-      std::lock_guard<std::recursive_mutex> guard(mutex_);
+      ::std::lock_guard<::std::recursive_mutex> guard(mutex_);
       if(!pool_open_)return;
       exception_ptr ret_exc;
       for(auto& i:pool_){
@@ -32151,32 +32151,32 @@ inline void otl_write_row(S &s, const T1 &t1, const T2 &t2, const T3 &t3,
     
     // Get the maximum pool size
     size_t max_pool_size() const OTL_NO_THROW{
-      std::lock_guard<std::recursive_mutex> guard(mutex_);
+      ::std::lock_guard<::std::recursive_mutex> guard(mutex_);
       return max_pool_size_;
     }
 
 
     // Get the minimum pool size
     size_t min_pool_size() const OTL_NO_THROW{
-      std::lock_guard<std::recursive_mutex> guard(mutex_);
+      ::std::lock_guard<::std::recursive_mutex> guard(mutex_);
       return min_pool_size_;
     }
 
     // Get the current / dynamic pool size
     size_t current_pool_size() const OTL_NO_THROW{
-      std::lock_guard<std::recursive_mutex> guard(mutex_);
+      ::std::lock_guard<::std::recursive_mutex> guard(mutex_);
       return pool_.size();
     }
 
     // Return "pool is open" flag
     bool is_open() const OTL_NO_THROW{
-      std::lock_guard<std::recursive_mutex> guard(mutex_);
+      ::std::lock_guard<::std::recursive_mutex> guard(mutex_);
       return pool_open_;
     }
 
     // Get the underlying mutex when a sequence of more than one call
     // needs to be done under a single mutex lock for consistency.
-    std::recursive_mutex& get_mutex() OTL_NO_THROW{
+    ::std::recursive_mutex& get_mutex() OTL_NO_THROW{
       return mutex_;
     }
 
@@ -32184,13 +32184,13 @@ inline void otl_write_row(S &s, const T1 &t1, const T2 &t2, const T3 &t3,
 
   private:
 
-    typedef std::unique_ptr<OTLException> exception_ptr;
+    typedef ::std::unique_ptr<OTLException> exception_ptr;
 
     bool pool_open_;
     size_t min_pool_size_;
     size_t max_pool_size_;
-    std::vector<connect_ptr> pool_;
-    mutable std::recursive_mutex mutex_;
+    ::std::vector<connect_ptr> pool_;
+    mutable ::std::recursive_mutex mutex_;
 
   };
 

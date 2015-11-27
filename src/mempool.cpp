@@ -5,76 +5,66 @@
 
 namespace ics {
 
-MemoryChunk::MemoryChunk(MemoryPool& mp)
-	: m_memPool(mp)
-//	, m_buff(buf), m_usedSize(0), m_totalSize(length)
+MemoryChunk::MemoryChunk()
+	: data(nullptr), length(0), size(0)
 {
-	m_totalSize = mp.chunkSize();
-	m_buff = new uint8_t[m_totalSize];
-	memset(m_buff, 0, m_totalSize);
-	m_usedSize = 0;
+
 }
 
-MemoryChunk::MemoryChunk(MemoryChunk&& rhs)
-	: m_memPool(rhs.m_memPool), m_buff(rhs.m_buff), m_usedSize(rhs.m_usedSize), m_totalSize(rhs.m_totalSize)
+MemoryChunk::MemoryChunk(void* buf, std::size_t usedLength, std::size_t totalSize)
+	: data((uint8_t*)buf), length(usedLength), size(totalSize)
 {
-	rhs.m_buff = nullptr;
+
+}
+
+
+MemoryChunk::MemoryChunk(const MemoryChunk& rhs)
+	: data(rhs.data), length(rhs.length), size(rhs.size)
+{
+}
+
+
+MemoryChunk::MemoryChunk(MemoryChunk&& rhs)
+: data(rhs.data), length(rhs.length), size(rhs.size)
+{
+	rhs.size = 0;
 }
 
 
 MemoryChunk::~MemoryChunk()
 {
-	if (m_buff)
-	{
-		delete (uint8_t*)m_buff;
-		m_buff = nullptr;
-	}
+
 }
 
 MemoryChunk MemoryChunk::clone(MemoryPool& mp)
 {
-	/*
 	auto mc = mp.get();
-	mc->m_usedSize = m_usedSize > mc->m_totalSize ? mc->m_totalSize : m_usedSize;
-	std::memcpy(mc->m_buff, m_buff, mc->m_usedSize);
-	*/
-	MemoryChunk mc(mp);
-	memcpy(mc.m_buff, m_buff, m_usedSize);
-	return std::move(mc);
+	mc.length = length;
+	std::memcpy(mc.data, data, mc.length);
+	return mc;
 }
 
 MemoryChunk& MemoryChunk::operator = (MemoryChunk&& rhs)
 {
-	m_buff = rhs.m_buff;
-	m_usedSize = rhs.m_usedSize;
-	m_totalSize = rhs.m_totalSize;
-	rhs.m_buff = nullptr;
+	data = rhs.data;
+	length = rhs.length;
+	size = rhs.size;
+	rhs.size = 0;
 	return *this;
 }
 
-void* MemoryChunk::getBuff()
+MemoryChunk& MemoryChunk::operator = (const MemoryChunk& rhs)
 {
-	return m_buff;
+	data = rhs.data;
+	length = rhs.length;
+	size = rhs.size;
+	return *this;
 }
 
-std::size_t MemoryChunk::getUsedSize() const
-{
-	return m_usedSize;
-}
-
-void MemoryChunk::setUsedSize(std::size_t n)
-{
-	m_usedSize = n;
-}
-
-std::size_t MemoryChunk::getTotalSize() const
-{
-	return m_totalSize;
-}
 
 bool MemoryChunk::valid() const
 {
-	return m_buff != NULL;
+	return !data && size > 0;
 }
 
 
@@ -98,7 +88,7 @@ void MemoryPool::init(std::size_t chunkSize, std::size_t countOfChunk, bool zero
 {
 	m_chunkSize = chunkSize;
 	m_chunkCount = countOfChunk;
-	m_buff = new char[m_chunkSize * m_chunkCount];
+	m_buff = new uint8_t[m_chunkSize * m_chunkCount];
 
 	if (zeroData)
 	{
@@ -107,27 +97,28 @@ void MemoryPool::init(std::size_t chunkSize, std::size_t countOfChunk, bool zero
 
 	for (size_t i = 0; i < m_chunkCount; i++)
 	{
-//		MemoryChunk_ptr mc(new MemoryChunk(m_buff + i*m_chunkSize, m_chunkSize));
-//		m_chunkList.push_back(std::move(mc));
-//		m_chunkList.push_back(std::make_unique<MemoryChunk>(m_buff + i*m_chunkSize, m_chunkSize));	// since c++ 14
+		m_chunkList.push_back(MemoryChunk(m_buff + i*m_chunkSize, 0, m_chunkSize));
 	}
 }
 
-MemoryChunk_ptr MemoryPool::get()
+MemoryChunk MemoryPool::get()
 {
 	std::lock_guard<std::mutex> lock(m_chunkLock);
-	MemoryChunk_ptr chunk;
+	MemoryChunk chunk;
 	if (!m_chunkList.empty())
 	{
-		chunk = std::move(m_chunkList.front());
+		chunk =m_chunkList.front();
 	}
 	return chunk;
 }
 
-void MemoryPool::put(MemoryChunk_ptr&& chunk)
+void MemoryPool::put(MemoryChunk&& chunk)
 {
-	std::lock_guard<std::mutex> lock(m_chunkLock);
-	m_chunkList.push_back(std::move(chunk));
+	if (chunk.valid())
+	{
+		std::lock_guard<std::mutex> lock(m_chunkLock);
+		m_chunkList.push_back(chunk);
+	}
 }
 
 std::size_t MemoryPool::chunkSize() const

@@ -2,8 +2,9 @@
 #ifndef _ICS_PUSH_SYSTEM_H
 #define _ICS_PUSH_SYSTEM_H
 
-#include "connection.hpp"
-//#include "messagehandler.hpp"
+#include "icsconnection.hpp"
+#include "icsprotocol.hpp"
+#include <unordered_map>
 
 namespace ics {
 
@@ -11,7 +12,7 @@ class PushSystem {
 public:
 	PushSystem();
 
-	void init(const string& ip, uint16_t udp_port);
+	void init(const std::string& ip, uint16_t udp_port);
 
 	~PushSystem();
 
@@ -24,9 +25,9 @@ private:
 
 private:
 	asio::io_service	m_ioService;
-	ClientManager<UdpConnection> m_clientManager;
-	std::unique_ptr<UdpConnection>	m_connection;
-	std::unordered_map<uint16_t, MemoryChunk_ptr> m_msgList;
+//	ClientManager<UdpConnection> m_clientManager;
+//	std::unique_ptr<UdpConnection>	m_connection;
+	std::unordered_map<uint16_t, MemoryChunk> m_msgList;
 };
 
 

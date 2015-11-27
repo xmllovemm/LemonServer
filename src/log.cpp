@@ -8,6 +8,8 @@
 log4cplus::Logger icsLogger = log4cplus::Logger::getRoot();
 #endif
 
+namespace ics {
+
 void init_log(const char* log_config)
 {
 #ifdef LOG_USE_LOG4CPLUS
@@ -19,4 +21,6 @@ void init_log(const char* log_config)
 void set_log_level()
 {
 	
+}
+
 }

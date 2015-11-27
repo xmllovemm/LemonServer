@@ -70,16 +70,16 @@ public:
 	{
 		static const int count = sizeof...(Args);
 
-		std::function<typename std::result_of<Task(Args...)>::type ()> t2;
+		std::function<typename ::std::result_of<Task(Args...)>::type ()> t2;
 
-		auto task = std::bind(std::forward<Task>(t), std::forward<Args...>(args...));
+		auto task = ::std::bind(std::forward<Task>(t), ::std::forward<Args...>(args...));
 
 		task();
 	}
 
 
 private:
-	std::function <typename std::result_of<Task(Args...)>::type ()> m_taskList;
+	std::function <typename ::std::result_of<Task(Args...)>::type ()> m_taskList;
 
 };
 
@@ -89,7 +89,7 @@ private:
 template<class T>
 class TimerThread {
 public:
-	typedef std::chrono::high_resolution_clock clock_t;
+	typedef ::std::chrono::high_resolution_clock clock_t;
 
 	struct TimerInfo {
 	public:
@@ -104,7 +104,7 @@ public:
 		template<class Arg1,class Arg2>
 		TimerInfo(clock_t::time_point tp, Arg1&& arg1, Arg2&& arg2)
 			: m_timePoint(tp)
-			, m_user(std::forward<Arg1>(arg1), std::forward<Arg2>(arg2))
+			, m_user(std::forward<Arg1>(arg1), ::std::forward<Arg2>(arg2))
 		{
 
 		}
@@ -117,7 +117,7 @@ public:
 	{
 		for (;;)
 		{
-			std::unique_lock <std::mutex> lock(m_mutex);
+			std::unique_lock <::std::mutex> lock(m_mutex);
 			while (m_running && m_timerList.empty())
 			{
 				m_condition.wait(lock);
@@ -150,7 +150,7 @@ public:
 	}
 
 private:
-	std::unique_ptr<std::thread>	m_thread;
+	std::unique_ptr<::std::thread>	m_thread;
 	std::vector<TimerInfo>			m_timerList;
 	std::mutex				m_mutex;
 	std::condition_variable	m_condition;

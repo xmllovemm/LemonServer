@@ -18,7 +18,7 @@ in c++ 14:
 auto lambda = [](auto x,auto y){return x+y;};
 
 std::unique_ptr prt(new int(10));
-auto lam = [value = std::move(ptr)]{return *value};
+auto lam = [value = ::std::move(ptr)]{return *value};
 
 const vector<int> v(2);
 auto n = v[0];

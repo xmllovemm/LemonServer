@@ -158,7 +158,7 @@ public:
 		if (!connList.empty())
 		{
 			message.serailzeToData();
-			MemoryChunk_ptr mc = message.toMemoryChunk();
+			MemoryChunk mc = message.toMemoryChunk();
 
 			for (auto it = connList.begin(); it != connList.end(); it++)
 			{
@@ -230,13 +230,13 @@ private:
 		if (!m_isSending && !m_sendList.empty())
 		{			
 			/*
-			MemoryChunk_ptr& chunk = m_sendList.front();		
+			MemoryChunk& chunk = m_sendList.front();		
 			m_socket.async_write_all(chunk->getBuff(), chunk->getUsedSize()),
 					[this](const std::error_code& ec, std::size_t length)
 						{
 							if (!ec)
 							{
-								MemoryChunk_ptr& chunk = m_sendList.front();
+								MemoryChunk& chunk = m_sendList.front();
 								this->toHexInfo("send", (uint8_t*)chunk->getBuff(), chunk->getUsedSize());
 								m_sendList.pop_front();			
 								m_isSending = false;
@@ -252,7 +252,7 @@ private:
 		}
 	}
 
-	void trySend(MemoryChunk_ptr&& mc)
+	void trySend(MemoryChunk&& mc)
 	{
 		{
 			std::lock_guard<std::mutex> lock(m_sendLock);
@@ -264,7 +264,7 @@ private:
 	void replyResponse(uint16_t ackNum)
 	{
 		ProtocolStream response(g_memoryPool);
-		response.getHead()->init(protocol::MessageId::MessageId_min, ackNum);
+		response.getHead()->init(MessageId::MessageId_min, ackNum);
 		response.getHead()->setSendNum(m_sendSerialNum++);
 
 		trySend(response.toMemoryChunk());
@@ -274,24 +274,24 @@ private:
 	{
 		if (!m_msgHandler)
 		{
-			if (message.size() < sizeof(ProtocolHead)+ProtocolHead::CrcCodeSize)
+			if (message.size() < sizeof(IcsMsgHead)+IcsMsgHead::CrcCodeSize)
 			{
 				IcsException("first package's size:%d is not more than IcsMsgHead", (int)message.size());
 			}
 
 			// 根据消息ID判断处理类型
-			protocol::MessageId msgid = message.getHead()->getMsgID();
-			if (msgid > protocol::MessageId::T2C_min && msgid < protocol::MessageId::T2C_max)
+			MessageId msgid = message.getHead()->getMsgID();
+			if (msgid > MessageId::T2C_min && msgid < MessageId::T2C_max)
 			{
 				m_msgHandler.reset(new TerminalHandler());
 //				m_msgHandler = make_unique<TerminalHandler>();
 			}
-			else if (msgid > protocol::MessageId::W2C_min && msgid < protocol::MessageId::W2C_max)
+			else if (msgid > MessageId::W2C_min && msgid < MessageId::W2C_max)
 			{
 				m_msgHandler.reset(new WebHandler());
 //				m_msgHandler = make_unique<WebHandler>();
 			}
-			else if (msgid == protocol::MessageId::T2T_forward_msg)
+			else if (msgid == MessageId::T2T_forward_msg)
 			{
 //				m_msgHandler.reset(new ProxyTerminalHandler());
 				m_msgHandler = make_unique<ProxyTerminalHandler>();
@@ -330,7 +330,7 @@ private:
 
 	void handleMessage(ProtocolStream&	request)
 	{
-		ProtocolHead* head = m_request.getHead();
+		IcsMsgHead* head = m_request.getHead();
 
 		try {
 			/// verify ics protocol
@@ -354,7 +354,7 @@ private:
 			/// prepare response
 			if (head->needResposne())
 			{
-				response.getHead()->init(protocol::MessageId::MessageId_min, head->getSendNum());	// head->getMsgID()
+				response.getHead()->init(MessageId::MessageId_min, head->getSendNum());	// head->getMsgID()
 			}
 
 			/// send response message
@@ -404,7 +404,7 @@ private:
 	ProtocolStream	m_request;
 
 	// send area
-	std::list<MemoryChunk_ptr> m_sendList;
+	std::list<MemoryChunk> m_sendList;
 	std::mutex		m_sendLock;
 	bool			m_isSending;
 	uint16_t		m_sendSerialNum;
@@ -436,7 +436,7 @@ protected:
 			[this](const std::error_code& ec, std::size_t length)
 		{
 			// no error and handle message
-			if (!ec && (length > sizeof(ProtocolHead) + ProtocolHead::CrcCodeSize))
+			if (!ec && (length > sizeof(IcsMsgHead) + IcsMsgHead::CrcCodeSize))
 			{
 				handleData(m_request, length);
 			}
@@ -450,20 +450,20 @@ protected:
 	void handleData(ProtocolStream& request, std::size_t len)
 	{
 		/*
-		protocol::MessageId msgid = request.getHead()->getMsgID();
+		MessageId msgid = request.getHead()->getMsgID();
 
 		// 根据消息ID判断处理类型
-		if (msgid > protocol::MessageId::T2C_min && msgid < protocol::MessageId::T2C_max)
+		if (msgid > MessageId::T2C_min && msgid < MessageId::T2C_max)
 		{
 			m_msgHandler.reset(new TerminalHandler());
 			//				m_msgHandler = make_unique<TerminalHandler>();
 		}
-		else if (msgid > protocol::MessageId::W2C_min && msgid < protocol::MessageId::W2C_max)
+		else if (msgid > MessageId::W2C_min && msgid < MessageId::W2C_max)
 		{
 			m_msgHandler.reset(new WebHandler());
 			//				m_msgHandler = make_unique<WebHandler>();
 		}
-		else if (msgid == protocol::MessageId::T2T_forward_msg)
+		else if (msgid == MessageId::T2T_forward_msg)
 		{
 			//				m_msgHandler.reset(new ProxyTerminalHandler());
 			m_msgHandler = make_unique<ProxyTerminalHandler>();

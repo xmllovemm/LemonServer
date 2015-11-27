@@ -12,40 +12,35 @@ namespace ics {
 
 class MemoryPool;
 
-class MemoryChunk {
+class MemoryChunk 
+{
 public:
-	MemoryChunk() = delete;
+	MemoryChunk();
 
-	MemoryChunk(MemoryPool& mp);
+	MemoryChunk(void* buf, std::size_t usedLength, std::size_t totalSize);
 
-	~MemoryChunk();
+	MemoryChunk(const MemoryChunk& rhs);
 
 	MemoryChunk(MemoryChunk&& rhs);
+
+	~MemoryChunk();
 
 	MemoryChunk clone(MemoryPool& mp);
 
 	MemoryChunk& operator = (MemoryChunk&& rhs);
 
-	void* getBuff();
-
-	// get used size
-	std::size_t getUsedSize() const;
-
-	void setUsedSize(std::size_t n);
-
-	// get tatol size
-	std::size_t getTotalSize() const;
+	MemoryChunk& operator = (const MemoryChunk& rhs);
 
 	bool valid() const;
-
 public:
-	MemoryPool&	m_memPool;
-	uint8_t*		m_buff;
-	std::size_t	m_usedSize;
-	std::size_t	m_totalSize;
+	// 块起始地址
+	uint8_t*	data;
+	// 已用长度
+	std::size_t	length;
+	// 可用最大长度
+	std::size_t	size;
 };
 
-typedef std::unique_ptr<MemoryChunk> MemoryChunk_ptr;
 
 class MemoryPool {
 public:
@@ -57,17 +52,17 @@ public:
 
 	~MemoryPool();
 
-	MemoryChunk_ptr get();
+	MemoryChunk get();
 
-	void put(MemoryChunk_ptr&& chunk);
+	void put(MemoryChunk&& chunk);
 
 	std::size_t chunkSize() const;
 private:
-	char*		m_buff;
+	uint8_t*		m_buff;
 	std::size_t	m_chunkSize;
 	std::size_t	m_chunkCount;
 
-	std::list<MemoryChunk_ptr>	m_chunkList;
+	std::list<MemoryChunk>	m_chunkList;
 	std::mutex		m_chunkLock;
 };
 

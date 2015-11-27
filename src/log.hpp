@@ -37,9 +37,10 @@ extern log4cplus::Logger icsLogger;
 #define LOG_FATAL(msg)  LOG_INNER("[FATAL]", msg)
 #endif
 
+namespace ics {
 void init_log(const char* log_config);
 
 void set_log_level();
-
+}
 
 #endif	// _LOG_h

@@ -30,7 +30,7 @@ public:
 		return *this;
 	}
 
-	IcsException& operator << (const std::string& msg)
+	IcsException& operator << (const ::std::string& msg)
 	{
 		m_message += msg;
 		return *this;
@@ -48,7 +48,7 @@ public:
 		return *this;
 	}
 
-	const std::string& message() const
+	const ::std::string& message() const
 	{
 		return m_message;
 	}

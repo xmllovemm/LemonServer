@@ -38,39 +38,39 @@ void TerminalHandler::handle(TcpConnection& conn, ProtocolStream& request, Proto
 {
 	switch (request.getHead()->getMsgID())
 	{
-	case protocol::T2C_auth_request:
+	case T2C_auth_request:
 		handleAuthRequest(conn, request, response);
 		break;
 
-	case protocol::T2C_heartbeat:
+	case T2C_heartbeat:
 		handleHeartbeat(conn, request, response);
 		break;
 
-	case protocol::T2C_std_status_report:
+	case T2C_std_status_report:
 		handleStdStatusReport(conn, request, response);
 		break;
 
-	case protocol::T2C_def_status_report:
+	case T2C_def_status_report:
 		handleDefStatusReport(conn, request, response);
 		break;
 
-	case protocol::T2C_event_report:
+	case T2C_event_report:
 		handleEventsReport(conn, request, response);
 		break;
 
-	case protocol::T2C_bus_report:
+	case T2C_bus_report:
 		handleBusinessReport(conn, request, response);
 		break;
 
-	case protocol::T2C_gps_report:
+	case T2C_gps_report:
 		handleGpsReport(conn, request, response);
 		break;
 
-	case protocol::T2C_datetime_sync_request:
+	case T2C_datetime_sync_request:
 		handleDatetimeSync(conn, request, response);
 		break;
 
-	case protocol::T2C_log_report:
+	case T2C_log_report:
 		handleLogReport(conn, request, response);
 		break;
 
@@ -92,19 +92,19 @@ void TerminalHandler::handle(TcpConnection& conn, ProtocolStream& request, Proto
 
 void TerminalHandler::dispatch(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	protocol::ShortString terminalName;
+	ShortString terminalName;
 	uint16_t messageID;
 	uint32_t requestID;
 	request >> terminalName >> messageID >> requestID;
 
-	if (messageID <= protocol::MessageId::T2C_min || messageID >= protocol::MessageId::T2C_max)
+	if (messageID <= MessageId::T2C_min || messageID >= MessageId::T2C_max)
 	{
 		throw IcsException("dispatch message=%d is not one of T2C", messageID);
 	}
 
 	// 记录该请求ID转发结果
 
-	response.getHead()->init((protocol::MessageId)messageID, false);
+	response.getHead()->init((MessageId)messageID, false);
 
 	request.moveBack(sizeof(requestID));
 	response << request;
@@ -119,8 +119,8 @@ void TerminalHandler::handleAuthRequest(TcpConnection& conn, ProtocolStream& req
 	if (!m_conn_name.empty())
 	{
 		LOG_DEBUG(m_conn_name << " ignore repeat authrize message");
-		response.getHead()->init(protocol::MessageId::C2T_auth_response, request.getHead()->getSendNum());
-		response << protocol::ShortString("ok") << (uint16_t)10;
+		response.getHead()->init(MessageId::C2T_auth_response, request.getHead()->getSendNum());
+		response << ShortString("ok") << (uint16_t)10;
 		return;
 	}
 
@@ -148,7 +148,7 @@ void TerminalHandler::handleAuthRequest(TcpConnection& conn, ProtocolStream& req
 	getStream >> ret >> id >> name;
 	getStream.close();
 
-	response.getHead()->init(protocol::MessageId::C2T_auth_response, request.getHead()->getSendNum());
+	response.getHead()->init(MessageId::C2T_auth_response, request.getHead()->getSendNum());
 
 	if (ret == 0)	// 成功
 	{
@@ -165,7 +165,7 @@ void TerminalHandler::handleAuthRequest(TcpConnection& conn, ProtocolStream& req
 	}
 	else
 	{
-		response << protocol::ShortString("failed");
+		response << ShortString("failed");
 	}
 
 }
@@ -182,7 +182,7 @@ void TerminalHandler::handleStdStatusReport(TcpConnection& conn, ProtocolStream&
 	if (status_type == 1)
 	{
 		uint8_t device_ligtht;	// 设备指示灯
-		protocol::LongString device_status;	// 设备状态
+		LongString device_status;	// 设备状态
 		uint8_t cheat_ligtht;	// 作弊指示灯
 		string cheat_status;	// 作弊状态
 		float zero_point;		// 秤体零点	
@@ -191,8 +191,8 @@ void TerminalHandler::handleStdStatusReport(TcpConnection& conn, ProtocolStream&
 
 		request.assertEmpty();
 
-		protocol::IcsDataTime recv_time;
-		protocol::getIcsNowTime(recv_time);
+		IcsDataTime recv_time;
+		getIcsNowTime(recv_time);
 
 		OtlConnectionGuard connGuard(db);
 
@@ -266,14 +266,14 @@ void TerminalHandler::handleDefStatusReport(TcpConnection& conn, ProtocolStream&
 
 void TerminalHandler::handleEventsReport(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	protocol::IcsDataTime event_time, recv_time;	//	事件发生时间 接收时间
+	IcsDataTime event_time, recv_time;	//	事件发生时间 接收时间
 	uint16_t event_count;	// 事件项个数
 
 	uint16_t event_id = 0;	//	事件编号
 	uint8_t event_type = 0;	//	事件值类型
 	string event_value;		//	事件值
 
-	protocol::getIcsNowTime(recv_time);
+	getIcsNowTime(recv_time);
 
 	request >> event_time >> event_count;
 
@@ -305,17 +305,17 @@ void TerminalHandler::handleEventsReport(TcpConnection& conn, ProtocolStream& re
 
 void TerminalHandler::handleBusinessReport(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception)
 {
-	protocol::IcsDataTime report_time, recv_time;			// 业务采集时间 接收时间
+	IcsDataTime report_time, recv_time;			// 业务采集时间 接收时间
 	uint32_t business_no;	// 业务流水号
 	uint32_t business_type;	// 业务类型
 
-	protocol::getIcsNowTime(recv_time);
+	getIcsNowTime(recv_time);
 
 	request >> report_time >> business_no >> business_type;
 
 	if (m_lastBusSerialNum == business_no)	// 重复的业务流水号，直接忽略
 	{
-		response.getHead()->init(protocol::MessageId::MessageId_min);
+		response.getHead()->init(MessageId::MessageId_min);
 		return;	
 	}
 
@@ -325,10 +325,10 @@ void TerminalHandler::handleBusinessReport(TcpConnection& conn, ProtocolStream& 
 
 	if (business_type == 1)	// 静态汽车衡
 	{
-		protocol::ShortString cargo_num;	// 货物单号	
-		protocol::ShortString vehicle_num;	// 车号
-		protocol::ShortString consigness;	// 收货单位
-		protocol::ShortString cargo_name;	// 货物名称
+		ShortString cargo_num;	// 货物单号	
+		ShortString vehicle_num;	// 车号
+		ShortString consigness;	// 收货单位
+		ShortString cargo_name;	// 货物名称
 
 		float weight1, weight2, weight3, weight4, unit_price, money;	// 毛重 皮重 扣重 净重 单价 金额
 		uint8_t in_out;	// 进出
@@ -431,7 +431,7 @@ void TerminalHandler::handleBusinessReport(TcpConnection& conn, ProtocolStream& 
 			};
 		}weightFlag;
 
-		protocol::ShortString tubID;
+		ShortString tubID;
 		uint32_t tubVolumn, weight, driverID;
 
 		request >> weightFlag.data >> tubID >> tubVolumn >> weight >> driverID;
@@ -608,13 +608,13 @@ void TerminalHandler::handleParamModifyResponse(TcpConnection& conn, ProtocolStr
 
 void TerminalHandler::handleDatetimeSync(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	protocol::IcsDataTime dt1, dt2;
+	IcsDataTime dt1, dt2;
 	request >> dt1;
 	request.assertEmpty();
 
-	protocol::getIcsNowTime(dt2);
+	getIcsNowTime(dt2);
 
-	response.getHead()->init(protocol::MessageId::MessageId_min, m_send_num++);
+	response.getHead()->init(MessageId::MessageId_min, m_send_num++);
 	response << dt1 << dt2 << dt2;
 }
 
@@ -622,7 +622,7 @@ void TerminalHandler::handleDatetimeSync(TcpConnection& conn, ProtocolStream& re
 
 void TerminalHandler::handleLogReport(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	protocol::IcsDataTime status_time;		//	时间
+	IcsDataTime status_time;		//	时间
 	uint8_t log_level;			//	日志级别
 	uint8_t encode_type = 0;	//	编码方式
 	string log_value;			//	日志内容
@@ -745,7 +745,7 @@ void TerminalHandler::handleRequestFile(TcpConnection& conn, ProtocolStream& req
 	}
 	else	// 无升级事务
 	{	
-		response.getHead()->init(protocol::MessageId::T2C_upgrade_not_found, request.getHead()->getAckNum());
+		response.getHead()->init(MessageId::T2C_upgrade_not_found, request.getHead()->getAckNum());
 	}
 }
 
@@ -796,7 +796,7 @@ ProxyTerminalHandler::ProxyTerminalHandler()
 // 处理远端服务器转发的终端数据
 void ProxyTerminalHandler::handle(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	protocol::ShortString connName;
+	ShortString connName;
 	request >> connName;
 
 	auto& it = m_nameMap[connName];
@@ -841,15 +841,15 @@ void WebHandler::handle(TcpConnection& conn, ProtocolStream& request, ProtocolSt
 {
 	switch (request.getHead()->getMsgID())
 	{
-	case protocol::MessageId::W2C_connect_remote_request:
+	case MessageId::W2C_connect_remote_request:
 		handleConnectRemote(conn, request, response);
 		break;
 
-	case protocol::MessageId::W2C_disconnect_remote:
+	case MessageId::W2C_disconnect_remote:
 
 		break;
 
-	case protocol::MessageId::W2C_send_to_terminal:
+	case MessageId::W2C_send_to_terminal:
 		handleForward(conn, request, response);
 		break;
 
@@ -868,7 +868,7 @@ void WebHandler::dispatch(TcpConnection& conn, ProtocolStream& request, Protocol
 // 转发到对应终端
 void WebHandler::handleForward(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	protocol::ShortString terminalName;
+	ShortString terminalName;
 	uint16_t messageID;
 	uint32_t requestID;
 	request >> terminalName >> messageID >> requestID;
@@ -888,7 +888,7 @@ void WebHandler::handleForward(TcpConnection& conn, ProtocolStream& request, Pro
 // 连接远端子服务器
 void WebHandler::handleConnectRemote(TcpConnection& conn, ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	protocol::ShortString remoteID;
+	ShortString remoteID;
 	request >> remoteID;
 	request.assertEmpty();
 

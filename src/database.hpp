@@ -45,7 +45,7 @@ private:
 
 	OtlConnectPool	m_conn_pool;
 
-    std::string		m_conn_str;
+	std::string		m_conn_str;
     
 };
 
