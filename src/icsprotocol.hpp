@@ -27,6 +27,7 @@ namespace ics{
 #ifndef BIG_ENDIAN
 #define BIG_ENDIAN		1
 #endif
+
 #ifndef LITTLE_ENDIAN
 #define LITTLE_ENDIAN	2
 #endif
@@ -411,8 +412,11 @@ public:
 	{
 		auto chunk = m_memoryPool.get();
 		m_msgHead = (IcsMsgHead*)chunk.data;
-		m_msgEnd = m_curPos = (uint8_t*)chunk.data;
+		m_msgEnd = (uint8_t*)chunk.data;
+		m_curPos = (uint8_t*)(m_msgHead + 1);
 		m_memoryEnd = chunk.data + chunk.size;
+
+		std::memset(m_msgHead, 0, sizeof(IcsMsgHead));
 	}
 
 	ProtocolStream(ProtocolStream&& rhs)
@@ -430,10 +434,12 @@ public:
 	{
 		auto chunk = m_memoryPool.get();
 		m_msgHead = (IcsMsgHead*)chunk.data;
-		std::memcpy(m_msgHead, data, len);
 		m_curPos = (uint8_t*)(m_msgHead + 1);
 		m_msgEnd = (uint8_t*)m_msgHead + len;
 		m_memoryEnd = chunk.data + chunk.size;
+
+		std::memcpy(m_msgHead, data, len);
+
 	}
 
 	~ProtocolStream()
@@ -452,7 +458,7 @@ public:
 		}
 		MemoryChunk mc((uint8_t*)m_msgHead, length(), size());
 		m_msgEnd = (uint8_t*)m_msgHead;
-		return mc;
+		return std::move(mc);
 	}
 
 	/*
@@ -469,7 +475,8 @@ public:
 
 	inline void reset()
 	{
-		m_msgEnd = m_curPos = (uint8_t*)(m_msgHead + 1);
+		m_msgEnd = (uint8_t*)m_msgHead;
+		m_curPos = (uint8_t*)(m_msgHead + 1);
 	}
 
 	/// get the protocol head
@@ -515,7 +522,7 @@ public:
 			if (copySize > len)
 			{
 				copySize = len;
-			}		
+			}
 		}
 		else
 		{
@@ -541,15 +548,7 @@ public:
 		buf += copySize;
 		m_msgEnd += copySize;
 
-		/// 组装一条完整消息
-		if (ret)
-		{
-			m_msgEnd++;
-			m_curPos = (uint8_t*)(m_msgHead + 1);
-		}
-
 		return ret;
-
 	}
 
 	// -----------------------set data----------------------- 

@@ -32,7 +32,7 @@ void IcsConfig::reload(const char* file) throw(IcsException)
 	if (root == nullptr)
 	{
 		doc.Clear();
-		throw IcsException("The config file %s don't has root element", file);
+		throw IcsException("The g_configFile file %s don't has root element", file);
 	}
 
 	for (TiXmlElement* section = root->FirstChildElement(); section != nullptr; section = section->NextSiblingElement())

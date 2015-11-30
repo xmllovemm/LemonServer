@@ -107,7 +107,8 @@ MemoryChunk MemoryPool::get()
 	MemoryChunk chunk;
 	if (!m_chunkList.empty())
 	{
-		chunk =m_chunkList.front();
+		chunk = m_chunkList.front();
+		m_chunkList.pop_front();
 	}
 	return chunk;
 }

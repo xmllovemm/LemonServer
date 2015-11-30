@@ -7,10 +7,9 @@
 #include "util.hpp"
 #include "icspushsystem.hpp"
 #include "tcpserver.hpp"
-#include "clientmanager.hpp"
 #include "icsconnection.hpp"
-
-#include "config.hpp"
+//#include "clientmanager.hpp"
+#include "icsconfig.hpp"
 #include <asio.hpp>
 
 #include <iostream>
@@ -19,26 +18,11 @@
 
 using namespace std;
 
-
-
-#if defined(WIN32)
-#define CONFIG_FILE "E:\\workspace\\project_on_github\\LemonServer\\bin\\config.xml"
-#else
-#define CONFIG_FILE "../src/config.xml"
-#endif
-
-
-ics::IcsConfig config;
-ics::PushSystem pushSystem;
+ics::IcsConfig g_configFile;
+ics::PushSystem g_pushSystem;
 ics::MemoryPool g_memoryPool;
-ics::ClientManager<ics::IcsConnectionImpl<asio::ip::tcp>> tcpClientManager(10);
-ics::ClientManager<ics::IcsConnectionImpl<asio::ip::udp>> udpClientManager(10);
-#if 1
-ics::DataBase db;
-#else
-ics::DataBase db("sa", "123456", "sqlserver");
-#endif
-
+ics::DataBase g_database;
+//ics::ClientManager<asio::ip::tcp, asio::ip::tcp> g_clientManager;
 
 
 void usage(const char* prog)
@@ -69,29 +53,29 @@ int main(int argc, char** argv)
 
 	try {
 
-		// load config file
-		config.load(argv[1]);
+		// load g_configFile file
+		g_configFile.load(argv[1]);
 
 		// init log file
-		ics::init_log(config.getAttributeString("log", "configfile").c_str());
+		ics::init_log(g_configFile.getAttributeString("log", "configfile").c_str());
 
-		if (config.getAttributeInt("program", "daemon"))
+		if (g_configFile.getAttributeInt("program", "daemon"))
 		{
-			ics::be_daemon(config.getAttributeString("program", "workdir").c_str());
+			ics::be_daemon(g_configFile.getAttributeString("program", "workdir").c_str());
 		}
 
 
 		ics::DataBase::initialize();
 
-		pushSystem.init(config.getAttributeString("pushmsg", "serverip"), config.getAttributeInt("pushmsg", "serverport"));
+		g_pushSystem.init(g_configFile.getAttributeString("pushmsg", "serverip"), g_configFile.getAttributeInt("pushmsg", "serverport"));
 
-		g_memoryPool.init(config.getAttributeInt("program", "chunksize"), config.getAttributeInt("program", "chunkcount"));
+		g_memoryPool.init(g_configFile.getAttributeInt("program", "chunksize"), g_configFile.getAttributeInt("program", "chunkcount"));
 
-		db.init(config.getAttributeString("database", "username"), config.getAttributeString("database", "password"), config.getAttributeString("database", "dsn"));
+		g_database.init(g_configFile.getAttributeString("database", "username"), g_configFile.getAttributeString("database", "password"), g_configFile.getAttributeString("database", "dsn"));
 
-		db.open();
+		g_database.open();
 		
-		clientServer.init(config.getAttributeString("listen", "addr")
+		clientServer.init(g_configFile.getAttributeString("listen", "addr")
 			, [](asio::ip::tcp::socket&& s)
 		{
 //				tcpClientManager.createConnection(std::move(s));

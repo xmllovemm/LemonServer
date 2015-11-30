@@ -4,9 +4,14 @@
 
 #include "icsconnection.hpp"
 #include "icsprotocol.hpp"
+#include "config.hpp"
+#include <asio.hpp>
 #include <unordered_map>
 
 namespace ics {
+
+template<class Protocol>
+class IcsConnection;
 
 class PushSystem {
 public:
@@ -25,8 +30,7 @@ private:
 
 private:
 	asio::io_service	m_ioService;
-//	ClientManager<UdpConnection> m_clientManager;
-//	std::unique_ptr<UdpConnection>	m_connection;
+	std::unique_ptr<IcsConnection<asio::ip::udp>>	m_connection;
 	std::unordered_map<uint16_t, MemoryChunk> m_msgList;
 };
 

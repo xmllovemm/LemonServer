@@ -5,7 +5,6 @@
 
 namespace ics{
 
-namespace protocol{
 
 otl_stream& operator<<(otl_stream& s, const IcsDataTime& dt)
 {
@@ -39,5 +38,4 @@ void getIcsNowTime(IcsDataTime& dt)
 }
 
 
-}
 }

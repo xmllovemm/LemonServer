@@ -20,8 +20,8 @@
 
   <!--ics protocol-->
   <protocol>
-    <heartbeat>40</heartbeat>
-    <onlineIP>127.0.0.1</onlineIP>
+    <heartbeat>15</heartbeat>
+    <onlineIP>192.168.50.112</onlineIP>
     <onlinePort>9999</onlinePort>
   </protocol>
 
