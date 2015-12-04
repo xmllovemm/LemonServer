@@ -43,6 +43,10 @@ namespace ics{
 #define PROTOCOL_BYTE_ORDER LITTLE_ENDIAN
 
 
+inline uint8_t ics_byteorder(uint8_t n)
+{
+	return n;
+}
 
 inline uint16_t ics_byteorder(uint16_t n)
 {
@@ -71,6 +75,35 @@ inline uint64_t ics_byteorder(uint64_t n)
 #endif
 }
 
+inline float ics_byteorder(float n)
+{
+#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
+	return n;
+#else
+	auto tmp = ics_byteorder(*(uint32_t)&n);
+	return *(float)&tmp;
+#endif
+}
+
+inline double ics_byteorder(double n)
+{
+#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
+	return n;
+#else
+	double ret;
+	if (sizeof(double) == sizeof(uint32_t))
+	{
+		auto tmp = ics_byteorder(*(uint32_t)&n);
+		ret = *(double)&tmp;
+	}
+	else
+	{
+		auto tmp = ics_byteorder(*(uint64_t)&n);
+		ret = *(double)&tmp;
+	}
+	return ret;
+#endif
+}
 
 // protocol info
 #define ICS_HEAD_PROTOCOL_NAME "ICS#"	// protocol name
@@ -212,8 +245,13 @@ enum MessageId {
 	C2P_push_message = 0x3001,
 
 	// ------ T and T ------ //
+	// 中心通信服务器认证请求
+	T2T_auth_request = 0x4001,
+	// 认证结果
+	T2T_auth_response = 0x4002,
 	// 子服务器转发的终端消息
-	T2T_forward_msg = 0x4001,
+	T2T_forward_msg = 0x4003,
+	
 
 	MessageId_max,
 };
@@ -412,7 +450,7 @@ public:
 	{
 		auto chunk = m_memoryPool.get();
 		m_msgHead = (IcsMsgHead*)chunk.data;
-		m_msgEnd = (uint8_t*)chunk.data;
+		m_msgEnd = (uint8_t*)m_msgHead;
 		m_curPos = (uint8_t*)(m_msgHead + 1);
 		m_memoryEnd = chunk.data + chunk.size;
 
@@ -429,6 +467,20 @@ public:
 
 	}
 
+	ProtocolStream(const ProtocolStream& rhs)
+		: m_memoryPool(rhs.m_memoryPool)
+	{
+		auto chunk = m_memoryPool.get();
+		m_msgHead = (IcsMsgHead*)chunk.data;
+		std::memset(m_msgHead, 0, sizeof(IcsMsgHead));
+		m_memoryEnd = chunk.data + chunk.size;
+
+		m_msgEnd = (uint8_t*)m_msgHead + rhs.size();
+		m_curPos = (uint8_t*)m_msgHead + rhs.length();
+
+		std::memcpy(m_msgHead, rhs.m_msgHead, rhs.size());
+	}
+
 	ProtocolStream(MemoryPool& mp, const uint8_t* data, std::size_t len)
 		: m_memoryPool(mp)
 	{
@@ -439,34 +491,29 @@ public:
 		m_memoryEnd = chunk.data + chunk.size;
 
 		std::memcpy(m_msgHead, data, len);
-
 	}
 
 	~ProtocolStream()
 	{
-		if (size() > 0)
+		if (m_msgHead)
 		{
 			m_memoryPool.put(toMemoryChunk());
 		}
 	}
 
+	/// 调用该接口以后不可读写操作
 	MemoryChunk toMemoryChunk()
 	{
-		if (size() > 0)
+		if (!m_msgHead)
 		{
 			throw IcsException("MemoryChunk has been moved");
 		}
+
 		MemoryChunk mc((uint8_t*)m_msgHead, length(), size());
-		m_msgEnd = (uint8_t*)m_msgHead;
+		m_msgHead = nullptr;
 		return std::move(mc);
 	}
 
-	/*
-	asio::mutable_buffers_1 toBuffer()
-	{
-		return asio::buffer((uint8_t*)m_msgHead, bufferSize());
-	}
-	*/
 	/// set current to the start
 	inline void rewind()
 	{
@@ -497,13 +544,15 @@ public:
 		return m_curPos - (uint8_t*)m_msgHead;
 	}
 
+	
 	// there is no more data to get
 	inline bool empty() const
 	{
 		return m_curPos == (uint8_t*)(m_msgHead + 1);
 	}
+	
 
-	// 组装一条完整消息,返回值：true-有完整消息，false-需要更多数据
+	// 组装一条完整消息,返回值：true-有完整消息，false-需要更多数据，异常-超出最大缓冲区
 	bool assembleMessage(uint8_t* & buf, std::size_t& len) throw (IcsException)
 	{
 		bool ret = false;
@@ -559,6 +608,7 @@ public:
 		*this << crc32_code(m_msgHead, m_curPos - (uint8_t*)m_msgHead);
 	}
 
+	/*
 	ProtocolStream& operator << (uint8_t data) throw(IcsException)
 	{
 		if (sizeof(data) > writeLeftSize())
@@ -609,6 +659,33 @@ public:
 		m_curPos += sizeof(data);
 		return *this;
 	}
+
+	ProtocolStream& operator << (uint64_t data) throw(IcsException)
+	{
+		if (sizeof(data) > writeLeftSize())
+		{
+			throw IcsException("OOM to set uint16_t data");
+		}
+
+		*(uint32_t*)m_curPos = ics_byteorder(data);
+		m_curPos += sizeof(data);
+		return *this;
+	}
+	*/
+
+	template<class T>
+	ProtocolStream& operator << (const T& data) throw(IcsException)
+	{
+		if (sizeof(data) > writeLeftSize())
+		{
+			throw IcsException("OOM to set %d bytes data", sizeof(data));
+		}
+
+		*(T*)m_curPos = ics_byteorder(data);
+		m_curPos += sizeof(data);
+		return *this;
+	}
+
 
 	ProtocolStream& operator << (const IcsDataTime& data) throw(IcsException)
 	{
@@ -684,6 +761,19 @@ public:
 	}
 
 	// -----------------------get data----------------------- 
+	template<class T>
+	ProtocolStream& operator >> (T& data) throw(IcsException)
+	{
+		if (sizeof(data) > readLeftSize())
+		{
+			throw IcsException("OOM to get uint16_t data");
+		}
+		data = ics_byteorder(*(T*)m_curPos);
+		m_curPos += sizeof(data);
+		return *this;
+	}
+
+	/*
 	ProtocolStream& operator >> (uint8_t& data) throw(IcsException)
 	{
 		if (sizeof(data) > readLeftSize())
@@ -715,6 +805,7 @@ public:
 		m_curPos += sizeof(data);
 		return *this;
 	}
+	
 
 	ProtocolStream& operator >> (float& data) throw(IcsException)
 	{
@@ -731,6 +822,7 @@ public:
 		m_curPos += sizeof(data);
 		return *this;
 	}
+	*/
 
 	ProtocolStream& operator >> (IcsDataTime& data) throw(IcsException)
 	{

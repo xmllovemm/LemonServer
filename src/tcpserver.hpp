@@ -17,7 +17,7 @@ namespace ics {
 
 class TcpServer {
 public:
-	typedef std::function<void(asio::ip::tcp::socket&&)> AddClientHandler;
+	typedef std::function<void (asio::ip::tcp::socket&&)> AddClientHandler;
 
 	TcpServer(asio::io_service& service);
 

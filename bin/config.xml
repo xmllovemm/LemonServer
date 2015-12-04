@@ -5,31 +5,45 @@
   <program>
     <!--root directory-->
     <workdir>/home/xml/workspace/test/icsserver/bin</workdir>
-    <!--be a daemon process-->
+    
+    <!--be a daemon process: 0-no,1-yes-->
     <daemon>0</daemon>
+    
+    <!--work on ics center mode: 0-no,1-yes-->
+    <icscenter>1</icscenter>
+    
     <!--number of work thread-->
     <workerthread>4</workerthread>
+
+    <!--size of each chunk in memory pool-->
     <chunksize>126</chunksize>
+    
+    <!--count of chunk in memory pool-->
     <chunkcount>50</chunkcount>
   </program>
 
-  <!--listen address: ip:port-->
-  <listen>
-    <addr>0.0.0.0:9999</addr>
-  </listen>
+  <!--address: ip:port-->
+  <centeraddr>
+    <terminal>0.0.0.0:9999</terminal>
+    <web>0.0.0.0:9998</web>
+    <msgpush>192.168.50.133:8901</msgpush>
+  </centeraddr>
+
+  <proxyraddr>
+    <terminal>0.0.0.0:8888</terminal>
+    <web>0.0.0.0:8887</web>
+    <center>0.0.0.0:8886</center>
+  </proxyraddr>
+
 
   <!--ics protocol-->
   <protocol>
     <heartbeat>15</heartbeat>
     <onlineIP>192.168.50.112</onlineIP>
-    <onlinePort>9999</onlinePort>
+    <onlinePort>9998</onlinePort>
   </protocol>
 
-  <pushmsg>
-    <serverip>192.168.50.133</serverip>
-    <serverport>9900</serverport>
-  </pushmsg>
- 
+
   <!--log file-->
   <log>
     <configfile>log4cplus.properties</configfile>

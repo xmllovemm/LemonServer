@@ -16,6 +16,7 @@
 
 namespace ics {
 
+/// 字符集转换
 void character_convert(const char* from_code, const std::string& src, std::size_t len, const char* to_code, std::string& dest) throw (IcsException)
 {
 #ifdef WIN32
@@ -76,7 +77,7 @@ void character_convert(const char* from_code, const std::string& src, std::size_
 #endif
 }
 
-
+/// 成为精灵进程
 void be_daemon(const char* root_dir) throw (IcsException)
 {
 #ifndef WIN32
@@ -91,8 +92,20 @@ void be_daemon(const char* root_dir) throw (IcsException)
 
 }
 
+/// 加密该数据段
+void encrypt(void* data, std::size_t)
+{
+
+}
+
+/// 解密该数据段
+void decrypt(void* data, std::size_t)
+{
+
+}
 
 
+/// CRC32校验表
 static const uint32_t Crc32Table[] =
 {
 	0x00000000, 0x04C11DB7, 0x09823B6E, 0x0D4326D9, 0x130476DC,
@@ -149,6 +162,7 @@ static const uint32_t Crc32Table[] =
 	0xB1F740B4
 };
 
+/// 计算该数据段CRC32校验值
 uint32_t crc32_code(const void* buf, std::size_t size)
 {
 	uint32_t ret = 0xFFFFFFFF;

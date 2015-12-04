@@ -3,35 +3,41 @@
 #define _ICS_PUSH_SYSTEM_H
 
 #include "icsconnection.hpp"
-#include "icsprotocol.hpp"
-#include "config.hpp"
-#include <asio.hpp>
 #include <unordered_map>
 
 namespace ics {
 
-template<class Protocol>
-class IcsConnection;
+/// 推送消息处理类
+class PushMsgConnection : public IcsConnection<icsudp>
+{
+public:
+	typedef IcsConnection<icsudp>	_baseType;
 
+	typedef _baseType::socket		socket;
+
+	PushMsgConnection(socket&& s);
+
+	// 处理底层消息
+	virtual void handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
+
+	// 处理平层消息
+	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception);
+};
+
+/// 推送系统
 class PushSystem {
 public:
-	PushSystem();
-
-	void init(const std::string& ip, uint16_t udp_port);
+	PushSystem(asio::io_service& ioService, const std::string& addr);
 
 	~PushSystem();
 
 	void send(ProtocolStream& request);
-
-	void start();
-
 private:
-//	void tryRetransport();
 
-private:
-	asio::io_service	m_ioService;
-	std::unique_ptr<IcsConnection<asio::ip::udp>>	m_connection;
+	std::unique_ptr<PushMsgConnection>	m_connection;
 	std::unordered_map<uint16_t, MemoryChunk> m_msgList;
+
+	asio::ip::udp::endpoint		m_serverEndpoint;
 };
 
 

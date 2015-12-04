@@ -1,17 +1,15 @@
 ﻿
-
-#include "database.hpp"
+#include "config.hpp"
 #include "mempool.hpp"
-#include "icsconfig.hpp"
 #include "log.hpp"
 #include "util.hpp"
-#include "icspushsystem.hpp"
-#include "tcpserver.hpp"
+#include "icslocalserver.hpp"
 #include "icsconnection.hpp"
-//#include "clientmanager.hpp"
 #include "icsconfig.hpp"
-#include <asio.hpp>
+#include "icsproxyserver.hpp"
+#include "database.hpp"
 
+#include <asio.hpp>
 #include <iostream>
 #include <string>
 
@@ -19,11 +17,8 @@
 using namespace std;
 
 ics::IcsConfig g_configFile;
-ics::PushSystem g_pushSystem;
 ics::MemoryPool g_memoryPool;
 ics::DataBase g_database;
-//ics::ClientManager<asio::ip::tcp, asio::ip::tcp> g_clientManager;
-
 
 void usage(const char* prog)
 {
@@ -39,12 +34,11 @@ int main(int argc, char** argv)
 	}
 
 	asio::io_service io_service;
-	ics::TcpServer clientServer(io_service);
-	asio::signal_set signals(io_service);
 
+	// 信号处理
+	asio::signal_set signals(io_service);
 	signals.add(SIGINT);
 	signals.add(SIGTERM);
-
 	signals.async_wait([&io_service](asio::error_code ec, int signo)
 	{
 		cout << "catch a signal " << signo << ",exit..." << endl;
@@ -52,51 +46,48 @@ int main(int argc, char** argv)
 	});
 
 	try {
-
-		// load g_configFile file
+		// 加载配置文件
 		g_configFile.load(argv[1]);
 
-		// init log file
+		// 初始日志模块
 		ics::init_log(g_configFile.getAttributeString("log", "configfile").c_str());
 
+		// 初始内存池模块
+		g_memoryPool.init(g_configFile.getAttributeInt("program", "chunksize"), g_configFile.getAttributeInt("program", "chunkcount"));
+
+		// 初始主服务
+#ifdef ICS_CENTER_MODE	// ICS中心模式
+		ics::DataBase::initialize();
+		g_database.init(g_configFile.getAttributeString("database", "username"), g_configFile.getAttributeString("database", "password"), g_configFile.getAttributeString("database", "dsn"));
+		g_database.open();
+		
+		ics::IcsLocalServer centerServer(io_service
+			, g_configFile.getAttributeString("centeraddr", "terminal"), 100
+			, g_configFile.getAttributeString("centeraddr", "web"), 100
+			, g_configFile.getAttributeString("centeraddr", "msgpush"));	
+#else
+		// ICS代理模式
+		ics::IcsPorxyServer proxyServer(io_service
+			, g_configFile.getAttributeString("proxyraddr", "terminal"), 100
+			, g_configFile.getAttributeString("proxyraddr", "web"), 100
+			, g_configFile.getAttributeString("proxyraddr", "center"), 100);
+#endif
+		// 初始进程模式
 		if (g_configFile.getAttributeInt("program", "daemon"))
 		{
 			ics::be_daemon(g_configFile.getAttributeString("program", "workdir").c_str());
 		}
 
-
-		ics::DataBase::initialize();
-
-		g_pushSystem.init(g_configFile.getAttributeString("pushmsg", "serverip"), g_configFile.getAttributeInt("pushmsg", "serverport"));
-
-		g_memoryPool.init(g_configFile.getAttributeInt("program", "chunksize"), g_configFile.getAttributeInt("program", "chunkcount"));
-
-		g_database.init(g_configFile.getAttributeString("database", "username"), g_configFile.getAttributeString("database", "password"), g_configFile.getAttributeString("database", "dsn"));
-
-		g_database.open();
-		
-		clientServer.init(g_configFile.getAttributeString("listen", "addr")
-			, [](asio::ip::tcp::socket&& s)
-		{
-//				tcpClientManager.createConnection(std::move(s));
-				auto uc = new ics::UnknownConnection<asio::ip::tcp>(std::move(s));
-				uc->start();
-		});
-		
-
-		LOG_DEBUG("The server start...");
-
+		// 主线程开始IO事件
 		io_service.run();
-
-		LOG_DEBUG("The server stop...");
-	}
-	catch (std::exception& ex)
-	{
-		cerr << "init failed std exception: " << ex.what() << endl;
 	}
 	catch (ics::IcsException& ex)
 	{
 		cerr << "init failed ics exception: " << ex.message() << endl;
+	}
+	catch (std::exception& ex)
+	{
+		cerr << "init failed std exception: " << ex.what() << endl;
 	}
 	catch (otl_exception& ex)
 	{
@@ -106,6 +97,8 @@ int main(int argc, char** argv)
 	{
 		cerr << "unknown error" << endl;
 	}
+
+	cout << "The process stoped";
 
 	return 0;
 }
