@@ -1,5 +1,4 @@
 
-
 #ifndef _ICS_CONNECTION_H
 #define _ICS_CONNECTION_H
 
@@ -27,16 +26,26 @@ public:
 
 	typedef typename socket::shutdown_type shutdown_type;
 
-	IcsConnection(socket&& s)
+	/// s:套接字，name:链接名
+	IcsConnection(socket&& s, const char* name )
 		: m_socket(std::move(s))
+		, m_replaced(false)
 		, m_request(g_memoryPool)
 		, m_serialNum(0)
 		, m_isSending(false)
-		, m_replaced(false)
+		, m_timeoutCount(0)
 	{
-		char buff[64];
+		char buff[126];
 		auto endpoint = m_socket.remote_endpoint();
-		std::sprintf(buff, "%s:%d", endpoint.address().to_string().c_str(), endpoint.port());
+		if (name)
+		{
+			std::sprintf(buff, "%s@%s:%d", name, endpoint.address().to_string().c_str(), endpoint.port());
+		}
+		else
+		{
+			std::sprintf(buff, "%s:%d", endpoint.address().to_string().c_str(), endpoint.port());
+		}
+
 		m_name = buff;
 
 		LOG_DEBUG("Create the connection " << m_name);
@@ -51,7 +60,7 @@ public:
 	// 按该数据开始事件
 	void start(const uint8_t* data, std::size_t length)
 	{
-		m_request.reset();
+		m_request.rewindWritePos();
 
 		// 处理该消息
 		if (handleData(const_cast<uint8_t*>(data), length))
@@ -66,7 +75,7 @@ public:
 	// 无初始数据开始事件
 	void start()
 	{
-		m_request.reset();
+		m_request.rewindWritePos();
 
 		// 开始接收数据
 		do_read();
@@ -110,7 +119,10 @@ private:
 			}
 			else
 			{
-				LOG_WARN(this->m_name << " post read error: " << ec.message());
+				if (ec)
+				{
+					LOG_WARN(this->m_name << " read error: " << ec.message());
+				}
 				this->do_error(shutdown_type::shutdown_both);
 			}
 		});
@@ -123,7 +135,9 @@ private:
 
 	void do_error(shutdown_type type)
 	{
-		m_socket.shutdown(type);
+//		m_socket.shutdown(type);
+		m_socket.close();
+		delete this;
 	}
 
 	void toHexInfo(const char* info, const uint8_t* data, std::size_t length)
@@ -134,7 +148,7 @@ private:
 		{
 			std::sprintf(buff + i * 3, " %02x", data[i]);
 		}
-		LOG_DEBUG(m_name << " " << info << " " << length << " bytes...");
+		LOG_DEBUG(info << " [" << m_name << "] " << length << " bytes...");
 #endif
 	}
 
@@ -151,7 +165,7 @@ private:
 				if (!ec)
 				{
 					MemoryChunk& chunk = m_sendList.front();
-					this->toHexInfo("send", chunk.data, chunk.length);
+					this->toHexInfo("send to", chunk.data, chunk.length);
 					m_sendList.pop_front();
 					m_isSending = false;
 					trySend();
@@ -169,7 +183,7 @@ private:
 	bool handleData(uint8_t* data, std::size_t length)
 	{
 		/// show debug info
-		this->toHexInfo("recv", data, length);
+		this->toHexInfo("recv from", data, length);
 
 		try {
 			while (length != 0)
@@ -178,7 +192,7 @@ private:
 				if (m_request.assembleMessage(data, length))
 				{
 					handleMessage(m_request);
-					m_request.reset();
+					m_request.rewindWritePos();
 				}
 			}
 		}
@@ -208,39 +222,38 @@ private:
 				return;
 			}
 
-
 			ProtocolStream response(g_memoryPool);
 
 			/// handle message
 			handle(request, response);
 
-			/// prepare response
-			if (head->needResposne())
-			{
-				response.getHead()->init(MessageId::MessageId_min, head->getSendNum());	// head->getMsgID()
-			}
-
 			/// send response message
-			if (!response.empty() || head->needResposne())
+			if (response.getHead()->getMsgID() != MessageId::MessageId_min)
 			{			
 				trySend(response);
 			}
+			else if (head->needResposne())
+			{
+				response.getHead()->init(MessageId::MessageId_min, head->getSendNum());	// head->getMsgID()
+				trySend(response);
+			}
+
 		}
 		catch (IcsException& ex)
 		{
-			throw IcsException("%s handle message [%04x] IcsException: %s", m_name.c_str(), (uint16_t)head->getMsgID(), ex.message().c_str());
+			throw IcsException("%s handle message [0x%04x] IcsException: %s", m_name.c_str(), (uint16_t)head->getMsgID(), ex.message().c_str());
 		}
 		catch (otl_exception& ex)
 		{
-			throw IcsException("%s handle message [%04x] otl_exception: %s", m_name.c_str(), (uint16_t)head->getMsgID(), ex.msg);
+			throw IcsException("%s handle message [0x%04x] otl_exception: %s", m_name.c_str(), (uint16_t)head->getMsgID(), ex.msg);
 		}
 		catch (std::exception& ex)
 		{
-			throw IcsException("%s handle message [%04x] std::exception: %s", m_name.c_str(), (uint16_t)head->getMsgID(), ex.what());
+			throw IcsException("%s handle message [0x%04x] std::exception: %s", m_name.c_str(), (uint16_t)head->getMsgID(), ex.what());
 		}
 		catch (...)
 		{
-			throw IcsException("%s handle message [%04x] unknown error", m_name.c_str(), (uint16_t)head->getMsgID());
+			throw IcsException("%s handle message [04%x] unknown error", m_name.c_str(), (uint16_t)head->getMsgID());
 		}
 	}
 

@@ -21,7 +21,7 @@ public:
 
 	TcpServer(asio::io_service& service);
 
-	void init(const std::string& addr, AddClientHandler do_add_client);
+	void init(const char* name, const std::string& addr, AddClientHandler do_add_client);
 
 	~TcpServer();
 

@@ -1,4 +1,4 @@
-
+ï»¿
 #include "icsproxyserver.hpp"
 
 extern ics::IcsConfig g_configFile;
@@ -8,14 +8,14 @@ namespace ics {
 
 //---------------------------IcsProxyTerminalClient---------------------------//
 IcsProxyTerminalClient::IcsProxyTerminalClient(IcsPorxyServer& localServer, socket&& s)
-	: _baseType(std::move(s))
+	: _baseType(std::move(s), nullptr)
 	, m_proxyServer(localServer)
 {
 }
 
 IcsProxyTerminalClient::~IcsProxyTerminalClient()
 {
-	// ÒÑÈÏÖ¤Éè±¸ÀëÏß
+	// å·²è®¤è¯è®¾å¤‡ç¦»çº¿
 	if (!_baseType::m_replaced && !m_connName.empty())
 	{
 
@@ -23,7 +23,7 @@ IcsProxyTerminalClient::~IcsProxyTerminalClient()
 
 }
 
-// ´¦Àíµ×²ãÏûÏ¢
+// å¤„ç†åº•å±‚æ¶ˆæ¯
 void IcsProxyTerminalClient::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	switch (request.getHead()->getMsgID())
@@ -53,11 +53,14 @@ void IcsProxyTerminalClient::handle(ProtocolStream& request, ProtocolStream& res
 	default:
 		LOG_WARN(_baseType::m_name << " recv unknown terminal message id = " << request.getHead()->getMsgID());
 //		throw IcsException("%s recv unknown terminal message id = %04x ",_baseType::m_name.c_str(), request.getHead()->getMsgID());
-		break;
+		return;
 	}
+
+	request.rewindReadPos();
+	m_proxyServer.sendToIcsCenter(request);
 }
 
-// ´¦ÀíÆ½²ãÏûÏ¢
+// å¤„ç†å¹³å±‚æ¶ˆæ¯
 void IcsProxyTerminalClient::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
 {
 	ShortString terminalName;
@@ -71,10 +74,10 @@ void IcsProxyTerminalClient::dispatch(ProtocolStream& request) throw(IcsExceptio
 	}
 	request.moveBack(sizeof(requestID));
 
-	// ¼ÇÂ¼¸ÃÇëÇóID×ª·¢½á¹û
+	// è®°å½•è¯¥è¯·æ±‚IDè½¬å‘ç»“æœ
 
 
-	// ·¢ËÍµ½¸ÃÁ´½Ó¶Ô¶Ë
+	// å‘é€åˆ°è¯¥é“¾æ¥å¯¹ç«¯
 	ProtocolStream response(g_memoryPool);
 	response.getHead()->init((MessageId)messageID, false);
 	response << request;
@@ -83,7 +86,7 @@ void IcsProxyTerminalClient::dispatch(ProtocolStream& request) throw(IcsExceptio
 }
 
 
-// ÖÕ¶ËÈÏÖ¤
+// ç»ˆç«¯è®¤è¯
 void IcsProxyTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	if (!m_connName.empty())
@@ -117,40 +120,37 @@ void IcsProxyTerminalClient::handleAuthRequest(ProtocolStream& request, Protocol
 	string id, name;
 
 	getStream >> ret >> id >> name;
+*/
 
-	response.getHead()->init(MessageId::C2T_auth_response, request.getHead()->getSendNum());
+	response.getHead()->init(MessageId::C2T_auth_response, false);
 
-	if (ret == 0)	// ³É¹¦
+	if (1)	// æˆåŠŸ
 	{
-		m_connName = std::move(gwId); // ±£´æ¼ì²âµãid
-		otl_stream onlineStream(1
-			, "{ call sp_online(:id<char[33],in>,:ip<char[16],in>,:port<int,in>) }"
-			, connGuard.connection());
+		m_connName = std::move(gwId); // ä¿å­˜æ£€æµ‹ç‚¹id
 
-		onlineStream << m_connName << m_proxyServer.m_onlineIP << m_proxyServer.m_onlinePort;
-
-		response << ShortString("ok") << m_proxyServer.m_heartbeatTime;
+		response << ShortString("ok") << m_proxyServer.getHeartbeatTime();
 
 		m_proxyServer.addTerminalClient(m_connName, std::unique_ptr<IcsConnection<icstcp>>(this));
 
-		LOG_INFO("terminal " << m_connName << " created on " << _baseType::name());
+		LOG_INFO("terminal " << m_connName << " created on " << _baseType::m_name);
+
+		_baseType::m_name = m_connName + "@" + _baseType::m_name;
 	}
 	else
 	{
 		response << ShortString("failed");
 	}
-	*/
 }
 
-// ÊÂ¼şÉÏ±¨
+// äº‹ä»¶ä¸ŠæŠ¥
 void IcsProxyTerminalClient::handleEventsReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	IcsDataTime event_time, recv_time;	//	ÊÂ¼ş·¢ÉúÊ±¼ä ½ÓÊÕÊ±¼ä
-	uint16_t event_count;	// ÊÂ¼şÏî¸öÊı
+	IcsDataTime event_time, recv_time;	//	äº‹ä»¶å‘ç”Ÿæ—¶é—´ æ¥æ”¶æ—¶é—´
+	uint16_t event_count;	// äº‹ä»¶é¡¹ä¸ªæ•°
 
-	uint16_t event_id = 0;	//	ÊÂ¼ş±àºÅ
-	uint8_t event_type = 0;	//	ÊÂ¼şÖµÀàĞÍ
-	string event_value;		//	ÊÂ¼şÖµ
+	uint16_t event_id = 0;	//	äº‹ä»¶ç¼–å·
+	uint8_t event_type = 0;	//	äº‹ä»¶å€¼ç±»å‹
+	string event_value;		//	äº‹ä»¶å€¼
 
 	getIcsNowTime(recv_time);
 
@@ -164,36 +164,37 @@ void IcsProxyTerminalClient::handleEventsReport(ProtocolStream& request, Protoco
 		, connGuard.connection());
 
 
-	// ±éÀúÈ¡³öÈ«²¿ÊÂ¼ş
+	// éå†å–å‡ºå…¨éƒ¨äº‹ä»¶
 	for (uint16_t i = 0; i < event_count; i++)
 	{
 		request >> event_id >> event_type >> event_value;
 
 		eventStream << m_connName << (int)m_deviceKind << (int)event_id << (int)event_type << event_value << event_time << recv_time;
 
-		// ·¢ËÍ¸øÍÆËÍ·şÎñÆ÷: ¼à²âµãID ·¢ÉúÊ±¼ä ÊÂ¼ş±àºÅ ÊÂ¼şÖµ
+		// å‘é€ç»™æ¨é€æœåŠ¡å™¨: ç›‘æµ‹ç‚¹ID å‘ç”Ÿæ—¶é—´ äº‹ä»¶ç¼–å· äº‹ä»¶å€¼
 		ProtocolStream pushStream(g_memoryPool);
 		pushStream << m_connName << m_deviceKind << event_time << event_id << event_value;
 
 		m_proxyServer.m_pushSystem.send(pushStream);
 	}
-	*/
+	
 
 	request.assertEmpty();
+	*/
 }
 
-// ÒµÎñÉÏ±¨
+// ä¸šåŠ¡ä¸ŠæŠ¥
 void IcsProxyTerminalClient::handleBusinessReport(ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception)
 {
-	IcsDataTime report_time, recv_time;			// ÒµÎñ²É¼¯Ê±¼ä ½ÓÊÕÊ±¼ä
-	uint32_t business_no;	// ÒµÎñÁ÷Ë®ºÅ
-	uint32_t business_type;	// ÒµÎñÀàĞÍ
+	IcsDataTime report_time, recv_time;			// ä¸šåŠ¡é‡‡é›†æ—¶é—´ æ¥æ”¶æ—¶é—´
+	uint32_t business_no;	// ä¸šåŠ¡æµæ°´å·
+	uint32_t business_type;	// ä¸šåŠ¡ç±»å‹
 
 	getIcsNowTime(recv_time);
 
 	request >> report_time >> business_no >> business_type;
 
-	if (m_lastBusSerialNum == business_no)	// ÖØ¸´µÄÒµÎñÁ÷Ë®ºÅ£¬Ö±½ÓºöÂÔ
+	if (m_lastBusSerialNum == business_no)	// é‡å¤çš„ä¸šåŠ¡æµæ°´å·ï¼Œç›´æ¥å¿½ç•¥
 	{
 		response.getHead()->init(MessageId::MessageId_min);
 		return;
@@ -202,17 +203,17 @@ void IcsProxyTerminalClient::handleBusinessReport(ProtocolStream& request, Proto
 	/*
 	OtlConnectionGuard connGuard(g_database);
 
-	m_lastBusSerialNum = business_no;	// ¸üĞÂ×î½üµÄÒµÎñÁ÷Ë®ºÅ
+	m_lastBusSerialNum = business_no;	// æ›´æ–°æœ€è¿‘çš„ä¸šåŠ¡æµæ°´å·
 
-	if (business_type == 1)	// ¾²Ì¬Æû³µºâ
+	if (business_type == 1)	// é™æ€æ±½è½¦è¡¡
 	{
-		ShortString cargo_num;	// »õÎïµ¥ºÅ	
-		ShortString vehicle_num;	// ³µºÅ
-		ShortString consigness;	// ÊÕ»õµ¥Î»
-		ShortString cargo_name;	// »õÎïÃû³Æ
+		ShortString cargo_num;	// è´§ç‰©å•å·	
+		ShortString vehicle_num;	// è½¦å·
+		ShortString consigness;	// æ”¶è´§å•ä½
+		ShortString cargo_name;	// è´§ç‰©åç§°
 
-		float weight1, weight2, weight3, weight4, unit_price, money;	// Ã«ÖØ Æ¤ÖØ ¿ÛÖØ ¾»ÖØ µ¥¼Û ½ğ¶î
-		uint8_t in_out;	// ½ø³ö
+		float weight1, weight2, weight3, weight4, unit_price, money;	// æ¯›é‡ çš®é‡ æ‰£é‡ å‡€é‡ å•ä»· é‡‘é¢
+		uint8_t in_out;	// è¿›å‡º
 
 		request >> cargo_num >> vehicle_num >> consigness >> cargo_name >> weight1 >> weight2 >> weight3 >> weight4 >> unit_price >> money >> in_out;
 
@@ -227,41 +228,41 @@ void IcsProxyTerminalClient::handleBusinessReport(ProtocolStream& request, Proto
 			<< unit_price << money << (int)in_out << report_time << recv_time;
 
 	}
-	else if (business_type == 2)	// °ü×°³Ó
+	else if (business_type == 2)	// åŒ…è£…ç§¤
 	{
-		uint8_t count;	// ³ÓÊıÁ¿
+		uint8_t count;	// ç§¤æ•°é‡
 		request >> count;
 
 		otl_stream s(1
 			, "{ call `ics_packing`.sp_business_pack(:id<char[33],in>,:num<int,in>,:amount<int,in>,:weight<int,in>,:sWeight<int,in>,:F6<float,in>,:reportTime<timestamp,in>,:recvTime<timestamp,in>) }"
 			, connGuard.connection());
 
-		for (uint8_t i = 0; i < count; i++)	// ÒÀ´ÎÈ¡³ö³ÓµÄ³ÆÖØÊı¾İ
+		for (uint8_t i = 0; i < count; i++)	// ä¾æ¬¡å–å‡ºç§¤çš„ç§°é‡æ•°æ®
 		{
-			uint8_t number;		// ³Ó±àºÅ
-			uint16_t amount;	// ³ÆÖØ´ÎÊı
-			float total_weight;		// ³ÆÖØ×ÜÖØ
-			float single_weighet;// µ¥´ÎÖØÁ¿
+			uint8_t number;		// ç§¤ç¼–å·
+			uint16_t amount;	// ç§°é‡æ¬¡æ•°
+			float total_weight;		// ç§°é‡æ€»é‡
+			float single_weighet;// å•æ¬¡é‡é‡
 
 			request >> number >> amount >> total_weight >> single_weighet;
 
 			s << m_connName << business_no << (int)amount << total_weight << single_weighet << report_time << recv_time;
 		}
 	}
-	else if (business_type == 3)	// ¹«Â·ºâÆ÷
+	else if (business_type == 3)	// å…¬è·¯è¡¡å™¨
 	{
 		char buff[126];
-		string axle_str;	// ÖáÖØ×Ö·û´®£ºÖáÖØ1,ÖáÖØ2,ÖáÖØ3 ......
-		string type_str;	// ÖáÀàĞÍ×Ö·û´®£ºÀàĞÍ1,ÀàĞÍ2,ÀàĞÍ3 ......
+		string axle_str;	// è½´é‡å­—ç¬¦ä¸²ï¼šè½´é‡1,è½´é‡2,è½´é‡3 ......
+		string type_str;	// è½´ç±»å‹å­—ç¬¦ä¸²ï¼šç±»å‹1,ç±»å‹2,ç±»å‹3 ......
 
-		uint32_t total_weight;// ×ÜÖØ
-		uint16_t speed;	// ³µËÙ
-		uint8_t axle_num;	// ÖáÊı(1-20)
-		uint8_t type_num;	// ÖáÀàĞÍÊı(1-ÖáÊı)
+		uint32_t total_weight;// æ€»é‡
+		uint16_t speed;	// è½¦é€Ÿ
+		uint8_t axle_num;	// è½´æ•°(1-20)
+		uint8_t type_num;	// è½´ç±»å‹æ•°(1-è½´æ•°)
 
 		request >> total_weight >> speed >> axle_num;
 
-		// ´¦Àí¸÷¸öÖáÖØ
+		// å¤„ç†å„ä¸ªè½´é‡
 		for (uint8_t i = 0; i < axle_num; i++)
 		{
 			uint16_t axle_weight;
@@ -277,7 +278,7 @@ void IcsProxyTerminalClient::handleBusinessReport(ProtocolStream& request, Proto
 
 		request >> type_num;
 
-		// ´¦Àí¸÷¸öÖáÀàĞÍ
+		// å¤„ç†å„ä¸ªè½´ç±»å‹
 		for (uint8_t i = 0; i < type_num; i++)
 		{
 			uint8_t axle_type;
@@ -297,17 +298,17 @@ void IcsProxyTerminalClient::handleBusinessReport(ProtocolStream& request, Proto
 
 		s << m_connName << (int)business_no << (int)total_weight << speed*0.1 << (int)axle_num << axle_str << (int)type_num << type_str << report_time << recv_time;
 	}
-	else if (business_type == 4)	// ²Í³ø³µ
+	else if (business_type == 4)	// é¤å¨è½¦
 	{
 		union
 		{
 			uint8_t	data;
 			struct {
-				uint8_t mode : 1;	// ¹¤×÷Ä£Ê½£¬0-ÊÖ¶¯Ä£Ê½£¬1-×Ô¶¯Ä£Ê½
-				uint8_t unit : 1;	// ÖØÁ¿µ¥Î»£¬0-Ç§¿Ë£¬1-°õ
-				uint8_t card : 1;	// Ë¢¿¨×´Ì¬£¬0-ÓÃ»§Ë¢¿¨£¬1-Ë¾»úË¢¿¨
-				uint8_t flow : 1;	// Á÷³Ì×´Ì¬£¬0-Á÷³ÌÕı³££¬1-Á÷³ÌÒì³£
-				uint8_t evalution : 2;	// ÆÀ¼Û£¬0-ºÃÆÀ£¬1-ÖĞÆÀ£¬2-²îÆÀ
+				uint8_t mode : 1;	// å·¥ä½œæ¨¡å¼ï¼Œ0-æ‰‹åŠ¨æ¨¡å¼ï¼Œ1-è‡ªåŠ¨æ¨¡å¼
+				uint8_t unit : 1;	// é‡é‡å•ä½ï¼Œ0-åƒå…‹ï¼Œ1-ç£…
+				uint8_t card : 1;	// åˆ·å¡çŠ¶æ€ï¼Œ0-ç”¨æˆ·åˆ·å¡ï¼Œ1-å¸æœºåˆ·å¡
+				uint8_t flow : 1;	// æµç¨‹çŠ¶æ€ï¼Œ0-æµç¨‹æ­£å¸¸ï¼Œ1-æµç¨‹å¼‚å¸¸
+				uint8_t evalution : 2;	// è¯„ä»·ï¼Œ0-å¥½è¯„ï¼Œ1-ä¸­è¯„ï¼Œ2-å·®è¯„
 				uint8_t reserved : 2;
 			};
 		}weightFlag;
@@ -321,9 +322,9 @@ void IcsProxyTerminalClient::handleBusinessReport(ProtocolStream& request, Proto
 		{
 			uint8_t	data;
 			struct {
-				uint8_t longitude_flag : 1;	// ¾­¶È·ûºÅ£¬0-¶«¾­£¬1-Î÷¾­
-				uint8_t latitude_flag : 1;	// Î³¶È·ûºÅ£¬0-ÄÏÎ³£¬1-±±Î³
-				uint8_t signal : 3;	// GPSĞÅºÅÇ¿¶È£¬0-ºÜÇ¿£¬1-½ÏÇ¿£¬2-Ò»°ã£¬3-½ÏÈõ£¬4-ÎŞ
+				uint8_t longitude_flag : 1;	// ç»åº¦ç¬¦å·ï¼Œ0-ä¸œç»ï¼Œ1-è¥¿ç»
+				uint8_t latitude_flag : 1;	// çº¬åº¦ç¬¦å·ï¼Œ0-å—çº¬ï¼Œ1-åŒ—çº¬
+				uint8_t signal : 3;	// GPSä¿¡å·å¼ºåº¦ï¼Œ0-å¾ˆå¼ºï¼Œ1-è¾ƒå¼ºï¼Œ2-ä¸€èˆ¬ï¼Œ3-è¾ƒå¼±ï¼Œ4-æ— 
 				uint8_t reserved : 3;
 			};
 		}postionFlag;
@@ -352,13 +353,13 @@ void IcsProxyTerminalClient::handleBusinessReport(ProtocolStream& request, Proto
 
 }
 
-// ÖÕ¶Ë·¢ËÍĞÄÌøµ½ÖĞĞÄ
+// ç»ˆç«¯å‘é€å¿ƒè·³åˆ°ä¸­å¿ƒ
 void IcsProxyTerminalClient::handleHeartbeat(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 
 }
 
-// ÖÕ¶Ë·¢ËÍÊ±ÖÓÍ¬²½ÇëÇó
+// ç»ˆç«¯å‘é€æ—¶é’ŸåŒæ­¥è¯·æ±‚
 void IcsProxyTerminalClient::handleDatetimeSync(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	IcsDataTime dt1, dt2;
@@ -374,10 +375,10 @@ void IcsProxyTerminalClient::handleDatetimeSync(ProtocolStream& request, Protoco
 
 //---------------------------IcsProxyWebClient---------------------------//
 IcsProxyWebClient::IcsProxyWebClient(IcsPorxyServer& localServer, socket&& s)
-	: _baseType(std::move(s))
+	: _baseType(std::move(s), "ProxyWeb")
 	, m_proxyServer(localServer)
 {
-	_baseType::m_name = "ProxyWeb@" + _baseType::m_name;
+
 }
 
 IcsProxyWebClient::~IcsProxyWebClient()
@@ -385,13 +386,13 @@ IcsProxyWebClient::~IcsProxyWebClient()
 
 }
 
-// ´¦Àíµ×²ãÏûÏ¢
+// å¤„ç†åº•å±‚æ¶ˆæ¯
 void IcsProxyWebClient::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 
 }
 
-// ´¦ÀíÆ½²ãÏûÏ¢
+// å¤„ç†å¹³å±‚æ¶ˆæ¯
 void IcsProxyWebClient::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
 {
 
@@ -400,10 +401,9 @@ void IcsProxyWebClient::dispatch(ProtocolStream& request) throw(IcsException, ot
 
 //---------------------------IcsProxyForward---------------------------//
 IcsProxyForward::IcsProxyForward(IcsPorxyServer& localServer, socket&& s)
-	: _baseType(std::move(s))
+	: _baseType(std::move(s), "ProxyForward")
 	, m_proxyServer(localServer)
 {
-	_baseType::m_name = "ProxyForward@" + _baseType::m_name;
 }
 
 IcsProxyForward::~IcsProxyForward()
@@ -411,19 +411,53 @@ IcsProxyForward::~IcsProxyForward()
 
 }
 
-// ´¦Àíµ×²ãÏûÏ¢
+// å¤„ç†åº•å±‚æ¶ˆæ¯
 void IcsProxyForward::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-
+	if (request.getHead()->getMsgID() == MessageId::T2T_auth_request)
+	{
+		handleAuthrize(request, response);
+	}
+	else
+	{
+		throw IcsException("unknow message id=0x%04x", (uint16_t)request.getHead()->getMsgID());
+	}
 }
 
-// ´¦ÀíÆ½²ãÏûÏ¢
+// å¤„ç†å¹³å±‚æ¶ˆæ¯
 void IcsProxyForward::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
 {
 
 }
 
 
+void IcsProxyForward::handleAuthrize(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
+{
+	std::time_t t1, t3 = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+	request >> t1;
+
+	request.assertEmpty();
+
+	// è§£å¯†è¯¥æ•°æ®
+	ics::decrypt(&t1, sizeof(t1));
+
+	if (t3 - t1 < 3 * 60)	// ç³»ç»Ÿæ—¶é—´åœ¨3åˆ†é’Ÿå†…,è®¤è¯æˆåŠŸ
+	{
+		// åŠ å¯†è¯¥æ•°æ®
+		ics::encrypt(&t1, sizeof(t1));
+		response.getHead()->init(MessageId::T2T_auth_response);
+		response << t1;
+
+		m_proxyServer.addIcsCenterConn(IcsPorxyServer::ConneciontPrt(this));
+
+		LOG_DEBUG("ics center authrize success, interval=" << t3 - t1);
+	}
+	else
+	{
+		throw IcsException("ics center authrize failed, interval=", t3 - t1);
+	}
+
+}
 
 //---------------------------IcsPorxyServer---------------------------//
 IcsPorxyServer::IcsPorxyServer(asio::io_service& ioService
@@ -438,21 +472,24 @@ IcsPorxyServer::IcsPorxyServer(asio::io_service& ioService
 	m_heartbeatTime = g_configFile.getAttributeInt("protocol", "heartbeat");
 
 
-	m_terminalTcpServer.init(terminalAddr
+	m_terminalTcpServer.init("terminal"
+		, terminalAddr
 		, [this](socket&& s)
 	{
 		auto conn = new IcsProxyTerminalClient(*this, std::move(s));
 		conn->start();
 	});
 
-	m_webTcpServer.init(webAddr
+	m_webTcpServer.init("web"
+		, webAddr
 		, [this](socket&& s)
 	{
 		auto conn = new IcsProxyWebClient(*this, std::move(s));
 		conn->start();
 	});
 
-	m_icsCenterTcpServer.init(icsCenterAddr
+	m_icsCenterTcpServer.init("icscenter"
+		, icsCenterAddr
 		, [this](socket&& s)
 	{
 		auto conn = new IcsProxyForward(*this, std::move(s));
@@ -460,7 +497,7 @@ IcsPorxyServer::IcsPorxyServer(asio::io_service& ioService
 	});
 }
 
-/// Ìí¼ÓÒÑÈÏÖ¤ÖÕ¶Ë
+/// æ·»åŠ å·²è®¤è¯ç»ˆç«¯
 void IcsPorxyServer::addTerminalClient(const string& conID, ConneciontPrt conn)
 {
 	std::lock_guard<std::mutex> lock(m_terminalConnMapLock);
@@ -472,14 +509,14 @@ void IcsPorxyServer::addTerminalClient(const string& conID, ConneciontPrt conn)
 	c = std::move(conn);
 }
 
-/// ÒÆ³ıÒÑÈÏÖ¤ÖÕ¶Ë
+/// ç§»é™¤å·²è®¤è¯ç»ˆç«¯
 void IcsPorxyServer::removeTerminalClient(const string& conID)
 {
 	std::lock_guard<std::mutex> lock(m_terminalConnMapLock);
 	m_terminalConnMap.erase(conID);
 }
 
-/// ÏòÖÕ¶Ë·¢ËÍÊı¾İ
+/// å‘ç»ˆç«¯å‘é€æ•°æ®
 bool IcsPorxyServer::sendToTerminalClient(const string& conID, ProtocolStream& request)
 {
 	bool ret = false;
@@ -500,14 +537,14 @@ bool IcsPorxyServer::sendToTerminalClient(const string& conID, ProtocolStream& r
 	return ret;
 }
 
-/// Ìí¼ÓICSÖĞĞÄ·şÎñÁ´½Ó
+/// æ·»åŠ ICSä¸­å¿ƒæœåŠ¡é“¾æ¥
 void IcsPorxyServer::addIcsCenterConn(ConneciontPrt conn)
 {
 	std::lock_guard<std::mutex> lock(m_icsCenterConnMapLock);
 	m_icsCenterConnMap.push_back(std::move(conn));
 }
 
-/// ÏòÈ«²¿ICSÖĞĞÄ·¢ËÍÊı¾İ
+/// å‘å…¨éƒ¨ICSä¸­å¿ƒå‘é€æ•°æ®
 void IcsPorxyServer::sendToIcsCenter(ProtocolStream& request)
 {
 	std::lock_guard<std::mutex> lock(m_icsCenterConnMapLock);

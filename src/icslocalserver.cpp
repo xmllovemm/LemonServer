@@ -19,8 +19,8 @@ extern ics::IcsConfig g_configFile;
 namespace ics {
 
 //---------------------------ics terminal---------------------------//
-IcsTerminalClient::IcsTerminalClient(IcsLocalServer& localServer, socket&& s)
-	:  _baseType(std::move(s))
+IcsTerminalClient::IcsTerminalClient(IcsLocalServer& localServer, socket&& s, const char* name)
+	:  _baseType(std::move(s), name)
 	, m_localServer(localServer)
 {
 }
@@ -146,11 +146,12 @@ void IcsTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStrea
 
 	getStream >> ret >> id >> name;
 
-	response.getHead()->init(MessageId::C2T_auth_response, request.getHead()->getSendNum());
+	response.getHead()->init(MessageId::C2T_auth_response, false);
 
 	if (ret == 0)	// 成功
 	{
-		m_connName = std::move(gwId); // 保存检测点id
+		m_connName = std::move(id); // 保存检测点id
+
 		otl_stream onlineStream(1
 			, "{ call sp_online(:id<char[33],in>,:ip<char[16],in>,:port<int,in>) }"
 			, connGuard.connection());
@@ -719,10 +720,9 @@ void IcsTerminalClient::handleUpgradeCancelAck(ProtocolStream& request, Protocol
 
 //---------------------------ics web---------------------------//
 IcsWebClient::IcsWebClient(IcsLocalServer& localServer, socket&& s)
-	: _baseType(std::move(s))
+: _baseType(std::move(s), "Web")
 	, m_localServer(localServer)
 {
-	_baseType::m_name = "Web@" + _baseType::m_name;
 }
 
 // 处理底层消息
@@ -754,11 +754,7 @@ void IcsWebClient::dispatch(ProtocolStream& request) throw(IcsException, otl_exc
 	throw IcsException("WebHandler never handle message, id: %d ", request.getHead()->getMsgID());
 }
 
-// 链接名称
-const std::string& IcsWebClient::name() const
-{
-	return m_name;
-}
+
 
 // 转发到对应终端
 void IcsWebClient::handleForward(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
@@ -767,7 +763,7 @@ void IcsWebClient::handleForward(ProtocolStream& request, ProtocolStream& respon
 	uint16_t messageID;
 	uint32_t requestID;
 	request >> terminalName >> messageID >> requestID;
-	request.rewind();
+	request.rewindReadPos();
 
 	if (!terminalName.empty())
 	{
@@ -794,7 +790,8 @@ void IcsWebClient::handleConnectRemote(ProtocolStream& request, ProtocolStream& 
 	OtlConnectionGuard connGuard(g_database);
 
 	otl_stream queryStream(1
-		, "{ call sp_query_remote_server(:id<char[33],in>) }"
+//		, "{ call sp_query_remote_server(:id<char[33],in>) }"
+		, "SELECT t.SERVER_IP ip,t.SERVER_POTR PORT FROM b_subComm_connection_t t WHERE t.ENTERPRISE_CODE=:id<char[33]>"
 		, connGuard.connection());
 
 	queryStream << remoteID;
@@ -816,11 +813,13 @@ void IcsWebClient::handleConnectRemote(ProtocolStream& request, ProtocolStream& 
 
 	if (!ec)
 	{
-		auto conn = IcsLocalServer::ConneciontPrt(new IcsProxyClient(m_localServer, std::move(remoteSocket), remoteID));
+		auto conn = new IcsProxyClient(m_localServer, std::move(remoteSocket), remoteID);
 
-
-		m_localServer.addRemotePorxy(remoteID, std::move(conn));
 		conn->start();
+
+		conn->requestAuthrize();
+
+		m_localServer.addRemotePorxy(remoteID, IcsLocalServer::ConneciontPrt(conn));
 
 		response << (uint8_t)0;
 	}
@@ -868,10 +867,9 @@ void IcsWebClient::handleDisconnectRemote(ProtocolStream& request, ProtocolStrea
 
 //---------------------------ics proxy client---------------------------//
 IcsProxyClient::IcsProxyClient(IcsLocalServer& localServer, socket&& s, std::string remoteID)
-	: _baseType(localServer, std::move(s))
+	: _baseType(localServer, std::move(s), "Proxy")
 	, m_enterpriseID(remoteID)
 {
-	_baseType::m_name = "Proxy@" + _baseType::m_name;
 }
 
 // 处理底层消息
@@ -905,24 +903,45 @@ void IcsProxyClient::dispatch(ProtocolStream& request) throw(IcsException, otl_e
 }
 
 // 请求验证中心身份
-void IcsProxyClient::questAuthrize()
+void IcsProxyClient::requestAuthrize()
 {
 	ProtocolStream request(g_memoryPool);
 
 	// 取当前时间点
 	std::time_t t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-	request << (uint16_t)t;
 
 	// 加密该数据
+	ics::encrypt(&t, sizeof(t));
+
+	request.getHead()->init(MessageId::T2T_auth_request);
+	request << t;
+
 
 	// 发送给远端通信服务器
 	_baseType::trySend(request);
+	
+	LOG_DEBUG("request proxy server authrize");
 }
 
 // 处理认证请求结果
 void IcsProxyClient::handleAuthResponse(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	std::time_t t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+	std::time_t t1,t3 = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+	request >> t1;
+
+	request.assertEmpty();
+
+	// 解密该数据
+	ics::encrypt(&t1, sizeof(t1));
+
+	if (t3 - t1 < 5)	// 回复时间在5秒内,认证成功
+	{
+		LOG_DEBUG("authrize success, interval=" << t3 - t1);
+	}
+	else
+	{
+		LOG_DEBUG("authrize failed, interval=" << t3 - t1);
+	}
 
 }
 
@@ -938,14 +957,16 @@ IcsLocalServer::IcsLocalServer(asio::io_service& ioService, const string& termin
 	m_onlinePort = g_configFile.getAttributeInt("protocol", "onlinePort");
 	m_heartbeatTime = g_configFile.getAttributeInt("protocol", "heartbeat");
 
-	m_terminalTcpServer.init(terminalAddr
+	m_terminalTcpServer.init("terminal"
+		, terminalAddr
 		, [this](socket&& s)
 		{
 			auto conn = new IcsTerminalClient(*this, std::move(s));
 			conn->start();
 		});
 
-	m_webTcpServer.init(webAddr
+	m_webTcpServer.init("web"
+		, webAddr
 		, [this](socket&& s)
 		{
 			auto conn = new IcsWebClient(*this, std::move(s));
@@ -964,6 +985,12 @@ IcsLocalServer::~IcsLocalServer()
 void IcsLocalServer::start()
 {
 	
+}
+
+/// 停止事件
+void IcsLocalServer::stop()
+{
+
 }
 
 /// 添加已认证终端对象

@@ -20,7 +20,7 @@ Time point:Ò»¸öÊ±¼äµã£¬ÓÃÀ´»ñÈ¡1970.1.1ÒÔÀ´µÄÃëÊıºÍµ±Ç°µÄÊ±¼ä, ¿ÉÒÔ×öÒ»Ğ©Ê±¼äµÄ±
 
 class Timer {
 public:
-	typedef std::function<void()> timeout;
+	typedef std::function<void ()> timeout;
 
 	Timer();
 
@@ -32,15 +32,17 @@ public:
 	/// ¿ªÆô¶¨Ê±Æ÷
 	void start();
 
-	/// Í£Ö¹¶¨Ê±Æ÷
+	/// Í£Ö¹¶¨Ê±Æ÷ 
 	void stop();
-
+	
 private:
 	void loop();
 
 private:
 	std::unique_ptr<std::thread>	m_timerThread;
 	bool			m_running;
+
+//	std::vector<int>	m_timeWhell;
 };
 
 #endif	// _TIMER_H

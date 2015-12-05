@@ -24,7 +24,7 @@ TcpServer::~TcpServer()
 	
 }
 
-void TcpServer::init(const std::string& addr, AddClientHandler do_add_client)
+void TcpServer::init(const char* name, const std::string& addr, AddClientHandler do_add_client)
 {
 	std::regex pattern("^((\\d{1,3}\\.){3}\\d{1,3}):(\\d{1,5})$");
 	std::match_results<std::string::const_iterator> result;
@@ -44,7 +44,7 @@ void TcpServer::init(const std::string& addr, AddClientHandler do_add_client)
 
 	m_do_add_client = do_add_client;
 
-	LOG_DEBUG("Tcp server starts to listen at " << addr);
+	LOG_DEBUG("The " << name << " tcp server starts to listen at " << addr);
 
 	do_accept();
 }

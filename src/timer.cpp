@@ -42,9 +42,11 @@ void Timer::stop()
 
 void Timer::loop()
 {
+	LOG_DEBUG("start timer");
 	while (m_running)
 	{
-		LOG_DEBUG("tick");
-		std::this_thread::sleep_for(std::chrono::seconds(1));
+//		LOG_DEBUG("tick");
+		std::this_thread::sleep_for(std::chrono::seconds(10));
 	}
+	LOG_DEBUG("stop timer");
 }

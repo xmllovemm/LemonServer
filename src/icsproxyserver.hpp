@@ -106,6 +106,8 @@ public:
 	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception);
 
 private:
+	void handleAuthrize(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
+private:
 	IcsPorxyServer&	m_proxyServer;
 };
 
@@ -140,6 +142,11 @@ public:
 	/// 向全部ICS中心发送数据
 	void sendToIcsCenter(ProtocolStream& request);
 
+
+	inline uint16_t getHeartbeatTime() const 
+	{
+		return m_heartbeatTime;
+	}
 private:
 	asio::io_service& m_ioService;
 

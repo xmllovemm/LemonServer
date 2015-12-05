@@ -26,7 +26,7 @@ public:
 	typedef _baseType::socket		socket;
 	typedef socket::shutdown_type	shutdown_type;
 
-	IcsTerminalClient(IcsLocalServer& localServer, socket&& s);
+	IcsTerminalClient(IcsLocalServer& localServer, socket&& s, const char* name = nullptr);
 
 	virtual ~IcsTerminalClient();
 
@@ -124,9 +124,6 @@ public:
 
 	// 处理平层消息
 	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception);
-
-	// 链接名称
-	virtual const std::string& name() const;
 private:
 
 	// 转发到对应终端
@@ -161,7 +158,7 @@ public:
 	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception);
 
 	// 请求验证中心身份
-	void questAuthrize();
+	void requestAuthrize();
 private:
 	// 处理认证请求结果
 	void handleAuthResponse(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
@@ -194,6 +191,9 @@ public:
 
 	/// 开启事件循环
 	void start();
+
+	/// 停止事件
+	void stop();
 
 	/// 添加已认证终端对象
 	void addTerminalClient(const string& conID, ConneciontPrt conn);

@@ -14,6 +14,7 @@ message("Project bin dir:${PROJECT_BINARY_DIR}")
 set(CMAKE_BUILD_TYPE Debug)
 
 add_definitions("-DTIXML_USE_STL")
+#add_definitions("-DICS_CENTER_MODE")
 
 # show the detail info when make
 # set(CMAKE_VERBOSE_MAKEFILE on)
@@ -54,16 +55,15 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/lib)
 # source file
 aux_source_directory(./src SRC_FILES)
 
-
+# make install
+set(CMAKE_INSTALL_PREFIX ${PROJECT_BINARY_DIR}/../bin)
+install(FILES bin/${target} DESTINATION .)
 
 # exec
 add_executable(${target} ${SRC_FILES})
 
 # link dll
-target_link_libraries(${target} pthread)
-target_link_libraries(${target} odbc)
-target_link_libraries(${target} log4cplus)
-target_link_libraries(${target} rt)
+target_link_libraries(${target} pthread odbc log4cplus rt)
 
 
 # -------------useful function------------------ #

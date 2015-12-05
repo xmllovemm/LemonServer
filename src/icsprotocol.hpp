@@ -105,6 +105,16 @@ inline double ics_byteorder(double n)
 #endif
 }
 
+inline std::time_t ics_byteorder(std::time_t n)
+{
+#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
+	return n;
+#else
+	return ((n & 0x000000ff) << 24) | ((n & 0x0000ff00) << 8) | ((n & 0x00ff0000) >> 8) | ((n & 0xff000000) >> 24);
+#endif
+}
+
+
 // protocol info
 #define ICS_HEAD_PROTOCOL_NAME "ICS#"	// protocol name
 #define ICS_HEAD_PROTOCOL_NAME_LEN (sizeof(ICS_HEAD_PROTOCOL_NAME)-1)
@@ -160,10 +170,10 @@ public:
 // ICS消息ID枚举
 // T--terminal, C--center, W--web, P--pushsystem
 enum MessageId {
-	MessageId_min = 0,
+	MessageId_min = 0x0,
 
 	// ------ T and C ------ //
-	T2C_min = 0100,
+	T2C_min = 0x0100,
 	// 认证请求
 	T2C_auth_request = 0x0101,			
 	// 认证应答
@@ -311,20 +321,20 @@ public:
 	}
 
 	// request
-	void init(MessageId id, bool response = true)
+	void init(MessageId id, bool needResponse = true)
 	{
 		std::memset(this, 0, sizeof(IcsMsgHead));
 		std::memcpy(this->name, ICS_HEAD_PROTOCOL_NAME, sizeof(this->name));
 		this->version = ics_byteorder((uint16_t)ICS_HEAD_PROTOCOL_VERSION);
 		this->setMsgID(id);
-		setFlag(0, ICS_HEAD_ATTR_ACK_FLAG, response ? 1 : 0);
+		setFlag(0, !ICS_HEAD_ATTR_ACK_FLAG, needResponse ? 1 : 0);
 	}
 
 	// response
 	void init(MessageId id, uint16_t ack_no)
 	{
 		this->init(id, false);
-		setFlag(0, !ICS_HEAD_ATTR_ACK_FLAG, 0);
+		setFlag(0, ICS_HEAD_ATTR_ACK_FLAG, 0);
 	}
 
 	// set 0
@@ -353,11 +363,11 @@ public:
 		this->ack_num = ics_byteorder(num);
 	}
 
-	void setFlag(int encrypt, int ack, int response)
+	void setFlag(int encrypt, int ack, int needResponse)
 	{
 		this->encrypt = encrypt;
 		this->ack = ack;
-		this->response = response;
+		this->response = needResponse;
 		this->flag_data = ics_byteorder(this->flag_data);
 	}
 
@@ -514,13 +524,14 @@ public:
 		return std::move(mc);
 	}
 
-	/// set current to the start
-	inline void rewind()
+	/// 重置读位置
+	inline void rewindReadPos()
 	{
 		m_curPos = (uint8_t*)(m_msgHead + 1);
 	}
 
-	inline void reset()
+	/// 重置写位置
+	inline void rewindWritePos()
 	{
 		m_msgEnd = (uint8_t*)m_msgHead;
 		m_curPos = (uint8_t*)(m_msgHead + 1);
@@ -726,12 +737,12 @@ public:
 
 	ProtocolStream& operator << (const ProtocolStream& data) throw(IcsException)
 	{
-		if (data.writeLeftSize() > writeLeftSize())
+		if (data.readLeftSize() > writeLeftSize())
 		{
-			throw IcsException("OOM to set %d bytes ProtocolStream data",data.writeLeftSize());
+			throw IcsException("OOM to set %d bytes ProtocolStream data", data.readLeftSize());
 		}
-		std::memcpy(m_curPos, data.m_curPos, data.writeLeftSize());
-		m_curPos += data.writeLeftSize();
+		std::memcpy(m_curPos, data.m_curPos, data.readLeftSize());
+		m_curPos += data.readLeftSize();
 		return *this;
 	}
 

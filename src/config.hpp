@@ -75,6 +75,6 @@ timestamp ----> SQL-server:DATETIME,Oracle:DATE,Oracle 9i:TIMESTAMP   YYYY-MM-DD
 
 
 // Communicate Server/Sub Server
-#define ICS_CENTER_MODE
+//#define ICS_CENTER_MODE
 
 #endif	// end _CONFIG_H

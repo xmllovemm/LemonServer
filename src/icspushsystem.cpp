@@ -8,9 +8,8 @@ namespace ics {
 
 
 PushMsgConnection::PushMsgConnection(socket&& s)
-	: _baseType(std::move(s))
+	: _baseType(std::move(s),"PushMsg")
 {
-	_baseType::m_name = "PushMsg@" + _baseType::m_name;
 }
 
 // 处理底层消息
