@@ -25,6 +25,34 @@ void usage(const char* prog)
 	cerr << "useage:" << prog << " configfile" << endl;
 }
 
+int itostr(char* buf, int value)
+{
+	// numerator = denomerator * quotient + remainder
+	// n = d * q + r
+	static const char* digitalsBuff = "9876543210123456789";
+	const char* digital = digitalsBuff + 9;
+	char* outbuf = buf;
+	
+	if (value < 0)
+	{
+		*outbuf++ = '-';
+	}
+
+	int q = value;
+	do
+	{	
+		*outbuf++ = digital[q % 10];
+		q /= 10;
+	} while (q != 0);
+
+	*outbuf = 0;
+
+	std::reverse(buf + (value < 0 ? 1 : 0), outbuf);
+
+	return outbuf - buf;
+}
+
+
 int main(int argc, char** argv)
 {
 	if (argc != 2)
@@ -67,7 +95,7 @@ int main(int argc, char** argv)
 			, g_configFile.getAttributeString("centeraddr", "msgpush"));	
 #else
 		// ICS代理模式
-		ics::IcsPorxyServer proxyServer(io_service
+		auto p = std::make_unique<ics::IcsPorxyServer>(io_service
 			, g_configFile.getAttributeString("proxyraddr", "terminal"), 100
 			, g_configFile.getAttributeString("proxyraddr", "web"), 100
 			, g_configFile.getAttributeString("proxyraddr", "center"), 100);
@@ -80,6 +108,7 @@ int main(int argc, char** argv)
 
 		// 主线程开始IO事件
 		io_service.run();
+
 	}
 	catch (ics::IcsException& ex)
 	{

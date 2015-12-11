@@ -6,6 +6,7 @@
 #include "mempool.hpp"
 #include "log.hpp"
 #include "config.hpp"
+#include "timer.hpp"
 #include <asio.hpp>
 #include <cstdio>
 
@@ -19,7 +20,7 @@ typedef asio::ip::udp icsudp;
 
 /// ICS协议处理基类
 template<class Protocol>
-class IcsConnection {
+class IcsConnection : public std::enable_shared_from_this<IcsConnection<Protocol>> {
 public:
 
 	typedef typename Protocol::socket socket;
@@ -29,6 +30,7 @@ public:
 	/// s:套接字，name:链接名
 	IcsConnection(socket&& s, const char* name )
 		: m_socket(std::move(s))
+		, m_valid(true)
 		, m_replaced(false)
 		, m_request(g_memoryPool)
 		, m_serialNum(0)
@@ -81,19 +83,52 @@ public:
 		do_read();
 	}
 
-	void replaced(bool flag = true)
+	const std::string& name() const
 	{
-		m_replaced = flag;
+		return m_name;
+	}
+
+	void replaced()
+	{
+		m_replaced = true;
+		m_valid = false;
+		do_error();
 	}
 
 	// 处理底层消息
-	virtual void handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception) = 0;
+	virtual void handle(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception) = 0;
 
 	// 处理平层消息
-	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception) = 0;
+	virtual void dispatch(IcsProtocolStreamInput& request) throw(IcsException, otl_exception) = 0;
+
+	// 出错处理
+	virtual void error() throw()
+	{
+
+	}
+
+	/// 定时处理:返回值为下次通知间隔，0-不再通知
+	int timeout(int interval)
+	{
+		LOG_DEBUG(m_name << " timeout count " << m_timeoutCount + 1);
+
+		if (!m_valid)
+		{
+			interval = 0;
+		}
+		else if (++m_timeoutCount > m_timeoutMax)
+		{
+			LOG_DEBUG(m_name << " timeout");
+			interval = 0;
+			do_error();
+		}
+		
+		return interval;
+	}
 
 protected:
-	void trySend(ProtocolStream& msg)
+	/// 发送数据
+	void trySend(IcsProtocolStreamOutput& msg)
 	{
 		msg.getHead()->setSendNum(m_serialNum++);
 		msg.serailzeToData();
@@ -104,42 +139,61 @@ protected:
 		trySend();
 	}
 
-private:
+	/// 设置该链接名
+	void setName(const std::string& name)
+	{
+		this->m_name = name;
+	}
+
+	/// 链接是否有效
+	bool isValid()
+	{
+		return m_valid;
+	}
+
+	/// 投递读操作
 	void do_read()
 	{
 		// wait response
+		auto self(this->shared_from_this());
 		m_socket.async_receive(asio::buffer(m_recvBuff),
-			[this](const std::error_code& ec, std::size_t length)
+			[self](const std::error_code& ec, std::size_t length)
 		{
 			// no error and handle message
-			if (!ec && this->handleData(m_recvBuff.data(), length))
+			if (!ec && self->handleData(self->m_recvBuff.data(), length))
 			{
 				// continue to read
-				this->do_read();
+				self->do_read();
 			}
 			else
 			{
+				/*
 				if (ec)
 				{
 					LOG_WARN(this->m_name << " read error: " << ec.message());
 				}
-				this->do_error(shutdown_type::shutdown_both);
+				*/
+				self->do_error();
 			}
 		});
 	}
 
+	/// 投递写操作
 	void do_write()
 	{
 		trySend();
 	}
 
-	void do_error(shutdown_type type)
+	/// 出错
+	void do_error()
 	{
-//		m_socket.shutdown(type);
+//		LOG_DEBUG(m_name << " is closing...");
+		m_valid = false;
+		error();
 		m_socket.close();
-		delete this;
 	}
 
+	/// 十六进制显示
 	void toHexInfo(const char* info, const uint8_t* data, std::size_t length)
 	{
 #ifndef NDEBUG
@@ -152,6 +206,7 @@ private:
 #endif
 	}
 
+	/// 尝试发送数据
 	void trySend()
 	{
 		std::lock_guard<std::mutex> lock(m_sendLock);
@@ -159,27 +214,31 @@ private:
 		{
 
 			MemoryChunk& block = m_sendList.front();
+			auto self(this->shared_from_this());
+
 			m_socket.async_send(asio::buffer(block.data, block.length),
-				[this](const std::error_code& ec, std::size_t length)
+				[self](const std::error_code& ec, std::size_t length)
 			{
 				if (!ec)
 				{
-					MemoryChunk& chunk = m_sendList.front();
-					this->toHexInfo("send to", chunk.data, chunk.length);
-					m_sendList.pop_front();
-					m_isSending = false;
-					trySend();
+					MemoryChunk& chunk = self->m_sendList.front();
+					self->toHexInfo("send to", chunk.data, chunk.length);
+					g_memoryPool.put(chunk);
+					self->m_sendList.pop_front();
+					self->m_isSending = false;
+					self->trySend();
 				}
 				else
 				{
 					LOG_DEBUG("send data error");
-					do_error(shutdown_type::shutdown_both);
+					self->do_error();
 				}
 			});
 
 		}
 	}
 
+	/// 处理该数据段
 	bool handleData(uint8_t* data, std::size_t length)
 	{
 		/// show debug info
@@ -192,7 +251,7 @@ private:
 				if (m_request.assembleMessage(data, length))
 				{
 					handleMessage(m_request);
-					m_request.rewindWritePos();
+					m_request.reset();
 				}
 			}
 		}
@@ -205,11 +264,13 @@ private:
 		return true;
 	}
 
-	void handleMessage(ProtocolStream&	request)
+	/// 处理该条完整消息
+	void handleMessage(IcsProtocolStreamInput&	request)
 	{
 		// 置0超时计数
 		m_timeoutCount = 0;
 
+		/*
 		IcsMsgHead* head = request.getHead();
 
 		try {
@@ -222,14 +283,14 @@ private:
 				return;
 			}
 
-			ProtocolStream response(g_memoryPool);
+			IcsProtocolStreamInput response(g_memoryPool);
 
 			/// handle message
 			handle(request, response);
 
 			/// send response message
 			if (response.getHead()->getMsgID() != MessageId::MessageId_min)
-			{			
+			{	
 				trySend(response);
 			}
 			else if (head->needResposne())
@@ -255,19 +316,24 @@ private:
 		{
 			throw IcsException("%s handle message [04%x] unknown error", m_name.c_str(), (uint16_t)head->getMsgID());
 		}
+		//*/
 	}
 
 protected:	
-	// connect socket
+	/// 链接套接字
 	socket	m_socket;
 
-	// remote addr in dotted decimal format
+	/// 链接名：默认为对端的地址，格式为"ip:port"
 	std::string	m_name;
 
+	/// 链接是否有效
+	bool m_valid;
+
+	/// 是否被相同链接替换
 	bool			m_replaced;
 private:
 	// recv area
-	ProtocolStream m_request;
+	IcsProtocolStreamInput m_request;
 	std::array<uint8_t, 512> m_recvBuff;
 
 	// send area
@@ -277,8 +343,9 @@ private:
 	bool			m_isSending;
 
 
-	// 超时计数器: 每次接收到一完整消息置0，超时一次加1，超过3次后链接无效
+	// 超时计数器: 每次接收到一完整消息置0，超时一次加1，超过最大次数后链接无效
 	int				m_timeoutCount;
+	static const int m_timeoutMax = 2;
 };
 
 

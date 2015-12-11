@@ -17,7 +17,7 @@ class MemoryChunk
 public:
 	MemoryChunk();
 
-	MemoryChunk(void* buf, std::size_t usedLength, std::size_t totalSize);
+	MemoryChunk(void* buf, std::size_t usedLength);
 
 	MemoryChunk(const MemoryChunk& rhs);
 
@@ -27,18 +27,19 @@ public:
 
 	MemoryChunk clone(MemoryPool& mp);
 
-	MemoryChunk& operator = (MemoryChunk&& rhs);
+	void operator = (MemoryChunk&& rhs);
 
 	MemoryChunk& operator = (const MemoryChunk& rhs);
 
 	bool valid() const;
 public:
-	// 块起始地址
+	// 地址
 	uint8_t*	data;
-	// 已用长度
+	// 长度
 	std::size_t	length;
+
 	// 可用最大长度
-	std::size_t	size;
+//	std::size_t	size;
 };
 
 
@@ -54,15 +55,15 @@ public:
 
 	MemoryChunk get();
 
-	void put(MemoryChunk&& chunk);
+	void put(const MemoryChunk& chunk);
 
 	std::size_t chunkSize() const;
 private:
 	uint8_t*		m_buff;
-	std::size_t	m_chunkSize;
-	std::size_t	m_chunkCount;
+	std::size_t		m_chunkSize;
+	std::size_t		m_chunkCount;
 
-	std::list<MemoryChunk>	m_chunkList;
+	std::list<uint8_t*>	m_chunkList;
 	std::mutex		m_chunkLock;
 };
 

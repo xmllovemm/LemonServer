@@ -7,7 +7,8 @@
 #include <functional>
 #include <thread>
 #include <memory>
-
+#include <mutex>
+#include <list>
 
 /*
 Duration:Ò»¶ÎÊ±¼ä¼ä¸ô£¬ÓÃÀ´¼ÇÂ¼Ê±¼ä³¤¶È£¬¿ÉÒÔ±íÊ¾¼¸ÃëÖÓ¡¢¼¸·ÖÖÓ»òÕß¼¸¸öĞ¡Ê±µÄÊ±¼ä¼ä¸ô
@@ -20,7 +21,7 @@ Time point:Ò»¸öÊ±¼äµã£¬ÓÃÀ´»ñÈ¡1970.1.1ÒÔÀ´µÄÃëÊıºÍµ±Ç°µÄÊ±¼ä, ¿ÉÒÔ×öÒ»Ğ©Ê±¼äµÄ±
 
 class Timer {
 public:
-	typedef std::function<void ()> timeout;
+	typedef std::function<int ()> timeout;
 
 	Timer();
 
@@ -36,11 +37,21 @@ public:
 	void stop();
 	
 private:
+	typedef struct {
+		int interval;
+		timeout handler;
+	}Task;
+
+private:
 	void loop();
 
 private:
 	std::unique_ptr<std::thread>	m_timerThread;
 	bool			m_running;
+
+	std::list<Task>	m_taskList;
+	std::recursive_mutex	m_taskListLock;
+	
 
 //	std::vector<int>	m_timeWhell;
 };

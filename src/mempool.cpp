@@ -1,33 +1,35 @@
 
 
 #include "mempool.hpp"
+#include "icsexception.hpp"
 #include <cstring>
 
 namespace ics {
 
 MemoryChunk::MemoryChunk()
-	: data(nullptr), length(0), size(0)
+	: data(nullptr), length(0)
 {
 
 }
 
-MemoryChunk::MemoryChunk(void* buf, std::size_t usedLength, std::size_t totalSize)
-	: data((uint8_t*)buf), length(usedLength), size(totalSize)
+MemoryChunk::MemoryChunk(void* buf, std::size_t length)
+: data((uint8_t*)buf), length(length)
 {
 
 }
 
 
 MemoryChunk::MemoryChunk(const MemoryChunk& rhs)
-	: data(rhs.data), length(rhs.length), size(rhs.size)
+	: data(rhs.data), length(rhs.length)
 {
 }
 
 
 MemoryChunk::MemoryChunk(MemoryChunk&& rhs)
-: data(rhs.data), length(rhs.length), size(rhs.size)
+: data(rhs.data), length(rhs.length)
 {
-	rhs.size = 0;
+	rhs.data = nullptr;
+	rhs.length = 0;
 }
 
 
@@ -44,27 +46,26 @@ MemoryChunk MemoryChunk::clone(MemoryPool& mp)
 	return mc;
 }
 
-MemoryChunk& MemoryChunk::operator = (MemoryChunk&& rhs)
+void MemoryChunk::operator = (MemoryChunk&& rhs)
 {
 	data = rhs.data;
 	length = rhs.length;
-	size = rhs.size;
-	rhs.size = 0;
-	return *this;
+
+	rhs.data = nullptr;
+	rhs.length = 0;
 }
 
 MemoryChunk& MemoryChunk::operator = (const MemoryChunk& rhs)
 {
 	data = rhs.data;
 	length = rhs.length;
-	size = rhs.size;
 	return *this;
 }
 
 
 bool MemoryChunk::valid() const
 {
-	return !data && size > 0;
+	return data && length > 0;
 }
 
 
@@ -90,6 +91,11 @@ void MemoryPool::init(std::size_t chunkSize, std::size_t countOfChunk, bool zero
 	m_chunkCount = countOfChunk;
 	m_buff = new uint8_t[m_chunkSize * m_chunkCount];
 
+	if (!m_buff)
+	{
+		throw IcsException("can't allocal %d bytes buffer", m_chunkSize * m_chunkCount);
+	}
+
 	if (zeroData)
 	{
 		std::memset(m_buff, 0, m_chunkSize * m_chunkCount);
@@ -97,7 +103,7 @@ void MemoryPool::init(std::size_t chunkSize, std::size_t countOfChunk, bool zero
 
 	for (size_t i = 0; i < m_chunkCount; i++)
 	{
-		m_chunkList.push_back(MemoryChunk(m_buff + i*m_chunkSize, 0, m_chunkSize));
+		m_chunkList.push_back(m_buff);
 	}
 }
 
@@ -107,18 +113,19 @@ MemoryChunk MemoryPool::get()
 	MemoryChunk chunk;
 	if (!m_chunkList.empty())
 	{
-		chunk = m_chunkList.front();
+		chunk.data = m_chunkList.front();
+		chunk.length = m_chunkSize;
 		m_chunkList.pop_front();
 	}
 	return chunk;
 }
 
-void MemoryPool::put(MemoryChunk&& chunk)
+void MemoryPool::put(const MemoryChunk& chunk)
 {
-	if (chunk.valid())
+	if (chunk.data)
 	{
 		std::lock_guard<std::mutex> lock(m_chunkLock);
-		m_chunkList.push_back(chunk);
+		m_chunkList.push_back(chunk.data);
 	}
 }
 

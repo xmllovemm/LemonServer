@@ -43,76 +43,19 @@ namespace ics{
 #define PROTOCOL_BYTE_ORDER LITTLE_ENDIAN
 
 
-inline uint8_t ics_byteorder(uint8_t n)
-{
-	return n;
-}
+uint8_t ics_byteorder(uint8_t n);
 
-inline uint16_t ics_byteorder(uint16_t n)
-{
-#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
-	return n;
-#else
-	return ((n & 0xff) << 8) | ((n >> 8) & 0xff);
-#endif
-}
+uint16_t ics_byteorder(uint16_t n);
 
-inline uint32_t ics_byteorder(uint32_t n)
-{
-#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
-	return n;
-#else
-	return ((n & 0x000000ff) << 24) | ((n & 0x0000ff00) << 8) | ((n & 0x00ff0000) >> 8) | ((n & 0xff000000) >> 24);
-#endif
-}
+uint32_t ics_byteorder(uint32_t n);
 
-inline uint64_t ics_byteorder(uint64_t n)
-{
-#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
-	return n;
-#else
-	return ((n & 0x000000ff) << 24) | ((n & 0x0000ff00) << 8) | ((n & 0x00ff0000) >> 8) | ((n & 0xff000000) >> 24);
-#endif
-}
+uint64_t ics_byteorder(uint64_t n);
 
-inline float ics_byteorder(float n)
-{
-#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
-	return n;
-#else
-	auto tmp = ics_byteorder(*(uint32_t)&n);
-	return *(float)&tmp;
-#endif
-}
+float ics_byteorder(float n);
 
-inline double ics_byteorder(double n)
-{
-#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
-	return n;
-#else
-	double ret;
-	if (sizeof(double) == sizeof(uint32_t))
-	{
-		auto tmp = ics_byteorder(*(uint32_t)&n);
-		ret = *(double)&tmp;
-	}
-	else
-	{
-		auto tmp = ics_byteorder(*(uint64_t)&n);
-		ret = *(double)&tmp;
-	}
-	return ret;
-#endif
-}
+double ics_byteorder(double n);
 
-inline std::time_t ics_byteorder(std::time_t n)
-{
-#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
-	return n;
-#else
-	return ((n & 0x000000ff) << 24) | ((n & 0x0000ff00) << 8) | ((n & 0x00ff0000) >> 8) | ((n & 0xff000000) >> 24);
-#endif
-}
+std::time_t ics_byteorder(std::time_t n);
 
 
 // protocol info
@@ -158,7 +101,6 @@ public:
 		*this = std::forward<std::string>(str);
 		return *this;
 	}
-
 
 	operator std::string()
 	{
@@ -293,136 +235,59 @@ typedef struct
 	};
 }IcsDataTime;
 
-
 // ICS消息头
 class IcsMsgHead
 {
 public:
 	static const std::size_t CrcCodeSize = sizeof(uint32_t);
 
-	void verify(const void* buf, std::size_t len) const throw(IcsException)
-	{
-		if (std::memcmp(name, ICS_HEAD_PROTOCOL_NAME, ICS_HEAD_PROTOCOL_NAME_LEN) != 0)
-		{
-			throw IcsException("protocol name error: %c%c%c%c", name[0], name[1], name[2], name[3]);
-		}
-		if (getVersion() != ICS_HEAD_PROTOCOL_VERSION)
-		{
-			throw IcsException("protocol version error: %x", getVersion());
-		}
-		if (getLength() != len)
-		{
-			throw IcsException("protocol length error: %d", getLength());
-		}
-		if (getCrcCode() != crc32_code(buf, len - CrcCodeSize))
-		{
-			throw IcsException("protocol crc code error: %x", getCrcCode());
-		}
-	}
-
-	// request
-	void init(MessageId id, bool needResponse = true)
+	IcsMsgHead()
 	{
 		std::memset(this, 0, sizeof(IcsMsgHead));
 		std::memcpy(this->name, ICS_HEAD_PROTOCOL_NAME, sizeof(this->name));
 		this->version = ics_byteorder((uint16_t)ICS_HEAD_PROTOCOL_VERSION);
-		this->setMsgID(id);
-		setFlag(0, !ICS_HEAD_ATTR_ACK_FLAG, needResponse ? 1 : 0);
 	}
+
+	void verify(const void* buf, std::size_t len) const throw(IcsException);
+
+	// request
+	void init(MessageId id, bool needResponse = true);
 
 	// response
-	void init(MessageId id, uint16_t ack_no)
-	{
-		this->init(id, false);
-		setFlag(0, ICS_HEAD_ATTR_ACK_FLAG, 0);
-	}
+	void init(MessageId id, uint16_t ack_no);
 
 	// set 0
-	void clean()
-	{
-		memset(this, 0, sizeof(IcsMsgHead));
-	}
+	void clean();
 
-	void setMsgID(uint16_t id)
-	{
-		this->id = ics_byteorder(id);
-	}
+	void setMsgID(uint16_t id);
 
-	void setLength(uint16_t len)
-	{
-		this->length = ics_byteorder(len);
-	}
+	void setLength(uint16_t len);
 
-	void setSendNum(uint16_t num)
-	{
-		this->send_num = ics_byteorder(num);
-	}
+	void setSendNum(uint16_t num);
 
-	void setAckNum(uint16_t num)
-	{
-		this->ack_num = ics_byteorder(num);
-	}
+	void setAckNum(uint16_t num);
 
-	void setFlag(int encrypt, int ack, int needResponse)
-	{
-		this->encrypt = encrypt;
-		this->ack = ack;
-		this->response = needResponse;
-		this->flag_data = ics_byteorder(this->flag_data);
-	}
+	void setFlag(int encrypt, int ack, int needResponse);
 
-	void setCrcCode()
-	{
-		ics_crccode_t code = 0;
-		*(ics_crccode_t*)((char*)this + getLength() - sizeof(ics_crccode_t)) = ics_byteorder(code);
-	}
+	void setCrcCode();
 
-	MessageId getMsgID() const
-	{
-		return (MessageId)ics_byteorder(this->id);
-	}
+	MessageId getMsgID() const;
 
-	uint16_t getLength() const
-	{
-		return ics_byteorder(this->length);
-	}
+	uint16_t getLength() const;
 
-	bool isResponse() const
-	{
-		uint16_t flag = ics_byteorder(this->flag_data);
-		return (flag >> 8 & 0x1) == 1;
-	}
+	bool isResponse() const;
 
-	bool needResposne() const
-	{
-		uint16_t flag = ics_byteorder(this->flag_data);
-		return (flag >> 8 & 0x03) == 0x02;
-	}
+	bool needResposne() const;
 
-	uint16_t getSendNum() const
-	{
-		return ics_byteorder(this->send_num);
-	}
+	uint16_t getSendNum() const;
 
-	uint16_t getAckNum() const
-	{
-		return ics_byteorder(this->ack_num);
-	}
+	uint16_t getAckNum() const;
 
-	uint16_t getFlag() const
-	{
-		return ics_byteorder(this->id);
-	}
+	uint16_t getFlag() const;
 
-	uint16_t getVersion() const
-	{
-		return ics_byteorder(this->version);
-	}
+	uint16_t getVersion() const;
 
-	uint32_t getCrcCode() const
-	{
-		return ics_byteorder(*(uint32_t*)(this->name + getLength() - CrcCodeSize));
-	}
+	uint32_t getCrcCode() const;
 private:
 	uint8_t		name[ICS_HEAD_PROTOCOL_NAME_LEN];		// 协议名称
 	uint16_t	version;	// 版本号
@@ -441,7 +306,6 @@ private:
 	uint16_t	ack_num;	// 应答流水号
 	uint16_t	id;		// 消息id
 };
-
 #pragma pack()
 
 // get current time
@@ -451,238 +315,55 @@ otl_stream& operator<<(otl_stream& s, const IcsDataTime& dt);
 
 otl_stream& operator<<(otl_stream& s, const LongString& dt);
 
+
+/*
 // ICS消息处理类
 class ProtocolStream
 {
 public:
-	ProtocolStream(MemoryPool& mp)
-		: m_memoryPool(mp)
-	{
-		auto chunk = m_memoryPool.get();
-		m_msgHead = (IcsMsgHead*)chunk.data;
-		m_msgEnd = (uint8_t*)m_msgHead;
-		m_curPos = (uint8_t*)(m_msgHead + 1);
-		m_memoryEnd = chunk.data + chunk.size;
+	ProtocolStream(MemoryPool& mp);
 
-		std::memset(m_msgHead, 0, sizeof(IcsMsgHead));
-	}
+	ProtocolStream(ProtocolStream&& rhs);
 
-	ProtocolStream(ProtocolStream&& rhs)
-		: m_memoryPool(rhs.m_memoryPool)
-		, m_msgHead(rhs.m_msgHead)
-		, m_curPos(rhs.m_curPos)
-		, m_msgEnd(rhs.m_msgEnd)
-		, m_memoryEnd(rhs.m_memoryEnd)
-	{
+	ProtocolStream(const ProtocolStream& rhs);
 
-	}
+	ProtocolStream(MemoryPool& mp, const uint8_t* data, std::size_t len);
 
-	ProtocolStream(const ProtocolStream& rhs)
-		: m_memoryPool(rhs.m_memoryPool)
-	{
-		auto chunk = m_memoryPool.get();
-		m_msgHead = (IcsMsgHead*)chunk.data;
-		std::memset(m_msgHead, 0, sizeof(IcsMsgHead));
-		m_memoryEnd = chunk.data + chunk.size;
+	~ProtocolStream();
 
-		m_msgEnd = (uint8_t*)m_msgHead + rhs.size();
-		m_curPos = (uint8_t*)m_msgHead + rhs.length();
-
-		std::memcpy(m_msgHead, rhs.m_msgHead, rhs.size());
-	}
-
-	ProtocolStream(MemoryPool& mp, const uint8_t* data, std::size_t len)
-		: m_memoryPool(mp)
-	{
-		auto chunk = m_memoryPool.get();
-		m_msgHead = (IcsMsgHead*)chunk.data;
-		m_curPos = (uint8_t*)(m_msgHead + 1);
-		m_msgEnd = (uint8_t*)m_msgHead + len;
-		m_memoryEnd = chunk.data + chunk.size;
-
-		std::memcpy(m_msgHead, data, len);
-	}
-
-	~ProtocolStream()
-	{
-		if (m_msgHead)
-		{
-			m_memoryPool.put(toMemoryChunk());
-		}
-	}
+	MemoryPool& getMemoryPool();
 
 	/// 调用该接口以后不可读写操作
-	MemoryChunk toMemoryChunk()
-	{
-		if (!m_msgHead)
-		{
-			throw IcsException("MemoryChunk has been moved");
-		}
-
-		MemoryChunk mc((uint8_t*)m_msgHead, length(), size());
-		m_msgHead = nullptr;
-		return std::move(mc);
-	}
+	MemoryChunk toMemoryChunk();
 
 	/// 重置读位置
-	inline void rewindReadPos()
-	{
-		m_curPos = (uint8_t*)(m_msgHead + 1);
-	}
+	void rewindReadPos();
 
 	/// 重置写位置
-	inline void rewindWritePos()
-	{
-		m_msgEnd = (uint8_t*)m_msgHead;
-		m_curPos = (uint8_t*)(m_msgHead + 1);
-	}
+	void rewindWritePos();
 
 	/// get the protocol head
-	inline IcsMsgHead* getHead() const
-	{
-		return m_msgHead;
-	}
+	IcsMsgHead* getHead() const;
 
 	// 消息总长度
-	inline std::size_t size() const
-	{
-		return m_msgEnd - (uint8_t*)m_msgHead;
-	}
+	std::size_t size() const;
 
 	// 消息体长度
-	inline std::size_t length() const
-	{
-		return m_curPos - (uint8_t*)m_msgHead;
-	}
+	std::size_t length() const;
 
 	
 	// there is no more data to get
-	inline bool empty() const
-	{
-		return m_curPos == (uint8_t*)(m_msgHead + 1);
-	}
+	bool empty() const;
 	
 
 	// 组装一条完整消息,返回值：true-有完整消息，false-需要更多数据，异常-超出最大缓冲区
-	bool assembleMessage(uint8_t* & buf, std::size_t& len) throw (IcsException)
-	{
-		bool ret = false;
-		if (len == 0)
-		{
-			return ret;
-		}
-
-		/// copy length of buff
-		std::size_t copySize = 0;
-
-		/// have a complete head ?
-		if (size() < sizeof(IcsMsgHead))
-		{
-			copySize = sizeof(IcsMsgHead) - size();
-			if (copySize > len)
-			{
-				copySize = len;
-			}
-		}
-		else
-		{
-			copySize = m_msgHead->getLength() - size();
-
-			if (copySize > std::size_t(m_memoryEnd - m_msgEnd))
-			{
-				throw IcsException("message length=%d is too big than buff length=%d", m_msgHead->getLength(), bufferSize());
-			}
-
-			if (copySize < len)
-			{
-				copySize = len;
-			}
-			else
-			{
-				ret = true;
-			}
-		}
-
-		std::memcpy(m_msgEnd, buf, copySize);
-		len -= copySize;
-		buf += copySize;
-		m_msgEnd += copySize;
-
-		return ret;
-	}
+	bool assembleMessage(uint8_t* & buf, std::size_t& len) throw (IcsException);
 
 	// -----------------------set data----------------------- 
 	// 设置消息体长度和校验码
-	void serailzeToData()
-	{
-		m_msgHead->setLength(m_curPos - (uint8_t*)m_msgHead + IcsMsgHead::CrcCodeSize);
-		*this << crc32_code(m_msgHead, m_curPos - (uint8_t*)m_msgHead);
-	}
+	void serailzeToData();
 
-	/*
-	ProtocolStream& operator << (uint8_t data) throw(IcsException)
-	{
-		if (sizeof(data) > writeLeftSize())
-		{
-			throw IcsException("OOM to set uint8_t data");
-		}
-
-		*m_curPos++ = data;
-		return *this;
-	}
-
-	ProtocolStream& operator << (uint16_t data) throw(IcsException)
-	{
-		if (sizeof(data) > writeLeftSize())
-		{
-			throw IcsException("OOM to set uint16_t data");
-		}
-
-		*(uint16_t*)m_curPos = ics_byteorder(data);
-		m_curPos += sizeof(data);
-		return *this;
-	}
-
-	ProtocolStream& operator << (uint32_t data) throw(IcsException)
-	{
-		if (sizeof(data) > writeLeftSize())
-		{
-			throw IcsException("OOM to set uint16_t data");
-		}
-
-		*(uint32_t*)m_curPos = ics_byteorder(data);
-		m_curPos += sizeof(data);
-		return *this;
-	}
-
-	ProtocolStream& operator << (float data) throw(IcsException)
-	{
-		if (sizeof(data) > writeLeftSize())
-		{
-			throw IcsException("OOM to set float data");
-		}
-#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
-		*(float*)m_curPos = data;
-#else
-		uint32_t tmp = ics_byteorder(*(uint32_t*)data);
-		*(uint32_t*)m_curPos = tmp;
-#endif
-		m_curPos += sizeof(data);
-		return *this;
-	}
-
-	ProtocolStream& operator << (uint64_t data) throw(IcsException)
-	{
-		if (sizeof(data) > writeLeftSize())
-		{
-			throw IcsException("OOM to set uint16_t data");
-		}
-
-		*(uint32_t*)m_curPos = ics_byteorder(data);
-		m_curPos += sizeof(data);
-		return *this;
-	}
-	*/
+	void insert(const ShortString& data);
 
 	template<class T>
 	ProtocolStream& operator << (const T& data) throw(IcsException)
@@ -693,21 +374,11 @@ public:
 		}
 
 		*(T*)m_curPos = ics_byteorder(data);
-		m_curPos += sizeof(data);
+		m_msgEnd = m_curPos += sizeof(data);
 		return *this;
 	}
 
-
-	ProtocolStream& operator << (const IcsDataTime& data) throw(IcsException)
-	{
-		if (sizeof(data) > writeLeftSize())
-		{
-			throw IcsException("OOM to set IcsDataTime data");
-		}
-
-		*this << data.year << data.month << data.day << data.hour << data.miniute << data.sec_data;
-		return *this;
-	}
+	ProtocolStream& operator << (const IcsDataTime& data) throw(IcsException);
 
 	template<class LengthType = uint8_t>
 	ProtocolStream& operator << (const char* data) throw(IcsException)
@@ -720,60 +391,26 @@ public:
 		}
 		*this << (LengthType)len;
 		memcpy(m_curPos, data, len);
-		m_curPos += len;
+		m_msgEnd = m_curPos += len;
 
 		return *this;
 	}
 
-	ProtocolStream& operator << (const ShortString& data) throw(IcsException)
-	{
-		return this->operator<<<uint8_t>(data.c_str());
-	}
+	ProtocolStream& operator << (const ShortString& data) throw(IcsException);
 
-	ProtocolStream& operator << (const LongString& data) throw(IcsException)
-	{
-		return this->operator<<<uint16_t>(data.c_str());
-	}
+	ProtocolStream& operator << (const LongString& data) throw(IcsException);
 
-	ProtocolStream& operator << (const ProtocolStream& data) throw(IcsException)
-	{
-		if (data.readLeftSize() > writeLeftSize())
-		{
-			throw IcsException("OOM to set %d bytes ProtocolStream data", data.readLeftSize());
-		}
-		std::memcpy(m_curPos, data.m_curPos, data.readLeftSize());
-		m_curPos += data.readLeftSize();
-		return *this;
-	}
+	ProtocolStream& operator << (const ProtocolStream& data) throw(IcsException);
 
-	void append(const void* data, std::size_t len)
-	{
-		if (len > writeLeftSize())
-		{
-			throw IcsException("OOM to set %d bytes buff data", len);
-		}
-		memcpy(m_curPos, data, len);
-		m_curPos += len;
-	}
+	void append(const void* data, std::size_t len);
 
-	void moveBack(std::size_t offset) throw(IcsException)
-	{
-		if (m_curPos - offset < (uint8_t*)(m_msgHead+1))
-		{
-			throw IcsException("cann't move back %s bytes", offset);
-		}
-		m_curPos -= offset;
-	}
+	void moveBack(std::size_t offset) throw(IcsException);
 
-	void verify() const throw(IcsException)
-	{
-		// verify head
-		m_msgHead->verify(m_msgHead, size());
-	}
+	void verify() const throw(IcsException);
 
 	// -----------------------get data----------------------- 
 	template<class T>
-	ProtocolStream& operator >> (T& data) throw(IcsException)
+	ProtocolStream& operator >> (T& data) throw(IcsException)		
 	{
 		if (sizeof(data) > readLeftSize())
 		{
@@ -784,122 +421,26 @@ public:
 		return *this;
 	}
 
-	/*
-	ProtocolStream& operator >> (uint8_t& data) throw(IcsException)
-	{
-		if (sizeof(data) > readLeftSize())
-		{
-			throw IcsException("OOM to get uint8_t data");
-		}
-		data = *m_curPos++;
-		return *this;
-	}
 
-	ProtocolStream& operator >> (uint16_t& data) throw(IcsException)
-	{
-		if (sizeof(data) > readLeftSize())
-		{
-			throw IcsException("OOM to get uint16_t data");
-		}
-		data = ics_byteorder(*(uint16_t*)m_curPos);
-		m_curPos += sizeof(data);
-		return *this;
-	}
+	ProtocolStream& operator >> (IcsDataTime& data) throw(IcsException);
 
-	ProtocolStream& operator >> (uint32_t& data) throw(IcsException)
-	{
-		if (sizeof(data) > readLeftSize())
-		{
-			throw IcsException("OOM to get uint32_t data");
-		}
-		data = ics_byteorder(*(uint32_t*)m_curPos);
-		m_curPos += sizeof(data);
-		return *this;
-	}
-	
+	ProtocolStream& operator >> (ShortString& data) throw(IcsException);
 
-	ProtocolStream& operator >> (float& data) throw(IcsException)
-	{
-		if (sizeof(data) > readLeftSize())
-		{
-			throw IcsException("OOM to get float data");
-		}
-#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
-		data = *(float*)m_curPos;
-#else
-		uint32_t tmp = ics_byteorder(*(uint32_t*)m_curPos);
-		data = *(float*)&tmp;
-#endif
-		m_curPos += sizeof(data);
-		return *this;
-	}
-	*/
+	ProtocolStream& operator >> (LongString& data) throw(IcsException);
 
-	ProtocolStream& operator >> (IcsDataTime& data) throw(IcsException)
-	{
-		if (sizeof(data) > readLeftSize())
-		{
-			throw IcsException("OOM to get IcsDataTime data");
-		}
-		*this >> data.year >> data.month >> data.day >> data.hour >> data.miniute >> data.sec_data;
-		return *this;
-	}
-
-	ProtocolStream& operator >> (ShortString& data) throw(IcsException)
-	{
-		uint8_t len = 0;
-		*this >> len;
-
-		if (len > readLeftSize())
-		{
-			throw IcsException("OOM to get %d bytes short string data", len);
-		}
-		data.assign((char*)m_curPos, len);
-		m_curPos += len;
-		return *this;
-	}
-
-	ProtocolStream& operator >> (LongString& data) throw(IcsException)
-	{
-		uint16_t len;
-		*this >> len;
-		if (len > readLeftSize())
-		{
-			throw IcsException("OOM to get %d bytes long string data", len);
-		}
-
-		data.assign((char*)m_curPos, len);
-		m_curPos += len;
-		return *this;
-	}
-
-	void assertEmpty() const throw(IcsException)
-	{
-		if (readLeftSize() != 0)
-		{
-			throw IcsException("superfluous data:%d bytes", readLeftSize());
-		}
-	}
+	void assertEmpty() const throw(IcsException);
 
 private:
 	// 剩余可写长度
-	inline std::size_t writeLeftSize() const
-	{
-		return m_memoryEnd - m_curPos - IcsMsgHead::CrcCodeSize;
-	}
+	std::size_t writeLeftSize() const;
 
 	// 剩余可读长度
-	inline std::size_t readLeftSize() const
-	{
-		return m_msgEnd - m_curPos - IcsMsgHead::CrcCodeSize;
-	}
+	std::size_t readLeftSize() const;
 
 	// 缓冲区总长度
-	inline std::size_t bufferSize() const 
-	{
-		return m_memoryEnd - (uint8_t*)m_msgHead;
-	}
-protected:
+	std::size_t bufferSize() const;
+
+private:
 	// 内存管理池
 	MemoryPool&		m_memoryPool;
 
@@ -912,6 +453,166 @@ protected:
 	// 缓冲区末地址(最后一字节的下一个位置)
 	uint8_t*		m_memoryEnd;
 };
+*/
+
+template<class T>
+class IcsAllocator : public std::allocator<T> {
+public:
+	typedef std::allocator<T> base_type;
+
+	template<class Other>
+	struct rebind
+	{
+		typedef IcsAllocator<Other> other;
+	};
+
+	// 构造函数必须实现  
+	IcsAllocator() {}
+
+	IcsAllocator(IcsAllocator<T> const&) {}
+
+	IcsAllocator<T>& operator=(IcsAllocator<T> const&) 
+	{
+		return (*this); 
+	}
+
+	// idiom: Coercion by Member Template  
+	template<class Other>
+	IcsAllocator(IcsAllocator<Other> const&) {}
+
+	 // idiom: Coercion by Member Template  
+	template<class Other>
+	IcsAllocator<T>& operator=(IcsAllocator<Other> const&)
+	{ 
+		return (*this); 
+	}
+
+	// 内存的分配与释放可以实现为自定义的算法，替换函数体即可  
+	pointer allocate(size_type count) 
+	{ 
+		return (base_type::allocate(count)); 
+	}
+
+	void deallocate(pointer ptr, size_type count) {
+		base_type::deallocate(ptr, count); 
+	}
+
+
+};
+
+
+//template<class Alloc = std::allocator<>>
+class ProtocolStreamImpl {
+public:
+
+	enum SeekPos {
+		PosStart,
+		PosCurrent,
+		PosEnd
+	};
+
+	/// move the pointer of current position
+	void seek(SeekPos pos, int offset) throw (IcsException);
+
+	MemoryChunk toMemoryChunk();
+protected:
+	/// byte order convert
+	uint8_t byteorder(uint8_t n);
+
+	uint16_t byteorder(uint16_t n);
+
+	uint32_t byteorder(uint32_t n);
+
+	uint64_t byteorder(uint64_t n);
+
+	float byteorder(float n);
+
+	double byteorder(double n);
+
+	std::time_t byteorder(std::time_t n);
+
+	/// the size of left to current postion
+	std::size_t leftSize();
+
+	/// the size of right to current postion
+	std::size_t rightSize();
+
+protected:
+	uint8_t*	m_start;
+	uint8_t*	m_pos;
+	uint8_t*	m_end;
+};
+
+class  IcsProtocolStreamInput : public ProtocolStreamImpl {
+public:
+	typedef IcsProtocolStreamInput self;
+
+	IcsProtocolStreamInput(){}
+
+	MessageId getMsgId();
+
+	uint16_t getSendNum();
+
+	void reset();
+
+	bool assembleMessage(uint8_t* data, std::size_t length);
+
+	bool assertEmpty();
+
+	template<class T>
+	self& operator >> (T& data) throw(IcsException)
+	{
+		if (sizeof(data) > leftSize())
+		{
+			throw IcsException("OOM to get %d bytes data", sizeof(data));
+		}
+
+		data = ics_byteorder(*(T*)m_curPos);
+		m_curPos += sizeof(data);
+		return *this;
+	}
+
+	self& operator >> (std::string& data) throw (IcsException);
+
+	self& operator >> (LongString& data) throw(IcsException);
+
+	self& operator >> (IcsDataTime& data) throw (IcsException);
+};
+
+
+class IcsProtocolStreamOutput : public ProtocolStreamImpl {
+public:
+	typedef IcsProtocolStreamOutput self;
+
+	IcsProtocolStreamOutput();
+
+	void initHead(MessageId id, bool needResponse);
+
+	void initHead(MessageId id, uint16_t ackNum);
+
+	template<class T>
+	self& operator << (const T& data) throw(IcsException)
+	{
+		if (sizeof(data) > rightSize())
+		{
+			throw IcsException("OOM to set %d bytes data", sizeof(data));
+		}
+
+		*(T*)m_curPos = byteorder(data);
+		m_pos += sizeof(data);
+		return *this;
+	}
+
+	self& operator << (const std::string& data) throw (IcsException);
+
+	self& operator << (const LongString& data) throw(IcsException);
+
+	self& operator << (const IcsDataTime& data) throw (IcsException);
+
+private:
+
+};
+
 
 }	// end ics
 
