@@ -19,7 +19,7 @@ IcsProxyTerminalClient::~IcsProxyTerminalClient()
 }
 
 // 处理底层消息
-void IcsProxyTerminalClient::handle(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsProxyTerminalClient::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	auto msgid = request.getHead()->getMsgID();
 
@@ -54,37 +54,38 @@ void IcsProxyTerminalClient::handle(IcsProtocolStreamInput& request, IcsProtocol
 
 	if (msgid == T2C_event_report)
 	{
-		IcsProtocolStreamInput forward(request.getMemoryPool());
+		ProtocolStream forward(g_memoryPool);
 
-		request.rewindReadPos();
-		forward.initHead(MessageId::T2T_forward_msg, false);
-		forward << (uint16_t)msgid << m_connName << request;
+//		request.rewindReadPos();
+//		forward.initHead(MessageId::T2T_forward_msg, false);
+//		forward << (uint16_t)msgid << m_connName << request;
 
 		m_proxyServer.sendToIcsCenter(forward);
 	}
 }
 
 // 处理平层消息
-void IcsProxyTerminalClient::dispatch(IcsProtocolStreamInput& request) throw(IcsException, otl_exception)
+void IcsProxyTerminalClient::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
 {
+	ProtocolStream reinput(std::move(request));
 	ShortString terminalName;
 	uint16_t messageID;
 	uint32_t requestID;
-	request >> terminalName >> messageID >> requestID;
+	reinput >> terminalName >> messageID >> requestID;
 
 	if (messageID <= MessageId::T2C_min || messageID >= MessageId::T2C_max)
 	{
 		throw IcsException("dispatch message=%d is not one of T2C", messageID);
 	}
-	request.moveBack(sizeof(requestID));
+//	reinput.seek(ProtocolStreamImpl::SeekPos::PosCurrent, -sizeof(requestID));
 
 	// 记录该请求ID转发结果
 
 
 	// 发送到该链接对端
-	IcsProtocolStreamInput response(g_memoryPool);
-	response.initHead((MessageId)messageID, false);
-	response << request;
+	ProtocolStream response(g_memoryPool);
+//	response.initHead((MessageId)messageID, false);
+	response << reinput;
 
 	_baseType::trySend(response);
 }
@@ -101,7 +102,7 @@ void IcsProxyTerminalClient::error() throw()
 }
 
 // 终端认证
-void IcsProxyTerminalClient::handleAuthRequest(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsProxyTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	if (!m_connName.empty())
 	{
@@ -157,7 +158,7 @@ void IcsProxyTerminalClient::handleAuthRequest(IcsProtocolStreamInput& request, 
 }
 
 // 事件上报
-void IcsProxyTerminalClient::handleEventsReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsProxyTerminalClient::handleEventsReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	IcsDataTime event_time, recv_time;	//	事件发生时间 接收时间
 	uint16_t event_count;	// 事件项个数
@@ -186,7 +187,7 @@ void IcsProxyTerminalClient::handleEventsReport(IcsProtocolStreamInput& request,
 		eventStream << m_connName << (int)m_deviceKind << (int)event_id << (int)event_type << event_value << event_time << recv_time;
 
 		// 发送给推送服务器: 监测点ID 发生时间 事件编号 事件值
-		IcsProtocolStreamInput pushStream(g_memoryPool);
+		ProtocolStream pushStream(g_memoryPool);
 		pushStream << m_connName << m_deviceKind << event_time << event_id << event_value;
 
 		m_proxyServer.m_pushSystem.send(pushStream);
@@ -198,7 +199,7 @@ void IcsProxyTerminalClient::handleEventsReport(IcsProtocolStreamInput& request,
 }
 
 // 业务上报
-void IcsProxyTerminalClient::handleBusinessReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response)  throw(IcsException, otl_exception)
+void IcsProxyTerminalClient::handleBusinessReport(ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception)
 {
 	IcsDataTime report_time, recv_time;			// 业务采集时间 接收时间
 	uint32_t business_no;	// 业务流水号
@@ -210,7 +211,7 @@ void IcsProxyTerminalClient::handleBusinessReport(IcsProtocolStreamInput& reques
 
 	if (m_lastBusSerialNum == business_no)	// 重复的业务流水号，直接忽略
 	{
-		response.initHead(MessageId::MessageId_min);
+//		response.initHead(MessageId::MessageId_min);
 		return;
 	}
 
@@ -368,13 +369,13 @@ void IcsProxyTerminalClient::handleBusinessReport(IcsProtocolStreamInput& reques
 }
 
 // 终端发送心跳到中心
-void IcsProxyTerminalClient::handleHeartbeat(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsProxyTerminalClient::handleHeartbeat(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 
 }
 
 // 终端发送时钟同步请求
-void IcsProxyTerminalClient::handleDatetimeSync(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsProxyTerminalClient::handleDatetimeSync(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	IcsDataTime dt1, dt2;
 	request >> dt1;
@@ -401,13 +402,13 @@ IcsProxyWebClient::~IcsProxyWebClient()
 }
 
 // 处理底层消息
-void IcsProxyWebClient::handle(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsProxyWebClient::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 
 }
 
 // 处理平层消息
-void IcsProxyWebClient::dispatch(IcsProtocolStreamInput& request) throw(IcsException, otl_exception)
+void IcsProxyWebClient::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
 {
 
 }
@@ -426,7 +427,7 @@ IcsForwardProxy::~IcsForwardProxy()
 }
 
 // 处理底层消息
-void IcsForwardProxy::handle(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsForwardProxy::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	if (request.getHead()->getMsgID() == MessageId::T2T_auth_request)
 	{
@@ -439,13 +440,13 @@ void IcsForwardProxy::handle(IcsProtocolStreamInput& request, IcsProtocolStreamO
 }
 
 // 处理平层消息
-void IcsForwardProxy::dispatch(IcsProtocolStreamInput& request) throw(IcsException, otl_exception)
+void IcsForwardProxy::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
 {
 	this->trySend(request);
 }
 
 
-void IcsForwardProxy::handleAuthrize(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsForwardProxy::handleAuthrize(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	std::time_t t1, t3 = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 	request >> t1;
@@ -459,7 +460,7 @@ void IcsForwardProxy::handleAuthrize(IcsProtocolStreamInput& request, IcsProtoco
 	{
 		// 加密该数据
 		ics::encrypt(&t1, sizeof(t1));
-		response.initHead(MessageId::T2T_auth_response);
+//		response.initHead(MessageId::T2T_auth_response);
 		response << t1;
 
 		m_proxyServer.addIcsCenterConn(shared_from_this());
@@ -548,7 +549,7 @@ void IcsPorxyServer::removeTerminalClient(const string& conID)
 }
 
 /// 向终端发送数据
-bool IcsPorxyServer::sendToTerminalClient(const string& conID, IcsProtocolStreamInput& request)
+bool IcsPorxyServer::sendToTerminalClient(const string& conID, ProtocolStream& request)
 {
 	bool ret = false;
 	std::lock_guard<std::mutex> lock(m_terminalConnMapLock);
@@ -576,12 +577,12 @@ void IcsPorxyServer::addIcsCenterConn(ConneciontPrt conn)
 }
 
 /// 向全部ICS中心发送数据
-void IcsPorxyServer::sendToIcsCenter(IcsProtocolStreamInput& request)
+void IcsPorxyServer::sendToIcsCenter(ProtocolStream& request)
 {
 	std::lock_guard<std::mutex> lock(m_icsCenterConnMapLock);
 	for (auto& it : m_icsCenterConnMap)
 	{
-		IcsProtocolStreamInput message(request);
+		ProtocolStream message(request);
 		it->dispatch(message);
 	}
 }

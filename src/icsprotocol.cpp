@@ -6,7 +6,6 @@
 namespace ics{
 
 //------------------------------ICS byteorder function------------------------------//
-	/*
 uint8_t ics_byteorder(uint8_t n)
 {
 	return n;
@@ -77,9 +76,9 @@ std::time_t ics_byteorder(std::time_t n)
 	return ((n & 0x000000ff) << 24) | ((n & 0x0000ff00) << 8) | ((n & 0x00ff0000) >> 8) | ((n & 0xff000000) >> 24);
 #endif
 }
-*/
 
-	/*
+
+
 
 //------------------------------ICS useful function------------------------------//
 otl_stream& operator<<(otl_stream& s, const IcsDataTime& dt)
@@ -136,19 +135,6 @@ void IcsMsgHead::verify(const void* buf, std::size_t len) const throw(IcsExcepti
 	}
 }
 
-// request
-void IcsMsgHead::init(MessageId id, bool needResponse)
-{
-	this->setMsgID(id);
-	setFlag(0, !ICS_HEAD_ATTR_ACK_FLAG, needResponse ? 1 : 0);
-}
-
-// response
-void IcsMsgHead::init(MessageId id, uint16_t ack_no)
-{
-	this->setMsgID(id);
-	setFlag(0, ICS_HEAD_ATTR_ACK_FLAG, 0);
-}
 
 // set 0
 void IcsMsgHead::clean()
@@ -251,7 +237,7 @@ ProtocolStream::ProtocolStream(MemoryPool& mp)
 	m_msgHead = (IcsMsgHead*)chunk.data;
 	m_msgEnd = (uint8_t*)m_msgHead;
 	m_curPos = (uint8_t*)(m_msgHead + 1);
-	m_memoryEnd = chunk.data + chunk.size;
+//	m_memoryEnd = chunk.data + chunk.size;
 
 	std::memset(m_msgHead, 0, sizeof(IcsMsgHead));
 }
@@ -276,7 +262,7 @@ ProtocolStream::ProtocolStream(const ProtocolStream& rhs)
 	}
 
 	m_msgHead = (IcsMsgHead*)chunk.data;
-	m_memoryEnd = chunk.data + chunk.size;
+//	m_memoryEnd = chunk.data + chunk.size;
 
 	m_msgEnd = (uint8_t*)m_msgHead + rhs.size();
 	m_curPos = (uint8_t*)m_msgHead + rhs.length();
@@ -296,7 +282,7 @@ ProtocolStream::ProtocolStream(MemoryPool& mp, const uint8_t* data, std::size_t 
 	m_msgHead = (IcsMsgHead*)chunk.data;
 	m_curPos = (uint8_t*)(m_msgHead + 1);
 	m_msgEnd = (uint8_t*)m_msgHead + len;
-	m_memoryEnd = chunk.data + chunk.size;
+//	m_memoryEnd = chunk.data + chunk.size;
 
 	std::memcpy(m_msgHead, data, len);
 }
@@ -322,7 +308,7 @@ MemoryChunk ProtocolStream::toMemoryChunk()
 		throw IcsException("MemoryChunk has been moved");
 	}
 
-	MemoryChunk mc((uint8_t*)m_msgHead, 0, bufferSize());
+	MemoryChunk mc((uint8_t*)m_msgHead, bufferSize());
 	m_msgHead = nullptr;
 	return std::move(mc);
 }
@@ -416,10 +402,22 @@ bool ProtocolStream::assembleMessage(uint8_t* & buf, std::size_t& len) throw (Ic
 
 // -----------------------set data----------------------- 
 // 设置消息体长度和校验码
-void ProtocolStream::serailzeToData()
+void ProtocolStream::serialize(uint16_t sendNum)
 {
+	m_msgHead->setSendNum(sendNum);
 	m_msgHead->setLength(m_curPos - (uint8_t*)m_msgHead + IcsMsgHead::CrcCodeSize);
 	*this << crc32_code(m_msgHead, m_curPos - (uint8_t*)m_msgHead);
+}
+
+
+void ProtocolStream::initHead(MessageId id, bool needResponse)
+{
+
+}
+
+void ProtocolStream::initHead(MessageId id, uint16_t ackNum)
+{
+
 }
 
 void ProtocolStream::insert(const ShortString& data)
@@ -560,233 +558,5 @@ std::size_t ProtocolStream::bufferSize() const
 {
 	return m_memoryEnd - (uint8_t*)m_msgHead;
 }
-*/
-
-
-//------------------------------ProtocolStreamImpl------------------------------//
-uint8_t ProtocolStreamImpl::byteorder(uint8_t n)
-{
-	return n;
-}
-
-uint16_t ProtocolStreamImpl::byteorder(uint16_t n)
-{
-#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
-	return n;
-#else
-	return ((n & 0xff) << 8) | ((n >> 8) & 0xff);
-#endif
-}
-
-uint32_t ProtocolStreamImpl::byteorder(uint32_t n)
-{
-#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
-	return n;
-#else
-	return ((n & 0x000000ff) << 24) | ((n & 0x0000ff00) << 8) | ((n & 0x00ff0000) >> 8) | ((n & 0xff000000) >> 24);
-#endif
-}
-
-uint64_t ProtocolStreamImpl::byteorder(uint64_t n)
-{
-#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
-	return n;
-#else
-	return ((n & 0x000000ff) << 24) | ((n & 0x0000ff00) << 8) | ((n & 0x00ff0000) >> 8) | ((n & 0xff000000) >> 24);
-#endif
-}
-
-float ProtocolStreamImpl::byteorder(float n)
-{
-#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
-	return n;
-#else
-	auto tmp = ics_byteorder(*(uint32_t)&n);
-	return *(float)&tmp;
-#endif
-}
-
-double ProtocolStreamImpl::byteorder(double n)
-{
-#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
-	return n;
-#else
-	double ret;
-	if (sizeof(double) == sizeof(uint32_t))
-	{
-		auto tmp = ics_byteorder(*(uint32_t)&n);
-		ret = *(double)&tmp;
-	}
-	else
-	{
-		auto tmp = ics_byteorder(*(uint64_t)&n);
-		ret = *(double)&tmp;
-	}
-	return ret;
-#endif
-}
-
-std::time_t ProtocolStreamImpl::byteorder(std::time_t n)
-{
-#if PROTOCOL_BYTE_ORDER == SYSTEM_BYTE_ORDER
-	return n;
-#else
-	return ((n & 0x000000ff) << 24) | ((n & 0x0000ff00) << 8) | ((n & 0x00ff0000) >> 8) | ((n & 0xff000000) >> 24);
-#endif
-}
-
-/// move the pointer of current position
-void ProtocolStreamImpl::seek(SeekPos pos, int offset) throw (IcsException)
-{
-	switch (pos)
-	{
-	case ProtocolStreamImpl::PosStart:
-		{
-			if (offset < 0 || m_start + offset > m_end)
-			{
-				throw IcsException("offset=%d from start is out of range [0,%d]", offset, m_end - m_start);
-			}
-			m_pos = m_start + offset;
-		}
-		break;
-
-	case ProtocolStreamImpl::PosCurrent:
-		{
-			if (m_pos + offset < m_start || m_pos + offset > m_end)
-			{
-				throw IcsException("offset=%d from current is out of range [%d,%d]", offset, m_pos - m_start, m_end - m_pos);
-			}
-			m_pos = m_start + offset;
-		}
-		break;
-
-	case ProtocolStreamImpl::PosEnd:
-		{
-			if (offset > 0 || m_end + offset < m_start)
-			{
-				throw IcsException("offset=%d from end is out of range [-%d,0]", offset, m_end - m_start);
-			}
-			m_pos = m_start + offset;
-		}
-		break;
-
-	default:
-		throw IcsException("unknown seek positon");
-		break;
-	}
-}
-
-
-//------------------------------IcsProtocolStreamInput------------------------------//
-IcsProtocolStreamInput::IcsProtocolStreamInput()
-{
-
-}
-
-MessageId IcsProtocolStreamInput::getMsgId()
-{
-	return ((IcsMsgHead*)m_start)->getMsgID();
-}
-
-uint16_t IcsProtocolStreamInput::getSendNum()
-{
-	return ((IcsMsgHead*)m_start)->getSendNum();
-}
-
-IcsProtocolStreamInput& IcsProtocolStreamInput::operator >> (IcsDataTime& data) throw(IcsException)
-{
-	if (sizeof(data) > leftSize())
-	{
-		throw IcsException("OOM to get IcsDataTime data");
-	}
-
-	*this >> data.year >> data.month >> data.day >> data.hour >> data.miniute >> data.sec_data;
-	return *this;
-}
-
-IcsProtocolStreamInput& IcsProtocolStreamInput::operator >> (ShortString& data) throw(IcsException)
-{
-	uint8_t len = 0;
-	*this >> len;
-	if (len > leftSize())
-	{
-		throw IcsException("OOM to get %d bytes short string data", len);
-	}
-
-	data.assign((char*)m_pos, len);
-	m_pos += len;
-	return *this;
-}
-
-IcsProtocolStreamInput& IcsProtocolStreamInput::operator >> (LongString& data) throw(IcsException)
-{
-	uint16_t len;
-	*this >> len;
-	if (len > leftSize())
-	{
-		throw IcsException("OOM to get %d bytes long string data", len);
-	}
-
-	data.assign((char*)m_pos, len);
-	m_pos += len;
-	return *this;
-}
-
-IcsProtocolStreamInput::IcsProtocolStreamInput()
-{
-	m_pos = m_start + sizeof(IcsMsgHead);
-	new (m_start)IcsMsgHead();
-}
-
-//------------------------------IcsProtocolStreamOutput------------------------------//
-void IcsProtocolStreamOutput::initHead(MessageId id, bool needResponse)
-{
-
-}
-
-void IcsProtocolStreamOutput::initHead(MessageId id, uint16_t ackNum)
-{
-
-}
-
-IcsProtocolStreamOutput& IcsProtocolStreamOutput::operator << (const IcsDataTime& data) throw(IcsException)
-{
-	if (sizeof(data) > rightSize())
-	{
-		throw IcsException("OOM to set IcsDataTime data");
-	}
-
-	*this << data.year << data.month << data.day << data.hour << data.miniute << data.sec_data;
-	return *this;
-}
-
-IcsProtocolStreamOutput& IcsProtocolStreamOutput::operator << (const std::string& data) throw (IcsException)
-{
-	if (sizeof(uint8_t)+data.length() > rightSize())
-	{
-		throw IcsException("OOM to set %d bytes string data", sizeof(uint8_t)+data.length());
-	}
-
-	*this << (uint8_t)data.length();
-	memcpy(m_pos, data.data(), data.length());
-	return *this;
-}
-
-IcsProtocolStreamOutput& IcsProtocolStreamOutput::operator << (const LongString& data) throw (IcsException)
-{
-	if (sizeof(uint16_t)+data.length() > rightSize())
-	{
-		throw IcsException("OOM to set %d bytes string data", sizeof(uint16_t)+data.length());
-	}
-
-	*this << (uint16_t)data.length();
-	memcpy(m_pos, data.data(), data.length());
-	return *this;
-}
-
-
-
-
-
 
 }

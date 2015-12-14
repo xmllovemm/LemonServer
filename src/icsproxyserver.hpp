@@ -26,29 +26,29 @@ public:
 	virtual ~IcsProxyTerminalClient();
 
 	// 处理底层消息
-	virtual void handle(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	virtual void handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 处理平层消息
-	virtual void dispatch(IcsProtocolStreamInput& request) throw(IcsException, otl_exception);
+	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception);
 
 	// 出错处理
 	virtual void error() throw();
 
 private:
 	// 终端认证
-	void handleAuthRequest(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleAuthRequest(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 事件上报
-	void handleEventsReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleEventsReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 业务上报
-	void handleBusinessReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response)  throw(IcsException, otl_exception);
+	void handleBusinessReport(ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception);
 	
 	// 终端发送心跳到中心
-	void handleHeartbeat(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleHeartbeat(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 	
 	// 终端发送时钟同步请求
-	void handleDatetimeSync(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleDatetimeSync(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 private:
 	IcsPorxyServer&	m_proxyServer;
@@ -75,17 +75,17 @@ public:
 	virtual ~IcsProxyWebClient();
 
 	// 处理底层消息
-	virtual void handle(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	virtual void handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 处理平层消息
-	virtual void dispatch(IcsProtocolStreamInput& request) throw(IcsException, otl_exception);
+	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception);
 
 private:
 	// 文件传输请求
-	void handleTransFileRequest(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleTransFileRequest(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 文件片段处理
-	void handleTransFileFrament(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleTransFileFrament(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 private:
 	IcsPorxyServer&	m_proxyServer;
@@ -104,13 +104,13 @@ public:
 	virtual ~IcsForwardProxy();
 
 	// 处理底层消息
-	virtual void handle(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	virtual void handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 处理平层消息
-	virtual void dispatch(IcsProtocolStreamInput& request) throw(IcsException, otl_exception);
+	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception);
 
 private:
-	void handleAuthrize(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleAuthrize(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 private:
 	IcsPorxyServer&	m_proxyServer;
 };
@@ -140,13 +140,13 @@ public:
 	void removeTerminalClient(const string& conID);
 
 	/// 向终端发送数据
-	bool sendToTerminalClient(const string& conID, IcsProtocolStreamInput& request);
+	bool sendToTerminalClient(const string& conID, ProtocolStream& request);
 
 	/// 添加ICS中心服务链接
 	void addIcsCenterConn(ConneciontPrt conn);
 
 	/// 向全部ICS中心发送数据
-	void sendToIcsCenter(IcsProtocolStreamInput& request);
+	void sendToIcsCenter(ProtocolStream& request);
 
 	/// 获取配置的心跳时间
 	inline uint16_t getHeartbeatTime() const 

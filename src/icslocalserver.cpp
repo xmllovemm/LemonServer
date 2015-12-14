@@ -40,7 +40,7 @@ IcsTerminalClient::~IcsTerminalClient()
 }
 
 // 处理底层消息
-void IcsTerminalClient::handle(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsTerminalClient::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	switch (request.getHead()->getMsgID())
 	{
@@ -87,7 +87,7 @@ void IcsTerminalClient::handle(IcsProtocolStreamInput& request, IcsProtocolStrea
 }
 
 // 处理平层消息
-void IcsTerminalClient::dispatch(IcsProtocolStreamInput& request) throw(IcsException, otl_exception)
+void IcsTerminalClient::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
 {
 	ShortString terminalName;
 	uint16_t messageID;
@@ -104,16 +104,15 @@ void IcsTerminalClient::dispatch(IcsProtocolStreamInput& request) throw(IcsExcep
 
 
 	// 发送到该链接对端
-	IcsProtocolStreamInput response(g_memoryPool);
-	IcsMsgHead* msgHead = response.getHead();
-	msgHead->init((MessageId)messageID, false);
+	ProtocolStream response(g_memoryPool);
+	response.initHead((MessageId)messageID, false);
 	response << request;
 
 	_baseType::trySend(response);
 }
 
 // 终端认证
-void IcsTerminalClient::handleAuthRequest(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	if (!m_connName.empty())
 	{
@@ -174,7 +173,7 @@ void IcsTerminalClient::handleAuthRequest(IcsProtocolStreamInput& request, IcsPr
 }
 
 // 标准状态上报
-void IcsTerminalClient::handleStdStatusReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception, otl_exception)
+void IcsTerminalClient::handleStdStatusReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception, otl_exception)
 {
 	uint32_t status_type;	// 标准状态类别
 
@@ -212,7 +211,7 @@ void IcsTerminalClient::handleStdStatusReport(IcsProtocolStreamInput& request, I
 }
 
 // 自定义状态上报
-void IcsTerminalClient::handleDefStatusReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsTerminalClient::handleDefStatusReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 // 	CDatetime status_time;		//	状态采集时间
 // 	uint16_t status_count;		//	状态项个数
@@ -245,7 +244,7 @@ void IcsTerminalClient::handleDefStatusReport(IcsProtocolStreamInput& request, I
 }
 
 // 事件上报
-void IcsTerminalClient::handleEventsReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsTerminalClient::handleEventsReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	IcsDataTime event_time, recv_time;	//	事件发生时间 接收时间
 	uint16_t event_count;	// 事件项个数
@@ -274,7 +273,7 @@ void IcsTerminalClient::handleEventsReport(IcsProtocolStreamInput& request, IcsP
 		eventStream << m_connName << (int)m_deviceKind << (int)event_id << (int)event_type << event_value << event_time << recv_time;
 
 		// 发送给推送服务器: 监测点ID 发生时间 事件编号 事件值
-		IcsProtocolStreamInput pushStream(g_memoryPool);
+		ProtocolStream pushStream(g_memoryPool);
 		pushStream << m_connName << m_deviceKind << event_time << event_id << event_value;
 
 		m_localServer.m_pushSystem.send(pushStream);
@@ -283,7 +282,7 @@ void IcsTerminalClient::handleEventsReport(IcsProtocolStreamInput& request, IcsP
 }
 
 // 业务上报
-void IcsTerminalClient::handleBusinessReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response)  throw(IcsException, otl_exception)
+void IcsTerminalClient::handleBusinessReport(ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception)
 {
 	IcsDataTime report_time, recv_time;			// 业务采集时间 接收时间
 	uint32_t business_no;	// 业务流水号
@@ -295,7 +294,7 @@ void IcsTerminalClient::handleBusinessReport(IcsProtocolStreamInput& request, Ic
 
 	if (m_lastBusSerialNum == business_no)	// 重复的业务流水号，直接忽略
 	{
-		response.initHead(MessageId::MessageId_min);
+		response.initHead(MessageId::MessageId_min, false);
 		return;
 	}
 
@@ -452,7 +451,7 @@ void IcsTerminalClient::handleBusinessReport(IcsProtocolStreamInput& request, Ic
 }
 
 // GPS上报
-void IcsTerminalClient::handleGpsReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsTerminalClient::handleGpsReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	union
 	{
@@ -481,7 +480,7 @@ void IcsTerminalClient::handleGpsReport(IcsProtocolStreamInput& request, IcsProt
 }
 
 // 终端回应参数查询
-void IcsTerminalClient::handleParamQueryResponse(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsTerminalClient::handleParamQueryResponse(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	uint32_t request_id;	// 请求id
 	uint16_t param_count;	// 参数数量
@@ -503,7 +502,7 @@ void IcsTerminalClient::handleParamQueryResponse(IcsProtocolStreamInput& request
 }
 
 // 终端主动上报参数修改
-void IcsTerminalClient::handleParamAlertReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsTerminalClient::handleParamAlertReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	IcsDataTime alert_time;	//	修改时间
 	uint16_t param_count;	// 参数数量
@@ -525,7 +524,7 @@ void IcsTerminalClient::handleParamAlertReport(IcsProtocolStreamInput& request, 
 }
 
 // 终端回应参数修改
-void IcsTerminalClient::handleParamModifyResponse(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsTerminalClient::handleParamModifyResponse(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	uint32_t request_id;	// 请求id
 	uint16_t param_count;	// 参数数量
@@ -543,7 +542,7 @@ void IcsTerminalClient::handleParamModifyResponse(IcsProtocolStreamInput& reques
 }
 
 // 终端发送时钟同步请求
-void IcsTerminalClient::handleDatetimeSync(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsTerminalClient::handleDatetimeSync(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	IcsDataTime dt1, dt2;
 	request >> dt1;
@@ -556,7 +555,7 @@ void IcsTerminalClient::handleDatetimeSync(IcsProtocolStreamInput& request, IcsP
 }
 
 // 终端上报日志
-void IcsTerminalClient::handleLogReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsTerminalClient::handleLogReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	IcsDataTime status_time;		//	时间
 	uint8_t log_level;			//	日志级别
@@ -586,13 +585,13 @@ void IcsTerminalClient::handleLogReport(IcsProtocolStreamInput& request, IcsProt
 }
 
 // 终端发送心跳到中心
-void IcsTerminalClient::handleHeartbeat(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsTerminalClient::handleHeartbeat(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 
 }
 
 // 终端拒绝升级请求
-void IcsTerminalClient::handleDenyUpgrade(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsTerminalClient::handleDenyUpgrade(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	uint32_t request_id;	// 请求id
 	string reason;	// 拒绝升级原因
@@ -610,7 +609,7 @@ void IcsTerminalClient::handleDenyUpgrade(IcsProtocolStreamInput& request, IcsPr
 }
 
 // 终端接收升级请求
-void IcsTerminalClient::handleAgreeUpgrade(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsTerminalClient::handleAgreeUpgrade(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	uint32_t request_id;	// 文件id
 	request >> request_id;
@@ -625,7 +624,7 @@ void IcsTerminalClient::handleAgreeUpgrade(IcsProtocolStreamInput& request, IcsP
 }
 
 // 索要升级文件片段
-void IcsTerminalClient::handleRequestFile(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsTerminalClient::handleRequestFile(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 
 	uint32_t file_id, request_id, fragment_offset, received_size;
@@ -683,7 +682,7 @@ void IcsTerminalClient::handleRequestFile(IcsProtocolStreamInput& request, IcsPr
 }
 
 // 升级文件传输结果
-void IcsTerminalClient::handleUpgradeResult(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsTerminalClient::handleUpgradeResult(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	uint32_t request_id;	// 文件id
 	string upgrade_result;	// 升级结果
@@ -701,7 +700,7 @@ void IcsTerminalClient::handleUpgradeResult(IcsProtocolStreamInput& request, Ics
 }
 
 // 终端确认取消升级
-void IcsTerminalClient::handleUpgradeCancelAck(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsTerminalClient::handleUpgradeCancelAck(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	uint32_t request_id;	// 文件id
 
@@ -726,7 +725,7 @@ IcsWebClient::IcsWebClient(IcsLocalServer& localServer, socket&& s)
 }
 
 // 处理底层消息
-void IcsWebClient::handle(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsWebClient::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	switch (request.getHead()->getMsgID())
 	{
@@ -749,13 +748,13 @@ void IcsWebClient::handle(IcsProtocolStreamInput& request, IcsProtocolStreamOutp
 }
 
 // 处理平层消息
-void IcsWebClient::dispatch(IcsProtocolStreamInput& request) throw(IcsException, otl_exception)
+void IcsWebClient::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
 {
 	throw IcsException("WebHandler never handle message, id: %d ", request.getHead()->getMsgID());
 }
 
 // 转发到对应终端
-void IcsWebClient::handleForward(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsWebClient::handleForward(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	ShortString terminalName;
 	uint16_t messageID;
@@ -778,7 +777,7 @@ void IcsWebClient::handleForward(IcsProtocolStreamInput& request, IcsProtocolStr
 }
 
 // 连接远端子服务器
-void IcsWebClient::handleConnectRemote(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsWebClient::handleConnectRemote(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	ShortString remoteID;
 	request >> remoteID;
@@ -839,7 +838,7 @@ void IcsWebClient::handleConnectRemote(IcsProtocolStreamInput& request, IcsProto
 }
 
 // 断开远端子服务器
-void IcsWebClient::handleDisconnectRemote(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsWebClient::handleDisconnectRemote(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	ShortString remoteID;
 	request >> remoteID;
@@ -890,7 +889,7 @@ std::unordered_map<std::string, std::string> IcsRemoteProxyClient::s_remoteIdToD
 std::mutex IcsRemoteProxyClient::s_idMapLock;
 
 // 处理底层消息
-void IcsRemoteProxyClient::handle(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsRemoteProxyClient::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	switch (request.getHead()->getMsgID())
 	{
@@ -910,7 +909,7 @@ void IcsRemoteProxyClient::handle(IcsProtocolStreamInput& request, IcsProtocolSt
 }
 
 // 处理平层消息
-void IcsRemoteProxyClient::dispatch(IcsProtocolStreamInput& request) throw(IcsException, otl_exception)
+void IcsRemoteProxyClient::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
 {
 	throw IcsException("IcsRemoteProxyClient never dispatch");
 }
@@ -918,7 +917,7 @@ void IcsRemoteProxyClient::dispatch(IcsProtocolStreamInput& request) throw(IcsEx
 // 请求验证中心身份
 void IcsRemoteProxyClient::requestAuthrize()
 {
-	IcsProtocolStreamInput request(g_memoryPool);
+	ProtocolStream request(g_memoryPool);
 
 	// 取当前时间点
 	std::time_t t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -926,7 +925,7 @@ void IcsRemoteProxyClient::requestAuthrize()
 	// 加密该数据
 	ics::encrypt(&t, sizeof(t));
 
-	request.initHead(MessageId::T2T_auth_request);
+	request.initHead(MessageId::T2T_auth_request, false);
 	request << t;
 
 
@@ -937,7 +936,7 @@ void IcsRemoteProxyClient::requestAuthrize()
 }
 
 // 处理认证请求结果
-void IcsRemoteProxyClient::handleAuthResponse(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsRemoteProxyClient::handleAuthResponse(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	std::time_t t1,t3 = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 	request >> t1;
@@ -959,7 +958,7 @@ void IcsRemoteProxyClient::handleAuthResponse(IcsProtocolStreamInput& request, I
 }
 
 // 处理代理服务器转发的消息
-void IcsRemoteProxyClient::handleForwardMessage(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception)
+void IcsRemoteProxyClient::handleForwardMessage(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	// 在消息体开始处取出消息ID、终端编号(gwid)
 	uint16_t msgid;
@@ -1066,7 +1065,7 @@ void IcsLocalServer::removeTerminalClient(const string& conID)
 }
 
 /// 发送数据到终端对象
-bool IcsLocalServer::sendToTerminalClient(const string& conID, IcsProtocolStreamInput& request)
+bool IcsLocalServer::sendToTerminalClient(const string& conID, ProtocolStream& request)
 {
 	bool ret = false;
 	std::lock_guard<std::mutex> lock(m_terminalConnMapLock);

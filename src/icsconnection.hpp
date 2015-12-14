@@ -62,7 +62,7 @@ public:
 	// 按该数据开始事件
 	void start(const uint8_t* data, std::size_t length)
 	{
-		m_request.rewindWritePos();
+		m_request.reset();
 
 		// 处理该消息
 		if (handleData(const_cast<uint8_t*>(data), length))
@@ -77,7 +77,7 @@ public:
 	// 无初始数据开始事件
 	void start()
 	{
-		m_request.rewindWritePos();
+		m_request.rewindReadPos();
 
 		// 开始接收数据
 		do_read();
@@ -96,10 +96,10 @@ public:
 	}
 
 	// 处理底层消息
-	virtual void handle(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception) = 0;
+	virtual void handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception) = 0;
 
 	// 处理平层消息
-	virtual void dispatch(IcsProtocolStreamInput& request) throw(IcsException, otl_exception) = 0;
+	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception) = 0;
 
 	// 出错处理
 	virtual void error() throw()
@@ -128,10 +128,9 @@ public:
 
 protected:
 	/// 发送数据
-	void trySend(IcsProtocolStreamOutput& msg)
+	void trySend(ProtocolStream& msg)
 	{
-		msg.getHead()->setSendNum(m_serialNum++);
-		msg.serailzeToData();
+		msg.serialize(m_serialNum++);
 		{
 			std::lock_guard<std::mutex> lock(m_sendLock);
 			m_sendList.push_back(msg.toMemoryChunk());
@@ -251,7 +250,7 @@ protected:
 				if (m_request.assembleMessage(data, length))
 				{
 					handleMessage(m_request);
-					m_request.reset();
+					m_request.rewindReadPos();
 				}
 			}
 		}
@@ -265,12 +264,12 @@ protected:
 	}
 
 	/// 处理该条完整消息
-	void handleMessage(IcsProtocolStreamInput&	request)
+	void handleMessage(ProtocolStream&	request)
 	{
 		// 置0超时计数
 		m_timeoutCount = 0;
 
-		/*
+		///*
 		IcsMsgHead* head = request.getHead();
 
 		try {
@@ -283,7 +282,7 @@ protected:
 				return;
 			}
 
-			IcsProtocolStreamInput response(g_memoryPool);
+			ProtocolStream response(g_memoryPool);
 
 			/// handle message
 			handle(request, response);
@@ -295,7 +294,7 @@ protected:
 			}
 			else if (head->needResposne())
 			{
-				response.getHead()->init(MessageId::MessageId_min, head->getSendNum());	// head->getMsgID()
+				response.initHead(MessageId::MessageId_min, head->getSendNum());	// head->getMsgID()
 				trySend(response);
 			}
 
@@ -333,8 +332,10 @@ protected:
 	bool			m_replaced;
 private:
 	// recv area
-	IcsProtocolStreamInput m_request;
-	std::array<uint8_t, 512> m_recvBuff;
+//	ProtocolStream		m_request;
+	uint8_t				m_recvBuff[1024];
+	/// 已接收数据大小
+	std::size_t			m_recvSize;
 
 	// send area
 	uint16_t m_serialNum;

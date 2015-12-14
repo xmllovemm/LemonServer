@@ -250,12 +250,6 @@ public:
 
 	void verify(const void* buf, std::size_t len) const throw(IcsException);
 
-	// request
-	void init(MessageId id, bool needResponse = true);
-
-	// response
-	void init(MessageId id, uint16_t ack_no);
-
 	// set 0
 	void clean();
 
@@ -316,8 +310,7 @@ otl_stream& operator<<(otl_stream& s, const IcsDataTime& dt);
 otl_stream& operator<<(otl_stream& s, const LongString& dt);
 
 
-/*
-// ICS消息处理类
+/// ICS消息处理类
 class ProtocolStream
 {
 public:
@@ -361,7 +354,11 @@ public:
 
 	// -----------------------set data----------------------- 
 	// 设置消息体长度和校验码
-	void serailzeToData();
+	void serialize(uint16_t sendNum);
+
+	void initHead(MessageId id, bool needResponse);
+
+	void initHead(MessageId id, uint16_t ackNum);
 
 	void insert(const ShortString& data);
 
@@ -452,167 +449,13 @@ private:
 	uint8_t*		m_msgEnd;
 	// 缓冲区末地址(最后一字节的下一个位置)
 	uint8_t*		m_memoryEnd;
+
+	/// 
+	uint8_t* m_start;
+	uint8_t* m_rp;
+	uint8_t* m_wp;
+	uint8_t* m_end;
 };
-*/
-
-template<class T>
-class IcsAllocator : public std::allocator<T> {
-public:
-	typedef std::allocator<T> base_type;
-
-	template<class Other>
-	struct rebind
-	{
-		typedef IcsAllocator<Other> other;
-	};
-
-	// 构造函数必须实现  
-	IcsAllocator() {}
-
-	IcsAllocator(IcsAllocator<T> const&) {}
-
-	IcsAllocator<T>& operator=(IcsAllocator<T> const&) 
-	{
-		return (*this); 
-	}
-
-	// idiom: Coercion by Member Template  
-	template<class Other>
-	IcsAllocator(IcsAllocator<Other> const&) {}
-
-	 // idiom: Coercion by Member Template  
-	template<class Other>
-	IcsAllocator<T>& operator=(IcsAllocator<Other> const&)
-	{ 
-		return (*this); 
-	}
-
-	// 内存的分配与释放可以实现为自定义的算法，替换函数体即可  
-	pointer allocate(size_type count) 
-	{ 
-		return (base_type::allocate(count)); 
-	}
-
-	void deallocate(pointer ptr, size_type count) {
-		base_type::deallocate(ptr, count); 
-	}
-
-
-};
-
-
-//template<class Alloc = std::allocator<>>
-class ProtocolStreamImpl {
-public:
-
-	enum SeekPos {
-		PosStart,
-		PosCurrent,
-		PosEnd
-	};
-
-	/// move the pointer of current position
-	void seek(SeekPos pos, int offset) throw (IcsException);
-
-	MemoryChunk toMemoryChunk();
-protected:
-	/// byte order convert
-	uint8_t byteorder(uint8_t n);
-
-	uint16_t byteorder(uint16_t n);
-
-	uint32_t byteorder(uint32_t n);
-
-	uint64_t byteorder(uint64_t n);
-
-	float byteorder(float n);
-
-	double byteorder(double n);
-
-	std::time_t byteorder(std::time_t n);
-
-	/// the size of left to current postion
-	std::size_t leftSize();
-
-	/// the size of right to current postion
-	std::size_t rightSize();
-
-protected:
-	uint8_t*	m_start;
-	uint8_t*	m_pos;
-	uint8_t*	m_end;
-};
-
-class  IcsProtocolStreamInput : public ProtocolStreamImpl {
-public:
-	typedef IcsProtocolStreamInput self;
-
-	IcsProtocolStreamInput(){}
-
-	MessageId getMsgId();
-
-	uint16_t getSendNum();
-
-	void reset();
-
-	bool assembleMessage(uint8_t* data, std::size_t length);
-
-	bool assertEmpty();
-
-	template<class T>
-	self& operator >> (T& data) throw(IcsException)
-	{
-		if (sizeof(data) > leftSize())
-		{
-			throw IcsException("OOM to get %d bytes data", sizeof(data));
-		}
-
-		data = ics_byteorder(*(T*)m_curPos);
-		m_curPos += sizeof(data);
-		return *this;
-	}
-
-	self& operator >> (std::string& data) throw (IcsException);
-
-	self& operator >> (LongString& data) throw(IcsException);
-
-	self& operator >> (IcsDataTime& data) throw (IcsException);
-};
-
-
-class IcsProtocolStreamOutput : public ProtocolStreamImpl {
-public:
-	typedef IcsProtocolStreamOutput self;
-
-	IcsProtocolStreamOutput();
-
-	void initHead(MessageId id, bool needResponse);
-
-	void initHead(MessageId id, uint16_t ackNum);
-
-	template<class T>
-	self& operator << (const T& data) throw(IcsException)
-	{
-		if (sizeof(data) > rightSize())
-		{
-			throw IcsException("OOM to set %d bytes data", sizeof(data));
-		}
-
-		*(T*)m_curPos = byteorder(data);
-		m_pos += sizeof(data);
-		return *this;
-	}
-
-	self& operator << (const std::string& data) throw (IcsException);
-
-	self& operator << (const LongString& data) throw(IcsException);
-
-	self& operator << (const IcsDataTime& data) throw (IcsException);
-
-private:
-
-};
-
 
 }	// end ics
 

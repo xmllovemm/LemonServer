@@ -31,62 +31,62 @@ public:
 	virtual ~IcsTerminalClient();
 
 	// 处理底层消息
-	virtual void handle(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	virtual void handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 处理平层消息
-	virtual void dispatch(IcsProtocolStreamInput& request) throw(IcsException, otl_exception);
+	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception);
 
 private:
 	// 终端认证
-	void handleAuthRequest(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleAuthRequest(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 标准状态上报
-	void handleStdStatusReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception, otl_exception);
+	void handleStdStatusReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception, otl_exception);
 
 	// 自定义状态上报
-	void handleDefStatusReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleDefStatusReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 事件上报
-	void handleEventsReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleEventsReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 	
 	// 业务上报
-	void handleBusinessReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response)  throw(IcsException, otl_exception);
+	void handleBusinessReport(ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception);
 
 	// GPS上报
-	void handleGpsReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleGpsReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 	
 	// 终端回应参数查询
-	void handleParamQueryResponse(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleParamQueryResponse(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 终端主动上报参数修改
-	void handleParamAlertReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleParamAlertReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 终端回应参数修改
-	void handleParamModifyResponse(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleParamModifyResponse(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 终端发送时钟同步请求
-	void handleDatetimeSync(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleDatetimeSync(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 终端上报日志
-	void handleLogReport(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleLogReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 	
 	// 终端发送心跳到中心
-	void handleHeartbeat(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleHeartbeat(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 终端拒绝升级请求
-	void handleDenyUpgrade(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleDenyUpgrade(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 	
 	// 终端接收升级请求
-	void handleAgreeUpgrade(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleAgreeUpgrade(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 	
 	// 索要升级文件片段
-	void handleRequestFile(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleRequestFile(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 升级文件传输结果
-	void handleUpgradeResult(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleUpgradeResult(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 终端确认取消升级
-	void handleUpgradeCancelAck(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleUpgradeCancelAck(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 protected:
 	IcsLocalServer&			m_localServer;
@@ -120,20 +120,20 @@ public:
 	IcsWebClient(IcsLocalServer& localServer, socket&& s);
 
 	// 处理底层消息
-	virtual void handle(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	virtual void handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 处理平层消息
-	virtual void dispatch(IcsProtocolStreamInput& request) throw(IcsException, otl_exception);
+	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception);
 private:
 
 	// 转发到对应终端
-	void handleForward(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleForward(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 连接远端子服务器
-	void handleConnectRemote(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleConnectRemote(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 断开远端子服务器
-	void handleDisconnectRemote(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleDisconnectRemote(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 private:
 	IcsLocalServer& m_localServer;
@@ -154,19 +154,19 @@ public:
 	~IcsRemoteProxyClient();
 
 	// 处理底层消息
-	virtual void handle(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	virtual void handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 处理平层消息
-	virtual void dispatch(IcsProtocolStreamInput& request) throw(IcsException, otl_exception);
+	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception);
 
 	// 请求验证中心身份
 	void requestAuthrize();
 private:
 	// 处理认证请求结果
-	void handleAuthResponse(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleAuthResponse(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 处理代理服务器转发的消息
-	void handleForwardMessage(IcsProtocolStreamInput& request, IcsProtocolStreamOutput& response) throw(IcsException, otl_exception);
+	void handleForwardMessage(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 private:
 	std::string		m_enterpriseID;
@@ -210,7 +210,7 @@ public:
 	void removeTerminalClient(const string& conID);
 
 	/// 发送数据到终端对象
-	bool sendToTerminalClient(const string& conID, IcsProtocolStreamInput& request);
+	bool sendToTerminalClient(const string& conID, ProtocolStream& request);
 
 	/// 添加远程代理服务器对象
 	void addRemotePorxy(const string& remoteID, ConneciontPrt conn);
