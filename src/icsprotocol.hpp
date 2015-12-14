@@ -4,7 +4,7 @@
 #define _ICS_PROTOCOL_H
 
 #include "config.hpp"
-#include "util.hpp"
+//#include "util.hpp"
 #include "otlv4.h"
 #include "icsexception.hpp"
 #include "mempool.hpp"
@@ -14,7 +14,6 @@
 #include <stdexcept>
 #include <iostream>
 #include <exception>
-#include <array>
 #include <chrono>
 #include <ctime>
 #include <cstddef>
@@ -305,6 +304,7 @@ private:
 // get current time
 void getIcsNowTime(IcsDataTime& dt);
 
+
 otl_stream& operator<<(otl_stream& s, const IcsDataTime& dt);
 
 otl_stream& operator<<(otl_stream& s, const LongString& dt);
@@ -314,58 +314,80 @@ otl_stream& operator<<(otl_stream& s, const LongString& dt);
 class ProtocolStream
 {
 public:
-	ProtocolStream(MemoryPool& mp);
+//	ProtocolStream(MemoryPool& mp);
 
-	ProtocolStream(ProtocolStream&& rhs);
 
-	ProtocolStream(const ProtocolStream& rhs);
+//	ProtocolStream(MemoryPool& mp, const uint8_t* data, std::size_t len);
+	
+	enum OptType {
+		readType,
+		writeType
+	};
 
-	ProtocolStream(MemoryPool& mp, const uint8_t* data, std::size_t len);
+	ProtocolStream(OptType type, void* buf, std::size_t length);
+
+	ProtocolStream(OptType type, const MemoryChunk& chunk);
+
+	ProtocolStream(OptType type, MemoryChunk&& chunk);
+
+//	ProtocolStream(ProtocolStream&& rhs);
+
+//	ProtocolStream(const ProtocolStream& rhs);
 
 	~ProtocolStream();
 
-	MemoryPool& getMemoryPool();
+	
+
+//	MemoryPool& getMemoryPool();
 
 	/// 调用该接口以后不可读写操作
 	MemoryChunk toMemoryChunk();
 
-	/// 重置读位置
-	void rewindReadPos();
-
-	/// 重置写位置
-	void rewindWritePos();
+	/// 重置操作位置
+	void rewind()
+	{
+		m_pos = m_start + sizeof(IcsMsgHead);
+	}
 
 	/// get the protocol head
-	IcsMsgHead* getHead() const;
+	IcsMsgHead* getHead() const
+	{
+		return (IcsMsgHead*)m_start;
+	}
 
-	// 消息总长度
-	std::size_t size() const;
+	// 移动长度
+	std::size_t length() const
+	{
+		return m_pos - m_start;
+	}
 
-	// 消息体长度
-	std::size_t length() const;
+	// 剩余长度
+	std::size_t leftLength() const
+	{
+		return m_end - m_pos;
+	}
 
-	
-	// there is no more data to get
-	bool empty() const;
-	
+	// 总长度
+	std::size_t size() const
+	{
+		return m_end - m_start;
+	}
 
+	// -----------------------write data----------------------- 
 	// 组装一条完整消息,返回值：true-有完整消息，false-需要更多数据，异常-超出最大缓冲区
 	bool assembleMessage(uint8_t* & buf, std::size_t& len) throw (IcsException);
-
-	// -----------------------set data----------------------- 
-	// 设置消息体长度和校验码
-	void serialize(uint16_t sendNum);
 
 	void initHead(MessageId id, bool needResponse);
 
 	void initHead(MessageId id, uint16_t ackNum);
 
-	void insert(const ShortString& data);
+	// 设置消息体长度和校验码
+	void serialize(uint16_t sendNum);
 
 	template<class T>
 	ProtocolStream& operator << (const T& data) throw(IcsException)
 	{
-		if (sizeof(data) > writeLeftSize())
+		if (sizeof(data) > leftLength())
 		{
 			throw IcsException("OOM to set %d bytes data", sizeof(data));
 		}
@@ -382,7 +404,7 @@ public:
 	{
 		std::size_t len  = std::strlen(data);
 
-		if (len + sizeof(LengthType) > writeLeftSize())
+		if (len + sizeof(LengthType) > leftLength())
 		{
 			throw IcsException("OOM to set %d bytes string data",len);
 		}
@@ -405,7 +427,7 @@ public:
 
 	void verify() const throw(IcsException);
 
-	// -----------------------get data----------------------- 
+	// -----------------------read data----------------------- 
 	template<class T>
 	ProtocolStream& operator >> (T& data) throw(IcsException)		
 	{
@@ -418,7 +440,6 @@ public:
 		return *this;
 	}
 
-
 	ProtocolStream& operator >> (IcsDataTime& data) throw(IcsException);
 
 	ProtocolStream& operator >> (ShortString& data) throw(IcsException);
@@ -426,35 +447,24 @@ public:
 	ProtocolStream& operator >> (LongString& data) throw(IcsException);
 
 	void assertEmpty() const throw(IcsException);
-
-private:
-	// 剩余可写长度
-	std::size_t writeLeftSize() const;
-
-	// 剩余可读长度
-	std::size_t readLeftSize() const;
-
-	// 缓冲区总长度
-	std::size_t bufferSize() const;
-
 private:
 	// 内存管理池
-	MemoryPool&		m_memoryPool;
+//	MemoryPool&		m_memoryPool;
 
 	// 消息头/缓冲区起始地址
-	IcsMsgHead*		m_msgHead;
+//	IcsMsgHead*		m_msgHead;
 	// 当前读/取位置
-	uint8_t*		m_curPos;
+//	uint8_t*		m_curPos;
 	// 消息尾(消息最后一字节的下一个位置)
-	uint8_t*		m_msgEnd;
+//	uint8_t*		m_msgEnd;
 	// 缓冲区末地址(最后一字节的下一个位置)
-	uint8_t*		m_memoryEnd;
+//	uint8_t*		m_memoryEnd;
 
 	/// 
-	uint8_t* m_start;
-	uint8_t* m_rp;
-	uint8_t* m_wp;
-	uint8_t* m_end;
+	uint8_t*	m_start;
+	uint8_t*	m_pos;
+	uint8_t*	m_end;
+	OptType		m_optType;
 };
 
 }	// end ics

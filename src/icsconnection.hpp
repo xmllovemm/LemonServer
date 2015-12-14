@@ -32,7 +32,10 @@ public:
 		: m_socket(std::move(s))
 		, m_valid(true)
 		, m_replaced(false)
-		, m_request(g_memoryPool)
+//		, m_request(g_memoryPool)
+		, m_recvSize(0)
+		, m_msgHead(nullptr)
+		, m_needSize(sizeof(IcsMsgHead))
 		, m_serialNum(0)
 		, m_isSending(false)
 		, m_timeoutCount(0)
@@ -62,8 +65,6 @@ public:
 	// 按该数据开始事件
 	void start(const uint8_t* data, std::size_t length)
 	{
-		m_request.reset();
-
 		// 处理该消息
 		if (handleData(const_cast<uint8_t*>(data), length))
 		{
@@ -77,8 +78,6 @@ public:
 	// 无初始数据开始事件
 	void start()
 	{
-		m_request.rewindReadPos();
-
 		// 开始接收数据
 		do_read();
 	}
@@ -155,11 +154,11 @@ protected:
 	{
 		// wait response
 		auto self(this->shared_from_this());
-		m_socket.async_receive(asio::buffer(m_recvBuff),
-			[self](const std::error_code& ec, std::size_t length)
+		m_socket.async_receive(asio::buffer(m_recvBuff + m_recvSize, sizeof(m_recvBuff)-m_recvSize)
+			, [self](const std::error_code& ec, std::size_t length)
 		{
 			// no error and handle message
-			if (!ec && self->handleData(self->m_recvBuff.data(), length))
+			if (!ec && self->handleData(length))
 			{
 				// continue to read
 				self->do_read();
@@ -238,21 +237,19 @@ protected:
 	}
 
 	/// 处理该数据段
-	bool handleData(uint8_t* data, std::size_t length)
+	bool handleData(std::size_t length)
 	{
 		/// show debug info
-		this->toHexInfo("recv from", data, length);
+		this->toHexInfo("recv from", m_recvBuff + m_recvSize , length);
 
 		try {
-			while (length != 0)
+			if (m_msgHead)
 			{
-				/// assemble a complete ICS message and handle it
-				if (m_request.assembleMessage(data, length))
-				{
-					handleMessage(m_request);
-					m_request.rewindReadPos();
-				}
+//				if (m_recvSize + length > m_needSize)
 			}
+
+			/// assemble a complete ICS message and handle it
+			handleMessage(ProtocolStream(ProtocolStream::OptType::readType, m_recvBuff, m_recvSize));
 		}
 		catch (IcsException& ex)
 		{
@@ -282,7 +279,8 @@ protected:
 				return;
 			}
 
-			ProtocolStream response(g_memoryPool);
+			MemoryChunk chunk = g_memoryPool.get();
+			ProtocolStream response(std::move(chunk));
 
 			/// handle message
 			handle(request, response);
@@ -336,6 +334,8 @@ private:
 	uint8_t				m_recvBuff[1024];
 	/// 已接收数据大小
 	std::size_t			m_recvSize;
+	IcsMsgHead*			m_msgHead;
+	std::size_t			m_needSize;
 
 	// send area
 	uint16_t m_serialNum;

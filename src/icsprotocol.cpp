@@ -1,7 +1,7 @@
 ﻿
 
 #include "icsprotocol.hpp"
-
+#include "util.hpp"
 
 namespace ics{
 
@@ -225,6 +225,7 @@ uint32_t IcsMsgHead::getCrcCode() const
 
 
 //------------------------------ICS message stream------------------------------//
+/*
 ProtocolStream::ProtocolStream(MemoryPool& mp)
 	: m_memoryPool(mp)
 {
@@ -235,8 +236,8 @@ ProtocolStream::ProtocolStream(MemoryPool& mp)
 	}
 
 	m_msgHead = (IcsMsgHead*)chunk.data;
-	m_msgEnd = (uint8_t*)m_msgHead;
-	m_curPos = (uint8_t*)(m_msgHead + 1);
+	(uint8_t*)m_msgHead;
+	m_pos = (uint8_t*)(m_msgHead + 1);
 //	m_memoryEnd = chunk.data + chunk.size;
 
 	std::memset(m_msgHead, 0, sizeof(IcsMsgHead));
@@ -245,7 +246,7 @@ ProtocolStream::ProtocolStream(MemoryPool& mp)
 ProtocolStream::ProtocolStream(ProtocolStream&& rhs)
 	: m_memoryPool(rhs.m_memoryPool)
 	, m_msgHead(rhs.m_msgHead)
-	, m_curPos(rhs.m_curPos)
+	, m_pos(rhs.m_pos)
 	, m_msgEnd(rhs.m_msgEnd)
 	, m_memoryEnd(rhs.m_memoryEnd)
 {
@@ -264,8 +265,8 @@ ProtocolStream::ProtocolStream(const ProtocolStream& rhs)
 	m_msgHead = (IcsMsgHead*)chunk.data;
 //	m_memoryEnd = chunk.data + chunk.size;
 
-	m_msgEnd = (uint8_t*)m_msgHead + rhs.size();
-	m_curPos = (uint8_t*)m_msgHead + rhs.length();
+	(uint8_t*)m_msgHead + rhs.size();
+	m_pos = (uint8_t*)m_msgHead + rhs.length();
 
 	std::memcpy(m_msgHead, rhs.m_msgHead, rhs.size());
 }
@@ -280,78 +281,81 @@ ProtocolStream::ProtocolStream(MemoryPool& mp, const uint8_t* data, std::size_t 
 	}
 
 	m_msgHead = (IcsMsgHead*)chunk.data;
-	m_curPos = (uint8_t*)(m_msgHead + 1);
-	m_msgEnd = (uint8_t*)m_msgHead + len;
+	m_pos = (uint8_t*)(m_msgHead + 1);
+	(uint8_t*)m_msgHead + len;
 //	m_memoryEnd = chunk.data + chunk.size;
 
 	std::memcpy(m_msgHead, data, len);
-}
-
-ProtocolStream::~ProtocolStream()
-{
-	if (m_msgHead)
-	{
-		m_memoryPool.put(toMemoryChunk());
-	}
 }
 
 MemoryPool& ProtocolStream::getMemoryPool()
 {
 	return m_memoryPool;
 }
+*/
 
 /// 调用该接口以后不可读写操作
 MemoryChunk ProtocolStream::toMemoryChunk()
 {
-	if (!m_msgHead)
+	if (!m_start)
 	{
 		throw IcsException("MemoryChunk has been moved");
 	}
 
-	MemoryChunk mc((uint8_t*)m_msgHead, bufferSize());
-	m_msgHead = nullptr;
+	MemoryChunk mc(m_start, length());
+	m_start = nullptr;
 	return std::move(mc);
 }
 
-/// 重置读位置
-void ProtocolStream::rewindReadPos()
+
+ProtocolStream::ProtocolStream(OptType type, void* buf, std::size_t length)
+	: m_start((uint8_t*)buf)
+	, m_pos(m_start + sizeof(IcsMsgHead))
+	, m_end(m_start + length)
+	, m_optType(type)
 {
-	m_curPos = (uint8_t*)(m_msgHead + 1);
+	if (!m_start || length < sizeof(IcsMsgHead)+IcsMsgHead::CrcCodeSize)
+	{
+		throw IcsException("init ProtocolStream data error");
+	}
+	
+	if (type == OptType::writeType)/// 若作为写操作，初始化消息头
+	{
+		new (m_start)IcsMsgHead();
+	}
+	else if (OptType::readType)/// 若作为读操作，校验消息头，长度减去校验码长度
+	{
+		((IcsMsgHead*)m_start)->verify(m_start, length);
+		m_end -= IcsMsgHead::CrcCodeSize;
+	}
 }
 
-/// 重置写位置
-void ProtocolStream::rewindWritePos()
+ProtocolStream::ProtocolStream(OptType type, const MemoryChunk& chunk)
 {
-	m_msgEnd = (uint8_t*)m_msgHead;
-	m_curPos = (uint8_t*)(m_msgHead + 1);
+	::new (this) ProtocolStream(type, chunk.data, chunk.length);
 }
 
-/// get the protocol head
-IcsMsgHead* ProtocolStream::getHead() const
+ProtocolStream(OptType type, MemoryChunk&& chunk)
 {
-	return m_msgHead;
+	::new (this) ProtocolStream(type, chunk.data, chunk.length);
 }
 
-// 消息总长度
-std::size_t ProtocolStream::size() const
+ProtocolStream::~ProtocolStream()
 {
-	return m_msgEnd - (uint8_t*)m_msgHead;
-}
-
-// 消息体长度
-std::size_t ProtocolStream::length() const
-{
-	return m_curPos - (uint8_t*)m_msgHead;
+	if (m_start && m_optType == OptType::writeType)
+	{
+//		g_mem.put(toMemoryChunk());
+	}
 }
 
 
-// there is no more data to get
-bool ProtocolStream::empty() const
-{
-	return m_curPos == (uint8_t*)(m_msgHead + 1);
-}
 
 
+
+
+
+
+/*
 // 组装一条完整消息,返回值：true-有完整消息，false-需要更多数据，异常-超出最大缓冲区
 bool ProtocolStream::assembleMessage(uint8_t* & buf, std::size_t& len) throw (IcsException)
 {
@@ -399,44 +403,36 @@ bool ProtocolStream::assembleMessage(uint8_t* & buf, std::size_t& len) throw (Ic
 
 	return ret;
 }
+*/
 
 // -----------------------set data----------------------- 
 // 设置消息体长度和校验码
 void ProtocolStream::serialize(uint16_t sendNum)
 {
-	m_msgHead->setSendNum(sendNum);
-	m_msgHead->setLength(m_curPos - (uint8_t*)m_msgHead + IcsMsgHead::CrcCodeSize);
-	*this << crc32_code(m_msgHead, m_curPos - (uint8_t*)m_msgHead);
+	IcsMsgHead* head = (IcsMsgHead*)m_start;
+	head->setSendNum(sendNum);
+	head->setLength(length() + IcsMsgHead::CrcCodeSize);
+	*this << crc32_code(m_start, length());
 }
 
 
 void ProtocolStream::initHead(MessageId id, bool needResponse)
 {
-
+	((IcsMsgHead*)m_start)->setMsgID(id);
+	((IcsMsgHead*)m_start)->setFlag(0, 0, needResponse?1:0);
 }
 
 void ProtocolStream::initHead(MessageId id, uint16_t ackNum)
 {
-
+	((IcsMsgHead*)m_start)->setMsgID(id);
+	((IcsMsgHead*)m_start)->setFlag(0, 0, 0);
+	((IcsMsgHead*)m_start)->setAckNum(ackNum);
 }
-
-void ProtocolStream::insert(const ShortString& data)
-{
-	if (1 + data.length() > writeLeftSize())
-	{
-		throw IcsException("OOM to insert %d bytes string", data.length());
-	}
-
-	*m_curPos++ = data.length();
-	std::memmove(m_curPos + data.length(), m_curPos, length());
-	m_curPos += data.length();
-}
-
 
 
 ProtocolStream& ProtocolStream::operator << (const IcsDataTime& data) throw(IcsException)
 {
-	if (sizeof(data) > writeLeftSize())
+	if (sizeof(data) > leftLength())
 	{
 		throw IcsException("OOM to set IcsDataTime data");
 	}
@@ -458,46 +454,28 @@ ProtocolStream& ProtocolStream::operator << (const LongString& data) throw(IcsEx
 
 ProtocolStream& ProtocolStream::operator << (const ProtocolStream& data) throw(IcsException)
 {
-	if (data.readLeftSize() > writeLeftSize())
+	if (data.leftLength() > leftLength())
 	{
-		throw IcsException("OOM to set %d bytes ProtocolStream data", data.readLeftSize());
+		throw IcsException("OOM to set %d bytes ProtocolStream data", data.leftLength());
 	}
-	std::memcpy(m_curPos, data.m_curPos, data.readLeftSize());
-	m_msgEnd = m_curPos += data.readLeftSize();
+	std::memcpy(m_pos, data.m_pos, data.leftLength());
+	m_pos += data.leftLength();
 	return *this;
-}
-
-void ProtocolStream::append(const void* data, std::size_t len)
-{
-	if (len > writeLeftSize())
-	{
-		throw IcsException("OOM to set %d bytes buff data", len);
-	}
-	memcpy(m_curPos, data, len);
-	m_msgEnd = m_curPos += len;
 }
 
 void ProtocolStream::moveBack(std::size_t offset) throw(IcsException)
 {
-	if (m_curPos - offset < (uint8_t*)(m_msgHead + 1))
+	if (m_pos - offset < m_start)
 	{
 		throw IcsException("cann't move back %s bytes", offset);
 	}
-	m_msgEnd = m_curPos -= offset;
+	m_pos -= offset;
 }
 
-void ProtocolStream::verify() const throw(IcsException)
-{
-	// verify head
-	m_msgHead->verify(m_msgHead, size());
-}
-
-
-	
 
 ProtocolStream& ProtocolStream::operator >> (IcsDataTime& data) throw(IcsException)
 {
-	if (sizeof(data) > readLeftSize())
+	if (sizeof(data) > leftLength())
 	{
 		throw IcsException("OOM to get IcsDataTime data");
 	}
@@ -510,12 +488,12 @@ ProtocolStream& ProtocolStream::operator >> (ShortString& data) throw(IcsExcepti
 	uint8_t len = 0;
 	*this >> len;
 
-	if (len > readLeftSize())
+	if (len > leftLength())
 	{
 		throw IcsException("OOM to get %d bytes short string data", len);
 	}
-	data.assign((char*)m_curPos, len);
-	m_curPos += len;
+	data.assign((char*)m_pos, len);
+	m_pos += len;
 	return *this;
 }
 
@@ -523,40 +501,22 @@ ProtocolStream& ProtocolStream::operator >> (LongString& data) throw(IcsExceptio
 {
 	uint16_t len;
 	*this >> len;
-	if (len > readLeftSize())
+	if (len > leftLength())
 	{
 		throw IcsException("OOM to get %d bytes long string data", len);
 	}
 
-	data.assign((char*)m_curPos, len);
-	m_curPos += len;
+	data.assign((char*)m_pos, len);
+	m_pos += len;
 	return *this;
 }
 
 void ProtocolStream::assertEmpty() const throw(IcsException)
 {
-	if (readLeftSize() != 0)
+	if (leftLength() != 0)
 	{
-		throw IcsException("superfluous data:%d bytes", readLeftSize());
+		throw IcsException("superfluous data:%d bytes", leftLength());
 	}
-}
-
-// 剩余可写长度
-std::size_t ProtocolStream::writeLeftSize() const
-{
-	return m_memoryEnd - m_curPos - IcsMsgHead::CrcCodeSize;
-}
-
-// 剩余可读长度
-std::size_t ProtocolStream::readLeftSize() const
-{
-	return m_msgEnd - m_curPos - IcsMsgHead::CrcCodeSize;
-}
-
-// 缓冲区总长度
-std::size_t ProtocolStream::bufferSize() const
-{
-	return m_memoryEnd - (uint8_t*)m_msgHead;
 }
 
 }

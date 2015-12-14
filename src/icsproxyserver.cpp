@@ -54,7 +54,8 @@ void IcsProxyTerminalClient::handle(ProtocolStream& request, ProtocolStream& res
 
 	if (msgid == T2C_event_report)
 	{
-		ProtocolStream forward(g_memoryPool);
+		auto chunk = g_memoryPool.get();
+		ProtocolStream forward(chunk);
 
 //		request.rewindReadPos();
 //		forward.initHead(MessageId::T2T_forward_msg, false);
