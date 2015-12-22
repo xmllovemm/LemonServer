@@ -1,5 +1,7 @@
 ﻿
 #include "icsproxyserver.hpp"
+#include "util.hpp"
+#include "downloadfile.hpp"
 
 extern ics::IcsConfig g_configFile;
 
@@ -15,15 +17,17 @@ IcsProxyTerminalClient::IcsProxyTerminalClient(IcsPorxyServer& localServer, sock
 
 IcsProxyTerminalClient::~IcsProxyTerminalClient()
 {
-
 }
 
 // 处理底层消息
 void IcsProxyTerminalClient::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	auto msgid = request.getHead()->getMsgID();
-
-	switch (msgid)
+	auto id = request.getHead()->getMsgID();
+	if (id != T2C_auth_request && m_connName.empty())
+	{
+		throw IcsException("must authrize at first step");
+	}
+	switch (id)
 	{
 	case T2C_auth_request:
 		handleAuthRequest(request, response);
@@ -31,6 +35,14 @@ void IcsProxyTerminalClient::handle(ProtocolStream& request, ProtocolStream& res
 
 	case T2C_heartbeat:
 		handleHeartbeat(request, response);
+		break;
+
+	case T2C_std_status_report:
+		handleStdStatusReport(request, response);
+		break;
+
+	case T2C_def_status_report:
+		handleDefStatusReport(request, response);
 		break;
 
 	case T2C_event_report:
@@ -41,52 +53,47 @@ void IcsProxyTerminalClient::handle(ProtocolStream& request, ProtocolStream& res
 		handleBusinessReport(request, response);
 		break;
 
+	case T2C_gps_report:
+		handleGpsReport(request, response);
+		break;
+
 	case T2C_datetime_sync_request:
 		handleDatetimeSync(request, response);
 		break;
 
+	case T2C_log_report:
+		handleLogReport(request, response);
+		break;
 
 	default:
-		LOG_WARN(_baseType::m_name << " recv unknown terminal message id = " << (uint16_t)msgid);
-//		throw IcsException("%s recv unknown terminal message id = %04x ",_baseType::m_name.c_str(), request.getHead()->getMsgID());
+		LOG_WARN(this->name() << " unknown terminal message id = " << (uint16_t)id);
+//		throw IcsException("%s recv unknown terminal message id = %04x ",_baseType::m_name.c_str(), (uint16_t)id);
 		return;
 	}
 
-	if (msgid == T2C_event_report)
-	{
-		auto chunk = g_memoryPool.get();
-		ProtocolStream forward(chunk);
-
-//		request.rewindReadPos();
-//		forward.initHead(MessageId::T2T_forward_msg, false);
-//		forward << (uint16_t)msgid << m_connName << request;
-
-		m_proxyServer.sendToIcsCenter(forward);
-	}
 }
 
 // 处理平层消息
 void IcsProxyTerminalClient::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
 {
-	ProtocolStream reinput(std::move(request));
 	ShortString terminalName;
 	uint16_t messageID;
 	uint32_t requestID;
-	reinput >> terminalName >> messageID >> requestID;
+	request >> terminalName >> messageID >> requestID;
 
 	if (messageID <= MessageId::T2C_min || messageID >= MessageId::T2C_max)
 	{
 		throw IcsException("dispatch message=%d is not one of T2C", messageID);
 	}
-//	reinput.seek(ProtocolStreamImpl::SeekPos::PosCurrent, -sizeof(requestID));
+	request.moveBack(sizeof(requestID));
 
 	// 记录该请求ID转发结果
 
 
 	// 发送到该链接对端
-	ProtocolStream response(g_memoryPool);
-//	response.initHead((MessageId)messageID, false);
-	response << reinput;
+	ProtocolStream response(ProtocolStream::OptType::writeType, g_memoryPool.get());
+	response.initHead((MessageId)messageID, false);
+	response << request;
 
 	_baseType::trySend(response);
 }
@@ -98,8 +105,31 @@ void IcsProxyTerminalClient::error() throw()
 	if (!_baseType::m_replaced && !m_connName.empty())
 	{
 		m_proxyServer.removeTerminalClient(m_connName);
+		onoffLineToIcsCenter(1);	// 通知ICS中心
 		m_connName.clear();
 	}
+}
+
+/// 转发到ICS中心
+void IcsProxyTerminalClient::forwardToIcsCenter(ProtocolStream& request)
+{
+	ProtocolStream forward(ProtocolStream::OptType::writeType, g_memoryPool.get());
+
+	request.rewind();
+	forward.initHead(MessageId::T2T_forward_to_ics, false);
+	forward << m_connName << (uint16_t)request.getHead()->getMsgID() << request;
+
+	m_proxyServer.sendToIcsCenter(forward);
+}
+
+/// 上下线通知:status 0-online,1-offline
+void IcsProxyTerminalClient::onoffLineToIcsCenter(uint8_t status)
+{
+	ProtocolStream forward(ProtocolStream::OptType::writeType, g_memoryPool.get());
+	forward.initHead(MessageId::T2T_terminal_onoff_line, false);
+	forward << m_connName << m_deviceKind << status;
+
+	m_proxyServer.sendToIcsCenter(forward);
 }
 
 // 终端认证
@@ -120,23 +150,6 @@ void IcsProxyTerminalClient::handleAuthRequest(ProtocolStream& request, Protocol
 
 	request.assertEmpty();
 
-	/*
-	OtlConnectionGuard connGuard(g_database);
-
-	otl_stream authroizeStream(1,
-		"{ call sp_authroize(:gwid<char[33],in>,:pwd<char[33],in>,@ret,@id,@name) }",
-		connGuard.connection());
-
-	authroizeStream << gwId << gwPwd;
-	authroizeStream.close();
-
-	otl_stream getStream(1, "select @ret :#<int>,@id :#<char[32]>,@name :#name<char[32]>", connGuard.connection());
-
-	int ret = 2;
-	string id, name;
-
-	getStream >> ret >> id >> name;
-*/
 
 	response.initHead(MessageId::C2T_auth_response, false);
 
@@ -144,18 +157,85 @@ void IcsProxyTerminalClient::handleAuthRequest(ProtocolStream& request, Protocol
 	{
 		m_connName = std::move(gwId); // 保存检测点id
 
-		response << ShortString("ok") << m_proxyServer.getHeartbeatTime();
+		response << "ok" << m_proxyServer.getHeartbeatTime();
 
 		m_proxyServer.addTerminalClient(m_connName, shared_from_this());
 
 		LOG_INFO("terminal " << m_connName << " created on " << this->name());
 
 		this->setName(m_connName + "@" + this->name());
+
+		onoffLineToIcsCenter(0);
 	}
 	else
 	{
-		response << ShortString("failed");
+		response << "failed";
 	}
+}
+
+// 标准状态上报
+void IcsProxyTerminalClient::handleStdStatusReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception, otl_exception)
+{
+	uint32_t status_type;	// 标准状态类别
+
+	request >> status_type;
+
+	// 通用衡器
+	if (status_type == 1)
+	{
+		uint8_t device_ligtht;	// 设备指示灯
+		LongString device_status;	// 设备状态
+		uint8_t cheat_ligtht;	// 作弊指示灯
+		string cheat_status;	// 作弊状态
+		float zero_point;		// 秤体零点	
+
+		request >> device_ligtht >> device_status >> cheat_ligtht >> cheat_status >> zero_point;
+
+		request.assertEmpty();
+
+		IcsDataTime recv_time;
+		ics::getIcsNowTime(recv_time);
+
+		forwardToIcsCenter(request);
+	}
+	// 其它
+	else
+	{
+		LOG_WARN(m_connName << "recv unknown standard status type:" << status_type);
+	}
+}
+
+// 自定义状态上报
+void IcsProxyTerminalClient::handleDefStatusReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
+{
+	// 	CDatetime status_time;		//	状态采集时间
+	// 	uint16_t status_count;		//	状态项个数
+	// 	uint16_t status_id = 0;		//	状态编号
+	// 	uint8_t status_light = 0;	//	状态指示灯
+	// 	uint8_t status_type = 0;	//	状态值类型
+	// 	string status_value;		//	状态值
+
+	//	request >> status_time >> status_count;
+
+	// 		for (uint16_t i = 0; i<status_count; i++)
+	// 		{
+	// 		request >> status_id >> status_light >> status_type >> status_value;
+	// 
+	// 		// 存入数据库
+	// 		LOG4CPLUS_DEBUG("light:" << (int)status_light << ",id:" << status_id << ",type:" << (int)status_type << ",value:" << status_value);
+
+	// 		// store into database
+	// 		std::vector<Variant> params;
+	// 		params.push_back(terminal->m_monitorID);// 监测点编号
+	// 		params.push_back(int(status_id));		// 状态编号
+	// 		params.push_back(int(status_light));	// 状态指示灯
+	// 		params.push_back(int(status_type));		// 状态值类型
+	// 		params.push_back(status_value);			//状态值
+	// 		params.push_back(status_time);			//状态采集时间
+
+	//		if (!IcsTerminalClient::s_core_api->CORE_CALL_SP(params, "sp_status_userDef(:F1<char[32],in>,:F2<int,in>,:F3<int,in>,:F4<int,in>,:F5<char[256],in>,:F6<timestamp,in>)",
+	//		terminal->m_dbName, terminal->m_dbSource))
+
 }
 
 // 事件上报
@@ -197,6 +277,8 @@ void IcsProxyTerminalClient::handleEventsReport(ProtocolStream& request, Protoco
 
 	request.assertEmpty();
 	*/
+
+	forwardToIcsCenter(request);	// 转发到中心
 }
 
 // 业务上报
@@ -212,7 +294,7 @@ void IcsProxyTerminalClient::handleBusinessReport(ProtocolStream& request, Proto
 
 	if (m_lastBusSerialNum == business_no)	// 重复的业务流水号，直接忽略
 	{
-//		response.initHead(MessageId::MessageId_min);
+		response.initHead(MessageId::MessageId_min, false);
 		return;
 	}
 
@@ -365,8 +447,10 @@ void IcsProxyTerminalClient::handleBusinessReport(ProtocolStream& request, Proto
 		throw logic_error("unknown business type");
 	}
 	*/
-	request.assertEmpty();
+	
+//	request.assertEmpty();
 
+forwardToIcsCenter(request);	// 转发到中心
 }
 
 // 终端发送心跳到中心
@@ -388,137 +472,287 @@ void IcsProxyTerminalClient::handleDatetimeSync(ProtocolStream& request, Protoco
 	response << dt1 << dt2 << dt2;
 }
 
-
-//---------------------------IcsProxyWebClient---------------------------//
-IcsProxyWebClient::IcsProxyWebClient(IcsPorxyServer& localServer, socket&& s)
-	: _baseType(std::move(s), "ProxyWeb")
-	, m_proxyServer(localServer)
+// GPS上报
+void IcsProxyTerminalClient::handleGpsReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
+	union
+	{
+		uint8_t	data;
+		struct {
+			uint8_t longitude_flag : 1;	// 经度符号，0-东经，1-西经
+			uint8_t latitude_flag : 1;	// 纬度符号，0-南纬，1-北纬
+			uint8_t signal : 3;	// GPS信号强度，0-很强，1-较强，2-一般，3-较弱，4-无
+			uint8_t reserved : 3;
+		};
+	}postionFlag;
+
+	uint32_t longitude, latitude, height, speed;
+
+	request >> postionFlag.data >> longitude >> latitude >> height >> speed;
+
+	request.assertEmpty();
+
+
+	forwardToIcsCenter(request);
 
 }
 
-IcsProxyWebClient::~IcsProxyWebClient()
+// 终端上报日志
+void IcsProxyTerminalClient::handleLogReport(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
+{
+	IcsDataTime status_time;		//	时间
+	uint8_t log_level;			//	日志级别
+	uint8_t encode_type = 0;	//	编码方式
+	string log_value;			//	日志内容
+
+	request >> status_time >> log_level >> encode_type >> log_value;
+
+	request.assertEmpty();
+
+	if (encode_type == 1)	// 0-UTF-8,1-GB2312
+	{
+		character_convert("GB2312", log_value, log_value.length(), "UTF-8", log_value);
+	}
+	else if (encode_type != 0)
+	{
+		LOG_ERROR("unkonwn encode type: " << (int)encode_type);
+		throw IcsException("undefined encode type");
+	}
+
+	forwardToIcsCenter(request);	// 转发到中心
+}
+
+// 终端拒绝升级请求
+void IcsProxyTerminalClient::handleDenyUpgrade(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
+{
+	uint32_t request_id;	// 请求id
+	string reason;	// 拒绝升级原因
+
+	request >> request_id >> reason;
+
+	request.assertEmpty();
+
+	forwardToIcsCenter(request);	// 转发到中心
+}
+
+// 终端接收升级请求
+void IcsProxyTerminalClient::handleAgreeUpgrade(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
+{
+	uint32_t request_id;	// 文件id
+	request >> request_id;
+	request.assertEmpty();
+
+	forwardToIcsCenter(request);	// 转发到中心
+}
+
+// 索要升级文件片段
+void IcsProxyTerminalClient::handleRequestFile(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
+{
+
+	uint32_t file_id, request_id, fragment_offset, received_size;
+
+	uint16_t fragment_length;
+
+	request >> file_id >> request_id >> fragment_offset >> fragment_length >> received_size;
+
+	request.assertEmpty();
+
+	// 设置升级进度(查询该请求id对应的状态)
+
+	int result = 0;
+
+
+	// 查找文件
+	auto fileInfo = FileUpgradeManager::getInstance()->getFileInfo(file_id);
+
+
+	// 查看是否已取消升级
+	if (result == 0 && fileInfo)	// 正常状态且找到该文件
+	{
+		if (fragment_offset > fileInfo->file_length)	// 超出文件大小
+		{
+			throw IcsException("require file offset [%d] is more than file's length [%d]", fragment_offset, fileInfo->file_length);
+		}
+		else if (fragment_offset + fragment_length > fileInfo->file_length)	// 超过文件大小则取剩余大小
+		{
+			fragment_length = fileInfo->file_length - fragment_offset;
+		}
+
+		if (fragment_length > UPGRADE_FILE_SEGMENG_SIZE)	// 限制文件片段最大为缓冲区剩余长度
+		{
+			fragment_length = UPGRADE_FILE_SEGMENG_SIZE;
+		}
+
+		response << file_id << request_id << fragment_offset << fragment_length;
+
+		response.append((char*)fileInfo->file_content + fragment_offset, fragment_length);
+
+		forwardToIcsCenter(request);	// 转发到中心
+	}
+	else	// 无升级事务
+	{
+		response.initHead(MessageId::T2C_upgrade_not_found, request.getHead()->getAckNum());
+	}
+}
+
+// 升级文件传输结果
+void IcsProxyTerminalClient::handleUpgradeResult(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
+{
+	uint32_t request_id;	// 文件id
+	string upgrade_result;	// 升级结果
+
+	request >> request_id >> upgrade_result;
+
+	request.assertEmpty();
+
+	forwardToIcsCenter(request);	// 转发到中心
+}
+
+// 终端确认取消升级
+void IcsProxyTerminalClient::handleUpgradeCancelAck(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
+{
+	uint32_t request_id;	// 文件id
+
+	request >> request_id;
+
+	request.assertEmpty();
+
+	forwardToIcsCenter(request);	// 转发到中心
+}
+
+
+
+//---------------------------IcsCenter---------------------------//
+IcsCenter::IcsCenter(IcsPorxyServer& localServer, socket&& s)
+	: _baseType(std::move(s), "IcsCenter")
+	, m_proxyServer(localServer)
+{
+}
+
+IcsCenter::~IcsCenter()
 {
 
 }
 
 // 处理底层消息
-void IcsProxyWebClient::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
+void IcsCenter::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-
-}
-
-// 处理平层消息
-void IcsProxyWebClient::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
-{
-
-}
-
-
-//---------------------------IcsForwardProxy---------------------------//
-IcsForwardProxy::IcsForwardProxy(IcsPorxyServer& localServer, socket&& s)
-	: _baseType(std::move(s), "ForwardProxy")
-	, m_proxyServer(localServer)
-{
-}
-
-IcsForwardProxy::~IcsForwardProxy()
-{
-
-}
-
-// 处理底层消息
-void IcsForwardProxy::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
-{
-	if (request.getHead()->getMsgID() == MessageId::T2T_auth_request)
+	auto id = request.getHead()->getMsgID();
+	switch (id)
 	{
-		handleAuthrize(request, response);
-	}
-	else
-	{
-		throw IcsException("unknow message id=0x%04x", (uint16_t)request.getHead()->getMsgID());
+	case MessageId::T2T_auth_request1:
+		handleAuthrize1(request, response);
+		break;
+
+	case MessageId::T2T_auth_request2:
+		handleAuthrize2(request, response);
+		break;
+
+	case MessageId::T2T_forward_to_terminal:
+		handleForwardToTermianl(request, response);
+		break;
+
+	case MessageId::T2T_heartbeat:	// ignore
+		break;
+
+	default:		
+		throw IcsException("unknow message id=0x%04x", (uint16_t)id);
+		break;
 	}
 }
 
 // 处理平层消息
-void IcsForwardProxy::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
+void IcsCenter::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
 {
 	this->trySend(request);
 }
 
-
-void IcsForwardProxy::handleAuthrize(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
+/// 中心认证请求1
+void IcsCenter::handleAuthrize1(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	std::time_t t1, t3 = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+	std::time_t t1, t2 = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 	request >> t1;
 
 	request.assertEmpty();
 
+	response.initHead(MessageId::T2T_auth_response, false);
+	response << t1 << t2;
+}
+
+/// 出错
+void IcsCenter::error()
+{
+	m_proxyServer.removeIcsCenterConn(shared_from_this());
+}
+
+/// 中心认证请求2
+void IcsCenter::handleAuthrize2(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
+{
+	std::time_t t2, t4 = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+	request >> t2;
+
+	request.assertEmpty();
+
 	// 解密该数据
-	ics::decrypt(&t1, sizeof(t1));
+	ics::decrypt(&t2, sizeof(t2));
 
-	if (t3 - t1 < 3 * 60)	// 系统时间在3分钟内,认证成功
+	auto interval = t4 - t2;
+	if (interval < 5)	// 系统时间在3分钟内,认证成功
 	{
-		// 加密该数据
-		ics::encrypt(&t1, sizeof(t1));
-//		response.initHead(MessageId::T2T_auth_response);
-		response << t1;
-
 		m_proxyServer.addIcsCenterConn(shared_from_this());
 
-		LOG_DEBUG("ics center authrize success, interval=" << t3 - t1);
+		LOG_DEBUG("ics center authrize success, interval=" << interval);
 	}
 	else
 	{
-		throw IcsException("ics center authrize failed, interval=", t3 - t1);
+		throw IcsException("ics center authrize failed, interval=", interval);
 	}
+}
 
+/// 转发消息给终端
+void IcsCenter::handleForwardToTermianl(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
+{
+	ShortString gwid;
+	request >> gwid;
+
+	auto conn = m_proxyServer.findTerminalClient(gwid);
+	if (conn)
+	{
+		conn->dispatch(request);
+		response << (uint8_t)0;
+	}
+	else
+	{
+		response << (uint8_t)1 << "can't be found";
+	}
 }
 
 //---------------------------IcsPorxyServer---------------------------//
 IcsPorxyServer::IcsPorxyServer(asio::io_service& ioService
 	, const string& terminalAddr, std::size_t terminalMaxCount
-	, const string& webAddr, std::size_t webMaxCount
 	, const string& icsCenterAddr, std::size_t icsCenterCount)
 	: m_ioService(ioService)
 	, m_terminalTcpServer(ioService), m_terminalMaxCount(terminalMaxCount)
-	, m_webTcpServer(ioService), m_webMaxCount(webMaxCount)
 	, m_icsCenterTcpServer(ioService), m_icsCenterMaxCount(icsCenterCount)
 {
 	m_heartbeatTime = g_configFile.getAttributeInt("protocol", "heartbeat");
 
-
 	m_terminalTcpServer.init("remote's terminal"
 		, terminalAddr
 		, [this](socket&& s)
-	{
-		std::shared_ptr<IcsConnection<icstcp>> conn(new IcsProxyTerminalClient(*this, std::move(s)));
-		conn->start();
-		m_timer.add(m_heartbeatTime, [conn, this](){
-			return conn->timeout(m_heartbeatTime);
+		{
+			ConneciontPrt conn = std::make_shared<IcsProxyTerminalClient>(*this, std::move(s));
+			conn->start();
+			connectionTimeoutHandler(conn);
 		});
-	});
 
-	m_webTcpServer.init("remote's web"
-		, webAddr
-		, [this](socket&& s)
-	{
-		std::shared_ptr<IcsConnection<icstcp>> conn(new IcsProxyWebClient(*this, std::move(s)));
-		conn->start();
-		m_timer.add(m_heartbeatTime, [conn, this]() {
-			return conn->timeout(m_heartbeatTime);
-		});
-	});
-
-	m_icsCenterTcpServer.init("remote's proxy"
+	m_icsCenterTcpServer.init("remote's center"
 		, icsCenterAddr
 		, [this](socket&& s)
 	{
-		std::shared_ptr<IcsConnection<icstcp>> conn(new IcsForwardProxy(*this, std::move(s)));
+		ConneciontPrt conn = std::make_shared<IcsCenter>(*this, std::move(s));
 		conn->start();
-		m_timer.add(m_heartbeatTime, [conn, this](){
-			return conn->timeout(m_heartbeatTime);
-		});
+		connectionTimeoutHandler(conn);
 	});
 
 	m_timer.start();
@@ -526,7 +760,17 @@ IcsPorxyServer::IcsPorxyServer(asio::io_service& ioService
 
 IcsPorxyServer::~IcsPorxyServer()
 {
+	m_terminalTcpServer.stop();
+	m_icsCenterTcpServer.stop();
 	m_timer.stop();
+	{
+		std::lock_guard<std::mutex> lock(m_terminalConnMapLock);
+		m_terminalConnMap.clear();
+	}
+	{
+		std::lock_guard<std::mutex> lock(m_icsCenterConnMapLock);
+		m_icsCenterConnMap.clear();
+	}
 }
 
 /// 添加已认证终端
@@ -549,16 +793,40 @@ void IcsPorxyServer::removeTerminalClient(const string& conID)
 	m_terminalConnMap.erase(conID);
 }
 
+/// 查找链接终端
+IcsPorxyServer::ConneciontPrt IcsPorxyServer::findTerminalClient(const string& conID)
+{
+	IcsPorxyServer::ConneciontPrt conn;
+	{
+		std::lock_guard<std::mutex> lock(m_terminalConnMapLock);
+		auto it = m_terminalConnMap.find(conID);
+		if (it != m_terminalConnMap.end())
+		{
+			conn = it->second;
+		}
+	}
+	return conn;
+}
+
 /// 向终端发送数据
 bool IcsPorxyServer::sendToTerminalClient(const string& conID, ProtocolStream& request)
 {
 	bool ret = false;
-	std::lock_guard<std::mutex> lock(m_terminalConnMapLock);
-	auto it = m_terminalConnMap.find(conID);
-	if (it != m_terminalConnMap.end())
+	ConneciontPrt conn;
+
+	{
+		std::lock_guard<std::mutex> lock(m_terminalConnMapLock);
+		auto it = m_terminalConnMap.find(conID);
+		if (it != m_terminalConnMap.end())
+		{
+			conn = it->second;
+		}
+	}
+
+	if (conn)
 	{
 		try {
-			it->second->dispatch(request);
+			conn->dispatch(request);
 			ret = true;
 		}
 		catch (IcsException& ex)
@@ -566,7 +834,7 @@ bool IcsPorxyServer::sendToTerminalClient(const string& conID, ProtocolStream& r
 			LOG_ERROR("send to " << conID << " failed," << ex.message());
 		}
 	}
-
+	
 	return ret;
 }
 
@@ -574,7 +842,14 @@ bool IcsPorxyServer::sendToTerminalClient(const string& conID, ProtocolStream& r
 void IcsPorxyServer::addIcsCenterConn(ConneciontPrt conn)
 {
 	std::lock_guard<std::mutex> lock(m_icsCenterConnMapLock);
-	m_icsCenterConnMap.push_back(conn);
+	m_icsCenterConnMap.emplace(conn);
+}
+
+/// 移除ICS中心服务链接
+void IcsPorxyServer::removeIcsCenterConn(ConneciontPrt conn)
+{
+	std::lock_guard<std::mutex> lock(m_icsCenterConnMapLock);
+	m_icsCenterConnMap.erase(conn);
 }
 
 /// 向全部ICS中心发送数据
@@ -583,9 +858,21 @@ void IcsPorxyServer::sendToIcsCenter(ProtocolStream& request)
 	std::lock_guard<std::mutex> lock(m_icsCenterConnMapLock);
 	for (auto& it : m_icsCenterConnMap)
 	{
-		ProtocolStream message(request);
+		ProtocolStream message(request, g_memoryPool.get());
 		it->dispatch(message);
 	}
+}
+
+/// 
+void IcsPorxyServer::connectionTimeoutHandler(ConneciontPrt conn)
+{
+	m_timer.add(m_heartbeatTime, 
+		std::bind([conn, this](){
+			if (conn->timeout())
+			{
+				this->connectionTimeoutHandler(conn);
+			}
+		}));
 }
 
 }

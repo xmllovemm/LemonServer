@@ -22,6 +22,8 @@ public:
 
 	// 处理平层消息
 	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception);
+
+//	virtual void error();
 };
 
 /// 推送系统
@@ -33,8 +35,11 @@ public:
 
 	void send(ProtocolStream& request);
 private:
+	void reconnect();
 
-	std::unique_ptr<PushMsgConnection>	m_connection;
+private:
+	asio::io_service& m_ioService;
+	std::shared_ptr<PushMsgConnection>	m_connection;
 	std::unordered_map<uint16_t, MemoryChunk> m_msgList;
 
 	asio::ip::udp::endpoint		m_serverEndpoint;

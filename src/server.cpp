@@ -55,10 +55,10 @@ int itostr(char* buf, int value)
 
 int main(int argc, char** argv)
 {
-	if (argc != 2)
+	const char* configFile = "/etc/icsconf.xml";
+	if (argc >= 2)
 	{
-		usage(argv[0]);
-		return 0;
+		configFile = argv[1];
 	}
 
 	asio::io_service io_service;
@@ -72,10 +72,10 @@ int main(int argc, char** argv)
 		cout << "catch a signal " << signo << ",exit..." << endl;
 		io_service.stop();
 	});
-
+	
 	try {
 		// 加载配置文件
-		g_configFile.load(argv[1]);
+		g_configFile.load(configFile);
 
 		// 初始日志模块
 		ics::init_log(g_configFile.getAttributeString("log", "configfile").c_str());
@@ -89,7 +89,7 @@ int main(int argc, char** argv)
 		g_database.init(g_configFile.getAttributeString("database", "username"), g_configFile.getAttributeString("database", "password"), g_configFile.getAttributeString("database", "dsn"));
 		g_database.open();
 		
-		ics::IcsLocalServer centerServer(io_service
+		auto p = std::make_unique<ics::IcsLocalServer>(io_service
 			, g_configFile.getAttributeString("centeraddr", "terminal"), 100
 			, g_configFile.getAttributeString("centeraddr", "web"), 100
 			, g_configFile.getAttributeString("centeraddr", "msgpush"));	
@@ -97,7 +97,7 @@ int main(int argc, char** argv)
 		// ICS代理模式
 		auto p = std::make_unique<ics::IcsPorxyServer>(io_service
 			, g_configFile.getAttributeString("proxyraddr", "terminal"), 100
-			, g_configFile.getAttributeString("proxyraddr", "web"), 100
+//			, g_configFile.getAttributeString("proxyraddr", "web"), 100
 			, g_configFile.getAttributeString("proxyraddr", "center"), 100);
 #endif
 		// 初始进程模式

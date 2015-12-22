@@ -9,6 +9,7 @@
 #include <memory>
 #include <mutex>
 #include <list>
+#include <array>
 
 /*
 Duration:一段时间间隔，用来记录时间长度，可以表示几秒钟、几分钟或者几个小时的时间间隔
@@ -37,10 +38,11 @@ public:
 	void stop();
 	
 private:
-	typedef struct {
+	struct Task{
+		Task(int inter, timeout hand) : interval(inter), handler(hand){}
 		int interval;
 		timeout handler;
-	}Task;
+	};
 
 private:
 	void loop();
@@ -55,5 +57,108 @@ private:
 
 //	std::vector<int>	m_timeWhell;
 };
+
+
+/// WheelCount:时间轮一圈的刻度; Tick：两个刻度的间隔时间(秒)
+template<std::size_t WheelCount, std::size_t Tick = 1>
+class TimingWheel {
+public:
+	using TimeOutHandler = std::function<void (void)>;
+
+	TimingWheel()
+	{
+
+	}
+
+	~TimingWheel()
+	{
+		stop();
+	}
+
+	/// 添加一个interval个tick后超时的任务th
+	void add(std::size_t interval, TimeOutHandler&& th)
+	{
+		int positon = (interval + m_currentPoint) % WheelCount;
+		int count = interval / WheelCount;
+		m_wheel[positon].add(count, std::forward<TimeOutHandler>(th));
+	}
+
+	/// 启动
+	void start()
+	{
+		stop();
+		m_loopFlag = true;
+		m_loopThread.reset(new std::thread([this](){
+			this->loop();
+		}));
+	}
+	
+	/// 停止
+	void stop()
+	{
+		m_loopFlag = false;
+		if (m_loopThread)
+		{
+			m_loopThread->join();
+		}
+	}
+
+private:
+	class TaskList {
+	public:
+		/// 添加一个count次后调用的任务
+		void add(int count, TimeOutHandler&& th)
+		{
+			std::lock_guard<std::mutex> lock(m_workListLock);
+			m_workList.emplace_front(count, std::forward<TimeOutHandler>(th));
+		}
+
+		/// 检查该队列的全部任务
+		void timeWork()
+		{
+			std::lock_guard<std::mutex> lock(m_workListLock);
+			for (auto it = m_workList.begin(); it != m_workList.end();)
+			{
+				if (--it->count <= 0)
+				{
+					it->handler();
+					it = m_workList.erase(it);
+				}
+				else
+				{
+					it++;
+				}
+			}
+		}
+
+	private:
+		struct TimeWork{
+			TimeWork(int c, TimeOutHandler&& th) :count(c), handler(std::forward<TimeOutHandler>(th)){}
+			int				count;
+			TimeOutHandler	handler;
+		};
+
+		std::mutex m_workListLock;
+		std::list<TimeWork> m_workList;
+	};
+
+	/// 主任务循环
+	void loop()
+	{
+		while (m_loopFlag)
+		{
+			std::this_thread::sleep_for(std::chrono::seconds(Tick));
+			m_wheel[m_currentPoint++%m_wheel.size()].timeWork();
+		}
+	}
+
+private:
+	std::unique_ptr<std::thread>		m_loopThread;
+	std::array<TaskList, WheelCount>	m_wheel;
+	bool m_loopFlag = false;
+	/// 指向的当前刻度值
+	std::size_t m_currentPoint = 0;
+};
+
 
 #endif	// _TIMER_H

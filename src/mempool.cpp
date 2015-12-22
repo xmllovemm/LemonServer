@@ -103,7 +103,7 @@ void MemoryPool::init(std::size_t chunkSize, std::size_t countOfChunk, bool zero
 
 	for (size_t i = 0; i < m_chunkCount; i++)
 	{
-		m_chunkList.push_back(m_buff);
+		m_chunkList.push_back(m_buff + i*m_chunkSize);
 	}
 }
 

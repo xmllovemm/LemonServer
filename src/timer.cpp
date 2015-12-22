@@ -18,7 +18,8 @@ Timer::~Timer()
 void Timer::add(int interval, timeout handler)
 {
 	std::lock_guard<std::recursive_mutex> lock(m_taskListLock);
-	m_taskList.push_back(Task{ interval, handler });
+//	m_taskList.push_back(Task{ interval, handler });
+	m_taskList.emplace_back(interval, handler);
 }
 
 /// ¿ªÆô¶¨Ê±Æ÷

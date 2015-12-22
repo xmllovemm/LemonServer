@@ -30,15 +30,6 @@ public:
 	/// s:套接字，name:链接名
 	IcsConnection(socket&& s, const char* name )
 		: m_socket(std::move(s))
-		, m_valid(true)
-		, m_replaced(false)
-//		, m_request(g_memoryPool)
-		, m_recvSize(0)
-		, m_msgHead(nullptr)
-		, m_needSize(sizeof(IcsMsgHead))
-		, m_serialNum(0)
-		, m_isSending(false)
-		, m_timeoutCount(0)
 	{
 		char buff[126];
 		auto endpoint = m_socket.remote_endpoint();
@@ -94,6 +85,12 @@ public:
 		do_error();
 	}
 
+	bool valid()
+	{
+		return m_valid;
+	}
+
+
 	// 处理底层消息
 	virtual void handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception) = 0;
 
@@ -106,23 +103,14 @@ public:
 
 	}
 
-	/// 定时处理:返回值为下次通知间隔，0-不再通知
-	int timeout(int interval)
+	/// 定时处理:true-有效，false-无效
+	bool timeout()
 	{
-		LOG_DEBUG(m_name << " timeout count " << m_timeoutCount + 1);
-
-		if (!m_valid)
+		if (m_valid && ++m_timeoutCount > m_timeoutMax)
 		{
-			interval = 0;
-		}
-		else if (++m_timeoutCount > m_timeoutMax)
-		{
-			LOG_DEBUG(m_name << " timeout");
-			interval = 0;
 			do_error();
-		}
-		
-		return interval;
+		}	
+		return m_valid;
 	}
 
 protected:
@@ -186,9 +174,10 @@ protected:
 	void do_error()
 	{
 //		LOG_DEBUG(m_name << " is closing...");
-		m_valid = false;
-		error();
-		m_socket.close();
+		m_valid = false;		
+		error();	/// 通知上层应用出错	
+		asio::error_code ec;
+		m_socket.close(ec);		/// 关闭链接
 	}
 
 	/// 十六进制显示
@@ -210,10 +199,8 @@ protected:
 		std::lock_guard<std::mutex> lock(m_sendLock);
 		if (!m_isSending && !m_sendList.empty())
 		{
-
 			MemoryChunk& block = m_sendList.front();
 			auto self(this->shared_from_this());
-
 			m_socket.async_send(asio::buffer(block.data, block.length),
 				[self](const std::error_code& ec, std::size_t length)
 			{
@@ -228,7 +215,7 @@ protected:
 				}
 				else
 				{
-					LOG_DEBUG("send data error");
+					LOG_DEBUG(self->m_name << " send data error");
 					self->do_error();
 				}
 			});
@@ -236,53 +223,69 @@ protected:
 		}
 	}
 
-	/// 处理该数据段
+	/// 处理这次收到的数据段
 	bool handleData(std::size_t length)
 	{
+		bool ret = true;
+		IcsMsgHead*	head = (IcsMsgHead*)m_recvBuff;
+
 		/// show debug info
 		this->toHexInfo("recv from", m_recvBuff + m_recvSize , length);
 
-		try {
-			if (m_msgHead)
-			{
-//				if (m_recvSize + length > m_needSize)
-			}
+		m_recvSize += length;
 
-			/// assemble a complete ICS message and handle it
-			handleMessage(ProtocolStream(ProtocolStream::OptType::readType, m_recvBuff, m_recvSize));
-		}
-		catch (IcsException& ex)
+		while (ret && m_recvSize >= sizeof(IcsMsgHead)+IcsMsgHead::CrcCodeSize)
 		{
-			LOG_ERROR(ex.message());
-			return false;
+			uint16_t msgLen = head->getLength();
+			/// 消息长度检查
+			if (msgLen > sizeof(m_recvBuff) || msgLen < sizeof(IcsMsgHead)+IcsMsgHead::CrcCodeSize)
+			{
+				LOG_ERROR("length of message error:" << msgLen << " ,max length of buffer is:" << sizeof(m_recvBuff));
+				ret = false;
+				break;
+			}
+			
+			if (m_recvSize >= msgLen)	// 有一条完整消息
+			{
+				ret = handleMessage(m_recvBuff, msgLen);
+				m_recvSize -= msgLen;
+				head = (IcsMsgHead*)((uint8_t*)head + msgLen);
+			}
+			else // 不足一条完整消息
+			{
+				if (m_recvBuff != (uint8_t*)head)
+				{				
+					LOG_DEBUG(m_name << " move " << m_recvSize << " bytes");
+					std::memmove(m_recvBuff, head, m_recvSize);
+				}
+				break;
+			}
 		}
 
-		return true;
+		return ret;
 	}
 
 	/// 处理该条完整消息
-	void handleMessage(ProtocolStream&	request)
+	bool handleMessage(void* data, std::size_t len)
 	{
-		// 置0超时计数
-		m_timeoutCount = 0;
-
-		///*
-		IcsMsgHead* head = request.getHead();
-
+		bool ret = false;
+		IcsMsgHead* head = (IcsMsgHead*)data;
 		try {
-			/// verify ics protocol
-			request.verify();
+			ProtocolStream request(ProtocolStream::OptType::readType, data, len);
 
-			/// ignore response message from terminal
+			// 置0超时计数
+			m_timeoutCount = 0;
+
+			/// 忽略终端的响应消息,FIXME
 			if (head->isResponse())
 			{
-				return;
+				LOG_DEBUG(m_name << " ignore response message");
+				return true;
 			}
 
-			MemoryChunk chunk = g_memoryPool.get();
-			ProtocolStream response(std::move(chunk));
+			ProtocolStream response(ProtocolStream::OptType::writeType, g_memoryPool.get());
 
-			/// handle message
+			/// 通过虚函数处理该消息
 			handle(request, response);
 
 			/// send response message
@@ -295,57 +298,55 @@ protected:
 				response.initHead(MessageId::MessageId_min, head->getSendNum());	// head->getMsgID()
 				trySend(response);
 			}
-
+			ret = true;
 		}
 		catch (IcsException& ex)
 		{
-			throw IcsException("%s handle message [0x%04x] IcsException: %s", m_name.c_str(), (uint16_t)head->getMsgID(), ex.message().c_str());
+			LOG_ERROR(m_name << " occurs IcsException: id=" << (uint16_t)head->getMsgID() << ",error=" << ex.message());
 		}
 		catch (otl_exception& ex)
 		{
-			throw IcsException("%s handle message [0x%04x] otl_exception: %s", m_name.c_str(), (uint16_t)head->getMsgID(), ex.msg);
+			LOG_ERROR(m_name << " occurs otl_exception: id=" << (uint16_t)head->getMsgID() << ",error=" << ex.msg);
 		}
 		catch (std::exception& ex)
 		{
-			throw IcsException("%s handle message [0x%04x] std::exception: %s", m_name.c_str(), (uint16_t)head->getMsgID(), ex.what());
+			LOG_ERROR(m_name << " occurs std::exception: id=" << (uint16_t)head->getMsgID() << ",error=" << ex.what());
 		}
 		catch (...)
 		{
-			throw IcsException("%s handle message [04%x] unknown error", m_name.c_str(), (uint16_t)head->getMsgID());
+			LOG_ERROR(m_name << " occurs unkonw exception: id=" << (uint16_t)head->getMsgID());
 		}
-		//*/
+
+		return ret;
 	}
 
 protected:	
 	/// 链接套接字
 	socket	m_socket;
 
+
+	/// 链接是否有效
+	bool m_valid = true;
+
+	/// 是否被相同链接替换
+	bool m_replaced = false;
+private:
+	// recv area
+	uint8_t				m_recvBuff[1024];
+	/// 已接收数据大小
+	std::size_t			m_recvSize = 0;
+
+	// send area
+	uint16_t m_serialNum = 0;
+	std::list<MemoryChunk> m_sendList;
+	std::mutex		m_sendLock;
+	bool			m_isSending = false;
+
 	/// 链接名：默认为对端的地址，格式为"ip:port"
 	std::string	m_name;
 
-	/// 链接是否有效
-	bool m_valid;
-
-	/// 是否被相同链接替换
-	bool			m_replaced;
-private:
-	// recv area
-//	ProtocolStream		m_request;
-	uint8_t				m_recvBuff[1024];
-	/// 已接收数据大小
-	std::size_t			m_recvSize;
-	IcsMsgHead*			m_msgHead;
-	std::size_t			m_needSize;
-
-	// send area
-	uint16_t m_serialNum;
-	std::list<MemoryChunk> m_sendList;
-	std::mutex		m_sendLock;
-	bool			m_isSending;
-
-
 	// 超时计数器: 每次接收到一完整消息置0，超时一次加1，超过最大次数后链接无效
-	int				m_timeoutCount;
+	int				m_timeoutCount = 0;
 	static const int m_timeoutMax = 2;
 };
 

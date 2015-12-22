@@ -3,6 +3,8 @@
 #include "icsprotocol.hpp"
 #include "util.hpp"
 
+extern ics::MemoryPool g_memoryPool;
+
 namespace ics{
 
 //------------------------------ICS byteorder function------------------------------//
@@ -86,7 +88,7 @@ otl_stream& operator<<(otl_stream& s, const IcsDataTime& dt)
 	otl_datetime od;
 	od.year = dt.year;
 	od.month = dt.month;
-	od.day = dt.month;
+	od.day = dt.day;
 	od.hour = dt.hour;
 	od.minute = dt.miniute;
 	od.second = dt.second;
@@ -119,19 +121,19 @@ void IcsMsgHead::verify(const void* buf, std::size_t len) const throw(IcsExcepti
 {
 	if (std::memcmp(name, ICS_HEAD_PROTOCOL_NAME, ICS_HEAD_PROTOCOL_NAME_LEN) != 0)
 	{
-		throw IcsException("protocol name error: %c%c%c%c", name[0], name[1], name[2], name[3]);
+		throw IcsException("protocol name = %c%c%c%c", name[0], name[1], name[2], name[3]);
 	}
 	if (getVersion() != ICS_HEAD_PROTOCOL_VERSION)
 	{
-		throw IcsException("protocol version error: %x", getVersion());
+		throw IcsException("protocol version = %x", getVersion());
 	}
 	if (getLength() != len)
 	{
-		throw IcsException("protocol length error: %d", getLength());
+		throw IcsException("protocol length = %d,but recv length = %d", getLength(), len);
 	}
 	if (getCrcCode() != crc32_code(buf, len - CrcCodeSize))
 	{
-		throw IcsException("protocol crc code error: %x", getCrcCode());
+		throw IcsException("protocol crc code = %x", getCrcCode());
 	}
 }
 
@@ -225,105 +227,23 @@ uint32_t IcsMsgHead::getCrcCode() const
 
 
 //------------------------------ICS message stream------------------------------//
-/*
-ProtocolStream::ProtocolStream(MemoryPool& mp)
-	: m_memoryPool(mp)
-{
-	auto chunk = m_memoryPool.get();
-	if (!chunk.valid())
-	{
-		throw IcsException("memory pool was empty");
-	}
-
-	m_msgHead = (IcsMsgHead*)chunk.data;
-	(uint8_t*)m_msgHead;
-	m_pos = (uint8_t*)(m_msgHead + 1);
-//	m_memoryEnd = chunk.data + chunk.size;
-
-	std::memset(m_msgHead, 0, sizeof(IcsMsgHead));
-}
-
-ProtocolStream::ProtocolStream(ProtocolStream&& rhs)
-	: m_memoryPool(rhs.m_memoryPool)
-	, m_msgHead(rhs.m_msgHead)
-	, m_pos(rhs.m_pos)
-	, m_msgEnd(rhs.m_msgEnd)
-	, m_memoryEnd(rhs.m_memoryEnd)
-{
-
-}
-
-ProtocolStream::ProtocolStream(const ProtocolStream& rhs)
-	: m_memoryPool(rhs.m_memoryPool)
-{
-	auto chunk = m_memoryPool.get();
-	if (!chunk.valid())
-	{
-		throw IcsException("memory pool was empty");
-	}
-
-	m_msgHead = (IcsMsgHead*)chunk.data;
-//	m_memoryEnd = chunk.data + chunk.size;
-
-	(uint8_t*)m_msgHead + rhs.size();
-	m_pos = (uint8_t*)m_msgHead + rhs.length();
-
-	std::memcpy(m_msgHead, rhs.m_msgHead, rhs.size());
-}
-
-ProtocolStream::ProtocolStream(MemoryPool& mp, const uint8_t* data, std::size_t len)
-	: m_memoryPool(mp)
-{
-	auto chunk = m_memoryPool.get();
-	if (!chunk.valid())
-	{
-		throw IcsException("memory pool was empty");
-	}
-
-	m_msgHead = (IcsMsgHead*)chunk.data;
-	m_pos = (uint8_t*)(m_msgHead + 1);
-	(uint8_t*)m_msgHead + len;
-//	m_memoryEnd = chunk.data + chunk.size;
-
-	std::memcpy(m_msgHead, data, len);
-}
-
-MemoryPool& ProtocolStream::getMemoryPool()
-{
-	return m_memoryPool;
-}
-*/
-
-/// 调用该接口以后不可读写操作
-MemoryChunk ProtocolStream::toMemoryChunk()
-{
-	if (!m_start)
-	{
-		throw IcsException("MemoryChunk has been moved");
-	}
-
-	MemoryChunk mc(m_start, length());
-	m_start = nullptr;
-	return std::move(mc);
-}
-
 
 ProtocolStream::ProtocolStream(OptType type, void* buf, std::size_t length)
-	: m_start((uint8_t*)buf)
+	: m_optType(type)
+	, m_start((uint8_t*)buf)
 	, m_pos(m_start + sizeof(IcsMsgHead))
 	, m_end(m_start + length)
-	, m_optType(type)
 {
 	if (!m_start || length < sizeof(IcsMsgHead)+IcsMsgHead::CrcCodeSize)
 	{
-		throw IcsException("init ProtocolStream data error");
+		throw IcsException("init ProtocolStream data error,buf=%x,length=%d", buf, length);
 	}
 	
 	if (type == OptType::writeType)/// 若作为写操作，初始化消息头
 	{
 		new (m_start)IcsMsgHead();
 	}
-	else if (OptType::readType)/// 若作为读操作，校验消息头，长度减去校验码长度
+	else if (type == OptType::readType)/// 若作为读操作，校验消息头，长度减去校验码长度
 	{
 		((IcsMsgHead*)m_start)->verify(m_start, length);
 		m_end -= IcsMsgHead::CrcCodeSize;
@@ -335,75 +255,42 @@ ProtocolStream::ProtocolStream(OptType type, const MemoryChunk& chunk)
 	::new (this) ProtocolStream(type, chunk.data, chunk.length);
 }
 
-ProtocolStream(OptType type, MemoryChunk&& chunk)
+ProtocolStream::ProtocolStream(const ProtocolStream& rhs, const MemoryChunk& chunk)
 {
-	::new (this) ProtocolStream(type, chunk.data, chunk.length);
+	::new (this) ProtocolStream(rhs.m_optType, chunk);
+	if (size() < rhs.length())
+	{
+		throw IcsException("not enough memory [%d] to store [%d] bytes data", size(), rhs.length());
+	}
+	std::memcpy(m_start, rhs.m_start, rhs.length());
+	m_pos = m_start + rhs.length();
 }
 
 ProtocolStream::~ProtocolStream()
 {
 	if (m_start && m_optType == OptType::writeType)
 	{
-//		g_mem.put(toMemoryChunk());
+		g_memoryPool.put(toMemoryChunk());
 	}
 }
 
 
-
-
-
-
-
-
-/*
-// 组装一条完整消息,返回值：true-有完整消息，false-需要更多数据，异常-超出最大缓冲区
-bool ProtocolStream::assembleMessage(uint8_t* & buf, std::size_t& len) throw (IcsException)
+/// 调用该接口以后不可读写操作
+MemoryChunk ProtocolStream::toMemoryChunk()
 {
-	bool ret = false;
-	if (len == 0)
+	if (!m_start)
 	{
-		return ret;
+		throw IcsException("MemoryChunk has been moved");
 	}
 
-	/// copy length of buff
-	std::size_t copySize = 0;
-
-	/// have a complete head ?
-	if (size() < sizeof(IcsMsgHead))
-	{
-		copySize = sizeof(IcsMsgHead)-size();
-		if (copySize > len)
-		{
-			copySize = len;
-		}
-	}
-	else
-	{
-		copySize = m_msgHead->getLength() - size();
-
-		if (copySize > std::size_t(m_memoryEnd - m_msgEnd))
-		{
-			throw IcsException("message length=%d is too big than buff length=%d", m_msgHead->getLength(), bufferSize());
-		}
-
-		if (copySize < len)
-		{
-			copySize = len;
-		}
-		else
-		{
-			ret = true;
-		}
-	}
-
-	std::memcpy(m_msgEnd, buf, copySize);
-	len -= copySize;
-	buf += copySize;
-	m_msgEnd += copySize;
-
-	return ret;
+	MemoryChunk mc(m_start, length());
+	m_start = nullptr;
+	return mc;
 }
-*/
+
+
+
+
 
 // -----------------------set data----------------------- 
 // 设置消息体长度和校验码
@@ -467,11 +354,20 @@ void ProtocolStream::moveBack(std::size_t offset) throw(IcsException)
 {
 	if (m_pos - offset < m_start)
 	{
-		throw IcsException("cann't move back %s bytes", offset);
+		throw IcsException("can't move back %s bytes", offset);
 	}
 	m_pos -= offset;
 }
 
+void ProtocolStream::append(const void* data, std::size_t len)
+{
+	if (len > leftLength())
+	{
+		throw IcsException("OOM to set %d bytes ProtocolStream data", len);
+	}
+	std::memcpy(m_pos, data, len);
+	m_pos += len;
+}
 
 ProtocolStream& ProtocolStream::operator >> (IcsDataTime& data) throw(IcsException)
 {

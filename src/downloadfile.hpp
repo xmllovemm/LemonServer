@@ -11,6 +11,8 @@
 namespace ics {
 
 #define UPGRADEFILE_MAXSIZE 102400
+#define UPGRADE_FILE_SEGMENG_SIZE 512
+
 // ÎÄ¼þÉý¼¶
 class FileUpgradeManager
 {

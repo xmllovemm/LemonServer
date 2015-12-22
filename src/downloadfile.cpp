@@ -130,7 +130,7 @@ std::shared_ptr<FileUpgradeManager::FileInfo> FileUpgradeManager::loadFileInfo(u
 	if (!fileInfo->file_content)
 	{
 		CloseHandle(hFileMap);
-		throw IcsException("");
+		throw IcsException("MapViewOfFile %s failed", fileInfo->file_name.c_str());
 	}
 #endif
 

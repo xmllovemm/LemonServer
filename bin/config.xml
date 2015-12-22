@@ -26,7 +26,7 @@
   <centeraddr>
     <terminal>0.0.0.0:9999</terminal>
     <web>0.0.0.0:9998</web>
-    <msgpush>192.168.50.133:8901</msgpush>
+    <msgpush>192.168.50.133:8886</msgpush>
   </centeraddr>
 
   <proxyraddr>

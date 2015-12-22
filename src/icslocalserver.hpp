@@ -16,7 +16,6 @@ namespace ics {
 
 class IcsLocalServer;
 
-#define UPGRADE_FILE_SEGMENG_SIZE 1024
 
 /// 终端协议处理类
 class IcsTerminalClient : public IcsConnection<icstcp>
@@ -36,6 +35,8 @@ public:
 	// 处理平层消息
 	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception);
 
+	// 出错处理
+	virtual void error() throw();
 private:
 	// 终端认证
 	void handleAuthRequest(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
@@ -90,22 +91,14 @@ private:
 
 protected:
 	IcsLocalServer&			m_localServer;
+	/// 链接名称(对应ICS系统中监测点编号)
 	std::string             m_connName;
+	/// 设备类型编号(推送时区别不同设备)
 	uint16_t				m_deviceKind;
-
-	// recv area
-	std::array<uint8_t, 512> m_recvBuff;
-	uint16_t		m_send_num;
-	uint8_t			m_recv_buf[512];
-
-	// send area
-	std::list<MemoryChunk> m_sendList;
-	std::mutex		m_sendLock;
-	bool			m_isSending;
-
-	// business area
-	uint32_t		m_lastBusSerialNum;
-
+	/// 发送序列号
+	uint16_t				m_send_num;
+	// 上一次业务编号(去除重复的业务数据)
+	uint32_t				m_lastBusSerialNum;
 };
 
 
@@ -126,14 +119,17 @@ public:
 	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception);
 private:
 
-	// 转发到对应终端
-	void handleForward(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
+	// 转发到ICS对应终端
+	void handleICSForward(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 连接远端子服务器
 	void handleConnectRemote(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 	// 断开远端子服务器
 	void handleDisconnectRemote(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
+
+	// 转发到remote对应终端
+	void handleRemoteForward(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 private:
 	IcsLocalServer& m_localServer;
@@ -159,20 +155,35 @@ public:
 	// 处理平层消息
 	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception);
 
+	// 出错
+	virtual void error();
+
 	// 请求验证中心身份
 	void requestAuthrize();
+
+	// 发送心跳消息
+	void sendHeartbeat();
 private:
+	// 查找远程ID对应的本地ID
+	const string& findLocalID(const string& remoteID);
+
 	// 处理认证请求结果
 	void handleAuthResponse(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
-	// 处理代理服务器转发的消息
-	void handleForwardMessage(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
+	// 代理服务器转发结果
+	void handleForwardResponse(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
+	
+	// 代理服务器上下线消息
+	void handleOnoffLine(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
+
+	// 代理服务器终端的消息
+	void handleTerminalMessage(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
 private:
 	std::string		m_enterpriseID;
-
-	static std::unordered_map<std::string, std::string> s_remoteIdToDeviceIdMap;
-	static std::mutex s_idMapLock;
+	bool			m_isLegal;
+	std::unordered_map<std::string, std::string> m_remoteIdToDeviceIdMap;
+	std::mutex m_remoteIdToDeviceIdMapLock;
 };
 
 
@@ -219,6 +230,13 @@ public:
 	void removeRemotePorxy(const string& remoteID);
 
 private:
+	/// 初始化数据库连接信息
+	void clearConnectionInfo();
+
+	void connectionTimeoutHandler(ConneciontPrt conn);
+
+	void keepHeartbeat(ConneciontPrt conn);
+private:
 	friend class IcsTerminalClient;
 	friend class IcsWebClient;
 
@@ -246,7 +264,7 @@ private:
 	// 推送系统
 	PushSystem	m_pushSystem;
 	
-	Timer		m_timer;
+	TimingWheel<64>	m_timer;
 };
 
 }

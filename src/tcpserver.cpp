@@ -15,7 +15,7 @@ TcpServer::TcpServer(asio::io_service& service)
 , m_clientSocket(m_io_service)
 , m_io_service_thread(nullptr)
 {
-
+	
 }
 
 
@@ -31,12 +31,17 @@ void TcpServer::init(const char* name, const std::string& addr, AddClientHandler
 
 	if (!std::regex_match(addr, result, pattern))
 	{
-		throw IcsException("address=%s isn't match ip:port", addr.c_str());
+		throw IcsException("address=%s don't match format 'ip:port'", addr.c_str());
 	}
+
+//	asio::ip::tcp::resolver resolver(m_io_service);
+//	auto endp = resolver.resolve(	asio::ip::tcp::resolver::query(result[1])		, std::strtol(result[3].str().c_str(), nullptr, 10)));
 
 	asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(result[1]), std::strtol(result[3].str().c_str(), nullptr, 10));
 
 	m_acceptor.open(endpoint.protocol());
+
+	m_acceptor.set_option(asio::socket_base::reuse_address(true));
 
 	m_acceptor.bind(endpoint);
 
@@ -62,11 +67,11 @@ void TcpServer::run_on_thread()
 
 void TcpServer::stop()
 {
-	LOG_DEBUG("Tcp server stops");
 	if (m_io_service_thread)
 	{
 		m_io_service_thread->join();
 	}
+	m_acceptor.close();
 }
 
 void TcpServer::do_accept()
@@ -77,9 +82,26 @@ void TcpServer::do_accept()
 		{
 			if (!ec)
 			{
-				m_do_add_client(std::move(m_clientSocket));
+				try {
+					m_do_add_client(std::move(m_clientSocket));
+				}
+				catch (IcsException& ex)
+				{
+					LOG_ERROR("create tcp connection error=" << ex.message());
+				}
+				catch (std::exception& ex)
+				{
+					LOG_ERROR("create tcp connection error=" << ex.what());
+				}
+				catch (...)
+				{
+					LOG_ERROR("create tcp connection unknown error=");
+				}
 			}
-
+			else
+			{
+				LOG_ERROR("listen error=" << ec.message());
+			}
 			// accept next client
 			do_accept();
 		});

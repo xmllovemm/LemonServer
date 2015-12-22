@@ -4,7 +4,6 @@
 #define _ICS_PROTOCOL_H
 
 #include "config.hpp"
-//#include "util.hpp"
 #include "otlv4.h"
 #include "icsexception.hpp"
 #include "mempool.hpp"
@@ -176,33 +175,43 @@ enum MessageId {
 	// 终端上报日志
 	T2C_log_report = 0x0c01,
 
-	T2C_max = 0xfff,
+	T2C_max,
 
 
 	// ------ T and C ------ //
 	W2C_min = 0x2000,
-	// 发给终端
-	W2C_send_to_terminal = 0x2001,
+	// 发给ICS终端
+	W2C_send_to_ics_terminal = 0x2001,
 	// 连接远端服务器请求
 	W2C_connect_remote_request = 0x2002,
-	// 连接远端服务器结果
-	C2W_connect_remote_result = 0x2003,
 	// 断开某个远端服务器连接
-	W2C_disconnect_remote = 0x2004,
-	W2C_max = 0x2ffff,
+	W2C_disconnect_remote = 0x2003,
+	// 发给远程代理服务器对应终端
+	W2C_send_to_remote_terminal = 0x2004,
+
+	W2C_max,
 
 	// ------ T and C ------ //
 	// 推送消息
 	C2P_push_message = 0x3001,
 
 	// ------ T and T ------ //
-	// 中心通信服务器认证请求
-	T2T_auth_request = 0x4001,
+	// 中心通信服务器认证请求1
+	T2T_auth_request1 = 0x4001,
 	// 认证结果
 	T2T_auth_response = 0x4002,
-	// 子服务器转发的终端消息
-	T2T_forward_msg = 0x4003,
-	
+	// 中心通信服务器认证请求2
+	T2T_auth_request2 = 0x4003,
+	// 中心通信服务器通知远程服务器转发终端消息
+	T2T_forward_to_terminal = 0x4004,
+	// 远程服务器回应转发结果
+	T2T_forward_response = 0x4005,
+	// 子服务器上报终端上下线消息
+	T2T_terminal_onoff_line = 0x4006,
+	// 子服务器上报终端消息
+	T2T_forward_to_ics = 0x4007,
+	// 两者心跳消息
+	T2T_heartbeat = 0x4008,
 
 	MessageId_max,
 };
@@ -314,11 +323,6 @@ otl_stream& operator<<(otl_stream& s, const LongString& dt);
 class ProtocolStream
 {
 public:
-//	ProtocolStream(MemoryPool& mp);
-
-
-//	ProtocolStream(MemoryPool& mp, const uint8_t* data, std::size_t len);
-	
 	enum OptType {
 		readType,
 		writeType
@@ -328,17 +332,12 @@ public:
 
 	ProtocolStream(OptType type, const MemoryChunk& chunk);
 
-	ProtocolStream(OptType type, MemoryChunk&& chunk);
-
 //	ProtocolStream(ProtocolStream&& rhs);
 
-//	ProtocolStream(const ProtocolStream& rhs);
+	ProtocolStream(const ProtocolStream& rhs, const MemoryChunk& chunk);
 
 	~ProtocolStream();
 
-	
-
-//	MemoryPool& getMemoryPool();
 
 	/// 调用该接口以后不可读写操作
 	MemoryChunk toMemoryChunk();
@@ -355,30 +354,32 @@ public:
 		return (IcsMsgHead*)m_start;
 	}
 
-	// 移动长度
+	/// 移动长度
 	std::size_t length() const
 	{
 		return m_pos - m_start;
 	}
 
-	// 剩余长度
+	/// 剩余长度
 	std::size_t leftLength() const
 	{
 		return m_end - m_pos;
 	}
 
-	// 总长度
+	/// 总长度
 	std::size_t size() const
 	{
 		return m_end - m_start;
 	}
 
 	// -----------------------write data----------------------- 
-	// 组装一条完整消息,返回值：true-有完整消息，false-需要更多数据，异常-超出最大缓冲区
-	bool assembleMessage(uint8_t* & buf, std::size_t& len) throw (IcsException);
+	/// 组装一条完整消息,返回值：true-有完整消息，false-需要更多数据，异常-超出最大缓冲区
+//	bool assembleMessage(uint8_t* & buf, std::size_t& len) throw (IcsException);
 
+	/// 按请求消息初始化消息头
 	void initHead(MessageId id, bool needResponse);
 
+	/// 按响应消息初始化消息头
 	void initHead(MessageId id, uint16_t ackNum);
 
 	// 设置消息体长度和校验码
@@ -392,8 +393,8 @@ public:
 			throw IcsException("OOM to set %d bytes data", sizeof(data));
 		}
 
-		*(T*)m_curPos = ics_byteorder(data);
-		m_msgEnd = m_curPos += sizeof(data);
+		*(T*)m_pos = ics_byteorder(data);
+		m_pos += sizeof(data);
 		return *this;
 	}
 
@@ -409,8 +410,8 @@ public:
 			throw IcsException("OOM to set %d bytes string data",len);
 		}
 		*this << (LengthType)len;
-		memcpy(m_curPos, data, len);
-		m_msgEnd = m_curPos += len;
+		memcpy(m_pos, data, len);
+		m_pos += len;
 
 		return *this;
 	}
@@ -425,18 +426,16 @@ public:
 
 	void moveBack(std::size_t offset) throw(IcsException);
 
-	void verify() const throw(IcsException);
-
 	// -----------------------read data----------------------- 
 	template<class T>
 	ProtocolStream& operator >> (T& data) throw(IcsException)		
 	{
-		if (sizeof(data) > readLeftSize())
+		if (sizeof(data) > leftLength())
 		{
 			throw IcsException("OOM to get uint16_t data");
 		}
-		data = ics_byteorder(*(T*)m_curPos);
-		m_curPos += sizeof(data);
+		data = ics_byteorder(*(T*)m_pos);
+		m_pos += sizeof(data);
 		return *this;
 	}
 
@@ -446,25 +445,18 @@ public:
 
 	ProtocolStream& operator >> (LongString& data) throw(IcsException);
 
+	/// 断言消息已读完
 	void assertEmpty() const throw(IcsException);
-private:
-	// 内存管理池
-//	MemoryPool&		m_memoryPool;
 
-	// 消息头/缓冲区起始地址
-//	IcsMsgHead*		m_msgHead;
-	// 当前读/取位置
-//	uint8_t*		m_curPos;
-	// 消息尾(消息最后一字节的下一个位置)
-//	uint8_t*		m_msgEnd;
-	// 缓冲区末地址(最后一字节的下一个位置)
-//	uint8_t*		m_memoryEnd;
-
-	/// 
-	uint8_t*	m_start;
-	uint8_t*	m_pos;
-	uint8_t*	m_end;
+private:	
+	/// 操作类型
 	OptType		m_optType;
+	/// 起始地址
+	uint8_t*	m_start;
+	/// 移动指针
+	uint8_t*	m_pos;
+	/// 终止地址
+	uint8_t*	m_end;
 };
 
 }	// end ics

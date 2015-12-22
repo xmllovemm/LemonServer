@@ -1,7 +1,7 @@
 
 
-#ifndef _MEMORY_POOL_H
-#define _MEMORY_POOL_H
+#ifndef _MEM_POOL_H
+#define _MEM_POOL_H
 
 //#include "icsconfig.hpp"
 #include <mutex>
@@ -69,4 +69,4 @@ private:
 
 }
 
-#endif	// _MEMORY_POOL_H
+#endif	// _MEM_POOL_H

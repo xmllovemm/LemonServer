@@ -26,9 +26,8 @@ void PushMsgConnection::dispatch(ProtocolStream& request) throw(IcsException, ot
 
 
 PushSystem::PushSystem(asio::io_service& ioService, const std::string& addr)
+	:m_ioService(ioService)
 {
-	asio::ip::udp::socket s(ioService);
-
 	std::regex pattern("^((\\d{1,3}\\.){3}\\d{1,3}):(\\d{1,5})$");
 	std::match_results<std::string::const_iterator> result;
 
@@ -36,16 +35,9 @@ PushSystem::PushSystem(asio::io_service& ioService, const std::string& addr)
 	{
 		throw IcsException("address=%s isn't match ip:port", addr.c_str());
 	}
-
 	asio::ip::udp::endpoint endpoint(asio::ip::address::from_string(result[1]), std::strtol(result[3].str().c_str(), nullptr, 10));
-
-//	m_serverEndpoint = endpoint;
-
-	s.connect(endpoint);
-
-	m_connection.reset(new PushMsgConnection(std::move(s)));
-
-	m_connection->start();
+	m_serverEndpoint = endpoint;
+	reconnect();
 }
 
 PushSystem::~PushSystem()
@@ -56,7 +48,24 @@ PushSystem::~PushSystem()
 
 void PushSystem::send(ProtocolStream& request)
 {
+	if (!m_connection || !m_connection->valid())
+	{
+		LOG_DEBUG("PushMsg reconnect");
+		reconnect();
+	}
+	request.initHead(MessageId::C2P_push_message, false);
 	m_connection->dispatch(request);
+}
+
+void PushSystem::reconnect()
+{	
+	asio::ip::udp::socket s(m_ioService);
+
+	s.connect(m_serverEndpoint);
+
+	m_connection.reset(new PushMsgConnection(std::move(s)));
+
+	m_connection->start();
 }
 
 }
