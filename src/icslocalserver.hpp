@@ -93,12 +93,14 @@ protected:
 	IcsLocalServer&			m_localServer;
 	/// 链接名称(对应ICS系统中监测点编号)
 	std::string             m_connName;
+	/// 网关ID
+	std::string				m_gwid;
 	/// 设备类型编号(推送时区别不同设备)
-	uint16_t				m_deviceKind;
+	uint16_t				m_deviceKind = 0;
 	/// 发送序列号
-	uint16_t				m_send_num;
+	uint16_t				m_send_num = 0;
 	// 上一次业务编号(去除重复的业务数据)
-	uint32_t				m_lastBusSerialNum;
+	uint32_t				m_lastBusSerialNum = uint32_t(-1);
 };
 
 
@@ -117,6 +119,9 @@ public:
 
 	// 处理平层消息
 	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception);
+
+	// 出错处理
+	virtual void error() throw();
 private:
 
 	// 转发到ICS对应终端
@@ -156,7 +161,7 @@ public:
 	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception);
 
 	// 出错
-	virtual void error();
+	virtual void error() throw();
 
 	// 请求验证中心身份
 	void requestAuthrize();
@@ -215,13 +220,14 @@ public:
 	void stop();
 
 	/// 添加已认证终端对象
-	void addTerminalClient(const string& conID, ConneciontPrt conn);
+	void addTerminalClient(const string& gwid, ConneciontPrt conn);
 
 	/// 移除已认证终端对象
-	void removeTerminalClient(const string& conID);
+	void removeTerminalClient(const string& gwid);
 
-	/// 发送数据到终端对象
-	bool sendToTerminalClient(const string& conID, ProtocolStream& request);
+	/// 查询终端链接
+	ConneciontPrt findTerminalClient(const string& gwid);
+
 
 	/// 添加远程代理服务器对象
 	void addRemotePorxy(const string& remoteID, ConneciontPrt conn);
@@ -229,12 +235,16 @@ public:
 	/// 移除远程代理服务器
 	void removeRemotePorxy(const string& remoteID);
 
+	/// 查询远端服务器
+	ConneciontPrt findRemoteProxy(const string& remoteID);
 private:
 	/// 初始化数据库连接信息
 	void clearConnectionInfo();
 
+	/// 连接超时处理
 	void connectionTimeoutHandler(ConneciontPrt conn);
 
+	/// 保持代理服务器心跳
 	void keepHeartbeat(ConneciontPrt conn);
 private:
 	friend class IcsTerminalClient;
@@ -245,7 +255,7 @@ private:
 	// 终端服务
 	TcpServer	m_terminalTcpServer;
 	std::size_t m_terminalMaxCount;
-	std::unordered_map<std::string, ConneciontPrt> m_terminalConnMap;
+	std::unordered_map<std::string, ConneciontPrt> m_terminalConnMap;	// gwid为key，链接对象为value
 	std::mutex	m_terminalConnMapLock;
 
 	// 链接信息
@@ -258,7 +268,7 @@ private:
 	std::size_t m_webMaxCount;
 
 	// 远端代理服务
-	std::unordered_map<std::string, ConneciontPrt> m_proxyConnMap;
+	std::unordered_map<std::string, ConneciontPrt> m_proxyConnMap;	// 企业ID为key，链接对象为value
 	std::mutex	m_proxyConnMapLock;
 
 	// 推送系统

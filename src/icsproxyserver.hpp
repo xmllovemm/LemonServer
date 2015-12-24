@@ -117,7 +117,7 @@ public:
 	virtual void dispatch(ProtocolStream& request) throw(IcsException, otl_exception);
 
 	/// 出错
-	virtual void error();
+	virtual void error() throw();
 private:
 	/// 中心认证请求1
 	void handleAuthrize1(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);

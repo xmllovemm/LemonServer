@@ -49,7 +49,6 @@ public:
 
 	virtual ~IcsConnection()
 	{
-		m_socket.close();
 		LOG_DEBUG("Destroy the connection " << m_name);
 	}
 
@@ -104,7 +103,7 @@ public:
 	}
 
 	/// 定时处理:true-有效，false-无效
-	bool timeout()
+	bool timeout() throw()
 	{
 		if (m_valid && ++m_timeoutCount > m_timeoutMax)
 		{
@@ -388,7 +387,7 @@ private:
 			{
 //				ic = new IcsWeb<Protocol>(std::move(m_socket));
 			}
-			else if (msgid == MessageId::T2T_forward_msg)
+			else if (msgid == MessageId::T2T_forward_to_terminal)
 			{
 //				IcsConnection<Protocol>* ic = new IcsTerminal<Protocol>(std::move(m_socket));
 			}

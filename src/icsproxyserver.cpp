@@ -76,26 +76,22 @@ void IcsProxyTerminalClient::handle(ProtocolStream& request, ProtocolStream& res
 // 处理平层消息
 void IcsProxyTerminalClient::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
 {
-	ShortString terminalName;
-	uint16_t messageID;
-	uint32_t requestID;
-	request >> terminalName >> messageID >> requestID;
 
-	if (messageID <= MessageId::T2C_min || messageID >= MessageId::T2C_max)
-	{
-		throw IcsException("dispatch message=%d is not one of T2C", messageID);
-	}
+	uint32_t requestID;
+	request >> requestID;
+
+	
 	request.moveBack(sizeof(requestID));
 
 	// 记录该请求ID转发结果
 
 
 	// 发送到该链接对端
-	ProtocolStream response(ProtocolStream::OptType::writeType, g_memoryPool.get());
-	response.initHead((MessageId)messageID, false);
-	response << request;
+	ProtocolStream forward(ProtocolStream::OptType::writeType, g_memoryPool.get());
+	//forward.initHead()
+	forward << request;
 
-	_baseType::trySend(response);
+	_baseType::trySend(forward);
 }
 
 // 出错处理
@@ -680,7 +676,7 @@ void IcsCenter::handleAuthrize1(ProtocolStream& request, ProtocolStream& respons
 }
 
 /// 出错
-void IcsCenter::error()
+void IcsCenter::error() throw()
 {
 	m_proxyServer.removeIcsCenterConn(shared_from_this());
 }
@@ -712,12 +708,16 @@ void IcsCenter::handleAuthrize2(ProtocolStream& request, ProtocolStream& respons
 /// 转发消息给终端
 void IcsCenter::handleForwardToTermianl(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	ShortString gwid;
-	request >> gwid;
+	ShortString terminalName;
+	uint16_t messageID;
+//	uint32_t requestID;
+	request >> terminalName >> messageID;
 
-	auto conn = m_proxyServer.findTerminalClient(gwid);
+	auto conn = m_proxyServer.findTerminalClient(terminalName);
 	if (conn)
 	{
+		request.rewind();
+		request.initHead((MessageId)messageID, false);
 		conn->dispatch(request);
 		response << (uint8_t)0;
 	}

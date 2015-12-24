@@ -104,19 +104,22 @@ public:
 	}
 
 private:
+
+	/// 超时任务队列
 	class TaskList {
 	public:
 		/// 添加一个count次后调用的任务
 		void add(int count, TimeOutHandler&& th)
 		{
-			std::lock_guard<std::mutex> lock(m_workListLock);
+			std::lock_guard<std::recursive_mutex> lock(m_workListLock);
 			m_workList.emplace_front(count, std::forward<TimeOutHandler>(th));
 		}
 
 		/// 检查该队列的全部任务
 		void timeWork()
 		{
-			std::lock_guard<std::mutex> lock(m_workListLock);
+			// 用recursive_mutex的原因：在执行的超时任务里可能再次注册超时任务，有一定概率再次放入此任务队列引起“同一线程多次获取同一锁”
+			std::lock_guard<std::recursive_mutex> lock(m_workListLock);
 			for (auto it = m_workList.begin(); it != m_workList.end();)
 			{
 				if (--it->count <= 0)
@@ -138,7 +141,7 @@ private:
 			TimeOutHandler	handler;
 		};
 
-		std::mutex m_workListLock;
+		std::recursive_mutex m_workListLock;
 		std::list<TimeWork> m_workList;
 	};
 

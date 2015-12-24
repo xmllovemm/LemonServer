@@ -148,9 +148,9 @@ void IcsTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStrea
 	}
 
 	// auth info
-	string gwId, gwPwd, extendInfo;
+	string gwPwd, extendInfo;
 
-	request >> gwId >> gwPwd >> m_deviceKind >> extendInfo;
+	request >> m_gwid >> gwPwd >> m_deviceKind >> extendInfo;
 
 	request.assertEmpty();
 
@@ -160,7 +160,7 @@ void IcsTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStrea
 		"{ call sp_authroize(:gwid<char[33],in>,:pwd<char[33],in>,@ret,@id,@name) }",
 		connGuard.connection());
 
-	authroizeStream << gwId << gwPwd;
+	authroizeStream << m_gwid << gwPwd;
 	authroizeStream.close();
 
 	otl_stream getStream(1, "select @ret :#<int>,@id :#<char[32]>,@name :#name<char[32]>", connGuard.connection());
@@ -184,7 +184,7 @@ void IcsTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStrea
 
 		response << ShortString("ok") << m_localServer.m_heartbeatTime;
 
-		m_localServer.addTerminalClient(m_connName, shared_from_this());
+		m_localServer.addTerminalClient(m_gwid, shared_from_this());
 
 		LOG_INFO("terminal " << m_connName << " created on " << this->name());
 
@@ -815,25 +815,48 @@ void IcsWebClient::dispatch(ProtocolStream& request) throw(IcsException, otl_exc
 	throw IcsException("WebHandler never handle message, id: %d ", request.getHead()->getMsgID());
 }
 
+// 出错处理
+void IcsWebClient::error() throw()
+{
+
+}
+
 // 转发到ICS对应终端
 void IcsWebClient::handleICSForward(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	ShortString terminalName;
+	ShortString gwid;
 	uint16_t messageID;
 	uint32_t requestID;
-	request >> terminalName >> messageID >> requestID;
+	request >> gwid >> messageID >> requestID;
 	request.rewind();
 
-	if (!terminalName.empty())
+	if (!gwid.empty())
 	{
+		bool ret = false;
 		// 根据终端ID转发该消息
-		bool result = m_localServer.sendToTerminalClient(terminalName, request);
+		auto conn = m_localServer.findTerminalClient(gwid);
+
+		if (conn)
+		{
+			try {
+				conn->dispatch(request);
+				ret = true;
+			}
+			catch (IcsException& ex)
+			{
+				LOG_ERROR("forward to terminal " << gwid << " error:" << ex.message());
+			}
+		}
+		else
+		{
+			LOG_ERROR("can't find terminal " << gwid);
+		}
 
 		// 转发结果记录到数据库
 		{
 			OtlConnectionGuard connection(g_database);
 			otl_stream s(1, "{ call sp_web_command_status(:requestID<int,in>,:msgID<int,in>,:stat<int,in>) }", connection.connection());
-			s << (int)requestID << (int)messageID << (result ? 0 : 1);
+			s << (int)requestID << (int)messageID << (ret ? 0 : 1);
 		}
 	}
 }
@@ -848,6 +871,13 @@ void IcsWebClient::handleConnectRemote(ProtocolStream& request, ProtocolStream& 
 	if (remoteID.empty())
 	{
 		LOG_WARN(this->name() << " enterprise is empty");
+		return;
+	}
+
+	/// 查询是否已经连接
+	if (m_localServer.findRemoteProxy(remoteID))
+	{
+		LOG_INFO("The remote enterprise " << remoteID << " is conneted");
 		return;
 	}
 
@@ -913,17 +943,32 @@ void IcsWebClient::handleDisconnectRemote(ProtocolStream& request, ProtocolStrea
 void IcsWebClient::handleRemoteForward(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	ShortString enterpriseName;
-	ShortString terminalName;
+	ShortString gwid;
 	uint16_t messageID;
 	uint32_t requestID;
-	request >> enterpriseName >> terminalName >> messageID >> requestID;
+	request >> enterpriseName >> gwid >> messageID >> requestID;
 	request.rewind();
 
-	if (!terminalName.empty())
+	if (!gwid.empty())
 	{
-		// 根据终端ID转发该消息
-		bool result = m_localServer.sendToTerminalClient(terminalName, request);
-
+		// 根据企业ID找到对应链接
+		auto conn = m_localServer.findRemoteProxy(enterpriseName);
+		bool result = false;
+		if (conn)
+		{
+			try {
+				conn->dispatch(request);
+				result = true;
+			}
+			catch (IcsException& ex)
+			{
+				LOG_ERROR("forward to remote " << enterpriseName << "'s terminal " << gwid << " error:" << ex.message());
+			}
+		}
+		else
+		{
+			LOG_ERROR("can't find enterpirse:" << gwid);
+		}
 		// 转发结果记录到数据库
 		{
 			OtlConnectionGuard connection(g_database);
@@ -994,13 +1039,55 @@ void IcsRemoteProxyClient::handle(ProtocolStream& request, ProtocolStream& respo
 // 处理平层消息
 void IcsRemoteProxyClient::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
 {
-	throw IcsException("IcsRemoteProxyClient never dispatch");
+	ProtocolStream response(ProtocolStream::OptType::writeType, g_memoryPool.get());
+	ShortString enterpriseName;
+	ShortString gwid;
+	uint16_t messageID;
+
+	request >> enterpriseName;
+
+	response.initHead(MessageId::T2T_forward_to_terminal, false);
+	response << request;
+
+	request >> gwid >> messageID;
+	if (messageID == MessageId::T2C_upgrade_request)	/// 升级消息时需要提前查找文件路径
+	{
+		uint32_t requestID;
+		uint32_t fileid;
+		request >> requestID >> fileid;
+
+		// 从数据库中查询该文件ID对应的文件名
+		// 转发结果记录到数据库
+		{
+			OtlConnectionGuard connection(g_database);
+			otl_stream s(1, "SELECT CONCAT(t.FILE_PATH,t.FILE_NAME)	FROM b_upgrade_file_t t	WHERE t.FILE_ID = :fileid<int,in>", connection.connection());
+			s << (int)fileid;
+		
+			std::string filepath;
+			s >> filepath;
+
+			if (filepath.empty())
+			{
+				LOG_ERROR("can't find the file path of the fileid " << fileid);
+				return;
+			}
+
+			/// 添加文件路径
+			response << filepath;
+		}
+	}
+
+	_baseType::_baseType::trySend(response);
 }
 
 // 出错
-void IcsRemoteProxyClient::error()
+void IcsRemoteProxyClient::error() throw()
 {
-	LOG_DEBUG("IcsRemoteProxyClient error");
+	if (!m_enterpriseID.empty())
+	{
+		m_localServer.removeRemotePorxy(m_enterpriseID);
+		m_enterpriseID.clear();
+	}
 }
 
 // 请求验证中心身份
@@ -1071,7 +1158,6 @@ void IcsRemoteProxyClient::handleAuthResponse(ProtocolStream& request, ProtocolS
 	if (interval < 5)	// 回复时间在5秒内,认证成功
 	{
 		LOG_DEBUG("authrize success, interval=" << interval);
-		m_localServer.addRemotePorxy(m_enterpriseID, shared_from_this());
 
 		// 链接成功记录到数据库
 		OtlConnectionGuard connGuard(g_database);
@@ -1083,6 +1169,9 @@ void IcsRemoteProxyClient::handleAuthResponse(ProtocolStream& request, ProtocolS
 		m_isLegal = true;
 		response.initHead(MessageId::T2T_auth_request2, false);
 		response << t2;
+
+		m_localServer.addRemotePorxy(m_enterpriseID, shared_from_this());
+
 	}
 	else
 	{
@@ -1119,16 +1208,26 @@ void IcsRemoteProxyClient::handleTerminalMessage(ProtocolStream& request, Protoc
 {
 	// 在消息体开始处取出终端编号(gwid) 消息ID
 	uint16_t msgid;
-	ShortString monitorID;
-	request >> monitorID >> msgid;
+	ShortString remoteGwid;
+	request >> remoteGwid >> msgid;
 
-	auto& localId = findLocalID(monitorID);
+	auto& monitorName = findLocalID(remoteGwid);
 	// 不存在时从数据库中查询
-	if (!localId.empty())
+	if (!monitorName.empty())
 	{
 		request.initHead((MessageId)msgid, false);
-		_baseType::m_connName = localId;
-		_baseType::handle(request, response);
+		_baseType::m_connName = monitorName;
+		try {
+			_baseType::handle(request, response);
+		}
+		catch (IcsException& ex)
+		{
+			LOG_ERROR("Handle the remote gwid '" << remoteGwid<<"' IcsException,"<<ex.message());
+		}
+		catch (otl_exception& ex)
+		{
+			LOG_ERROR("Handle the remote gwid '" << remoteGwid << "' otl_exception," << ex.msg);
+		}
 	}
 }
 
@@ -1150,8 +1249,8 @@ IcsLocalServer::IcsLocalServer(asio::io_service& ioService, const string& termin
 		, [this](socket&& s)
 		{					
 			ConneciontPrt conn = std::make_shared<IcsTerminalClient>(*this, std::move(s));
-			conn->start();
-			connectionTimeoutHandler(conn);
+			conn->start();	// 投递读写事件
+			connectionTimeoutHandler(conn); // 注册连接超时定时器
 		});
 
 	m_webTcpServer.init("center's web"
@@ -1197,13 +1296,13 @@ void IcsLocalServer::stop()
 }
 
 /// 添加已认证终端对象
-void IcsLocalServer::addTerminalClient(const string& conID, ConneciontPrt conn)
+void IcsLocalServer::addTerminalClient(const string& gwid, ConneciontPrt conn)
 {
 	std::lock_guard<std::mutex> lock(m_terminalConnMapLock);
-	auto& oldConn = m_terminalConnMap[conID];
+	auto& oldConn = m_terminalConnMap[gwid];
 	if (oldConn)
 	{
-		LOG_WARN(conID << " from " << oldConn->name() << " is replaced by " << conn->name());
+		LOG_WARN(gwid << " from " << oldConn->name() << " is replaced by " << conn->name());
 		oldConn->replaced();
 	}
 	oldConn = conn;
@@ -1216,38 +1315,19 @@ void IcsLocalServer::removeTerminalClient(const string& conID)
 	m_terminalConnMap.erase(conID);
 }
 
-/// 发送数据到终端对象
-bool IcsLocalServer::sendToTerminalClient(const string& conID, ProtocolStream& request)
+/// 查询终端链接
+IcsLocalServer::ConneciontPrt IcsLocalServer::findTerminalClient(const string& conID)
 {
-	bool ret = false;
-	ConneciontPrt conn;
-
+	std::lock_guard<std::mutex> lock(m_proxyConnMapLock);
+	auto it = m_proxyConnMap.find(conID);
+	if (it != m_proxyConnMap.end())
 	{
-		std::lock_guard<std::mutex> lock(m_terminalConnMapLock);
-		auto it = m_terminalConnMap.find(conID);
-		if (it != m_terminalConnMap.end())
-		{
-			conn = it->second;
-		}
+		return it->second;
 	}
-
-	if (conn)
+	else
 	{
-		try {
-			conn->dispatch(request);
-			ret = true;
-		}
-		catch (IcsException& ex)
-		{
-			LOG_ERROR("send to " << conID << " failed,inner info: " << ex.message());
-		}
-		catch (otl_exception& ex)
-		{
-			LOG_ERROR("send to " << conID << " failed,db info: " << ex.msg);
-		}
+		return nullptr;
 	}
-
-	return ret;
 }
 
 /// 添加远程代理服务器对象
@@ -1255,7 +1335,7 @@ void IcsLocalServer::addRemotePorxy(const string& remoteID, ConneciontPrt conn)
 {
 //	keepHeartbeat(conn);
 	std::lock_guard<std::mutex> lock(m_proxyConnMapLock);
-	m_proxyConnMap[remoteID] = std::move(conn);
+	m_proxyConnMap[remoteID] = conn;
 }
 
 /// 移除远程代理服务器
@@ -1263,6 +1343,21 @@ void IcsLocalServer::removeRemotePorxy(const string& remoteID)
 {
 	std::lock_guard<std::mutex> lock(m_proxyConnMapLock);
 	m_proxyConnMap.erase(remoteID);
+}
+
+/// 查询远端代理服务器
+IcsLocalServer::ConneciontPrt IcsLocalServer::findRemoteProxy(const string& remoteID)
+{
+	std::lock_guard<std::mutex> lock(m_proxyConnMapLock);
+	auto it = m_proxyConnMap.find(remoteID);
+	if (it != m_proxyConnMap.end())
+	{
+		return it->second;
+	}
+	else
+	{
+		return nullptr;
+	}
 }
 
 /// 初始化数据库连接信息
@@ -1275,6 +1370,7 @@ void IcsLocalServer::clearConnectionInfo()
 	s << m_onlineIP << m_onlinePort;
 }
 
+/// 连接超时处理
 void IcsLocalServer::connectionTimeoutHandler(ConneciontPrt conn)
 {
 	m_timer.add(m_heartbeatTime,
@@ -1286,6 +1382,7 @@ void IcsLocalServer::connectionTimeoutHandler(ConneciontPrt conn)
 	}));
 }
 
+/// 保持代理服务器心跳
 void IcsLocalServer::keepHeartbeat(ConneciontPrt conn)
 {
 	auto proxy = std::dynamic_pointer_cast<IcsRemoteProxyClient>(conn);
