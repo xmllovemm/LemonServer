@@ -387,7 +387,7 @@ private:
 			{
 //				ic = new IcsWeb<Protocol>(std::move(m_socket));
 			}
-			else if (msgid == MessageId::T2T_forward_to_terminal)
+			else if (msgid == MessageId::C2C_forward_to_terminal)
 			{
 //				IcsConnection<Protocol>* ic = new IcsTerminal<Protocol>(std::move(m_socket));
 			}
