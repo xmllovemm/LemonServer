@@ -53,7 +53,7 @@
   <database>
     <username>commuser</username>
     <password>datang</password>
-    <dsn>mysql</dsn>
+    <dsn>basta_data</dsn>
     <count>4</count>
   </database>
   

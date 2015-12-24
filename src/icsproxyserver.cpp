@@ -112,7 +112,7 @@ void IcsProxyTerminalClient::forwardToIcsCenter(ProtocolStream& request)
 	ProtocolStream forward(ProtocolStream::OptType::writeType, g_memoryPool.get());
 
 	request.rewind();
-	forward.initHead(MessageId::T2T_forward_to_ics, false);
+	forward.initHead(MessageId::C2C_forward_to_ics, false);
 	forward << m_connName << (uint16_t)request.getHead()->getMsgID() << request;
 
 	m_proxyServer.sendToIcsCenter(forward);
@@ -122,7 +122,7 @@ void IcsProxyTerminalClient::forwardToIcsCenter(ProtocolStream& request)
 void IcsProxyTerminalClient::onoffLineToIcsCenter(uint8_t status)
 {
 	ProtocolStream forward(ProtocolStream::OptType::writeType, g_memoryPool.get());
-	forward.initHead(MessageId::T2T_terminal_onoff_line, false);
+	forward.initHead(MessageId::C2C_terminal_onoff_line, false);
 	forward << m_connName << m_deviceKind << status;
 
 	m_proxyServer.sendToIcsCenter(forward);
@@ -587,7 +587,7 @@ void IcsProxyTerminalClient::handleRequestFile(ProtocolStream& request, Protocol
 	}
 	else	// 无升级事务
 	{
-		response.initHead(MessageId::T2C_upgrade_not_found, request.getHead()->getAckNum());
+		response.initHead(MessageId::C2T_upgrade_not_found, request.getHead()->getAckNum());
 	}
 }
 
@@ -636,19 +636,19 @@ void IcsCenter::handle(ProtocolStream& request, ProtocolStream& response) throw(
 	auto id = request.getHead()->getMsgID();
 	switch (id)
 	{
-	case MessageId::T2T_auth_request1:
+	case MessageId::C2C_auth_request1:
 		handleAuthrize1(request, response);
 		break;
 
-	case MessageId::T2T_auth_request2:
+	case MessageId::C2C_auth_request2:
 		handleAuthrize2(request, response);
 		break;
 
-	case MessageId::T2T_forward_to_terminal:
+	case MessageId::C2C_forward_to_terminal:
 		handleForwardToTermianl(request, response);
 		break;
 
-	case MessageId::T2T_heartbeat:	// ignore
+	case MessageId::C2C_heartbeat:	// ignore
 		break;
 
 	default:		
@@ -671,7 +671,7 @@ void IcsCenter::handleAuthrize1(ProtocolStream& request, ProtocolStream& respons
 
 	request.assertEmpty();
 
-	response.initHead(MessageId::T2T_auth_response, false);
+	response.initHead(MessageId::C2C_auth_response, false);
 	response << t1 << t2;
 }
 

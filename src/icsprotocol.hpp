@@ -120,7 +120,7 @@ enum MessageId {
 	C2T_auth_response = 0x0102,			
 
 	// 发起升级请求
-	T2C_upgrade_request = 0x0201,
+	C2T_upgrade_request = 0x0201,
 	// 拒绝升级
 	T2C_upgrade_deny = 0x0202,			
 	// 同意升级
@@ -128,13 +128,13 @@ enum MessageId {
 	// 索要升级文件片段
 	T2C_upgrade_file_request = 0x0204,	
 	// 当前无升级事务
-	T2C_upgrade_not_found = 0x0205,		
+	C2T_upgrade_not_found = 0x0205,		
 	// 升级文件片段
-	T2C_upgrade_file_response = 0x0206,
+	C2T_upgrade_file_response = 0x0206,
 	// 升级文件传输结果
 	T2C_upgrade_result_report = 0x0207,
 	// 取消升级事务
-	T2C_upgrade_cancel = 0x0208,			
+	C2T_upgrade_cancel = 0x0208,			
 	// 确认取消升级事务
 	T2C_upgrade_cancel_ack = 0x0209,		
 	
@@ -147,7 +147,7 @@ enum MessageId {
 	T2C_event_report = 0x0501,			
 
 	// 中心查询参数
-	T2C_param_query_request = 0x0601,			
+	C2T_param_query_request = 0x0601,			
 	// 终端回应参数查询
 	T2C_param_query_response = 0x0602,			
 
@@ -155,7 +155,7 @@ enum MessageId {
 	T2C_param_alter_report = 0x0701,		
 
 	// 中心发起修改请求
-	T2C_param_modiy_reuest = 0x0801,		
+	C2T_param_modiy_reuest = 0x0801,		
 	// 终端回应参数修改
 	T2C_param_modiy_response = 0x0802,	
 
@@ -167,7 +167,7 @@ enum MessageId {
 	// 终端发送时钟同步请求
 	T2C_datetime_sync_request = 0x0a01,	
 	// 中心应答始终同步
-	T2C_datetime_sync_response = 0x0a02,	
+	C2T_datetime_sync_response = 0x0a02,	
 
 	// 终端发送心跳
 	T2C_heartbeat = 0x0b01,				
@@ -178,7 +178,7 @@ enum MessageId {
 	T2C_max,
 
 
-	// ------ T and C ------ //
+	// ------ W and C ------ //
 	W2C_min = 0x2000,
 	// 发给ICS终端
 	W2C_send_to_ics_terminal = 0x2001,
@@ -191,27 +191,27 @@ enum MessageId {
 
 	W2C_max,
 
-	// ------ T and C ------ //
+	// ------ P and C ------ //
 	// 推送消息
 	C2P_push_message = 0x3001,
 
-	// ------ T and T ------ //
+	// ------ C and C ------ //
 	// 中心通信服务器认证请求1
-	T2T_auth_request1 = 0x4001,
+	C2C_auth_request1 = 0x4001,
 	// 认证结果
-	T2T_auth_response = 0x4002,
+	C2C_auth_response = 0x4002,
 	// 中心通信服务器认证请求2
-	T2T_auth_request2 = 0x4003,
+	C2C_auth_request2 = 0x4003,
 	// 中心通信服务器通知远程服务器转发终端消息
-	T2T_forward_to_terminal = 0x4004,
+	C2C_forward_to_terminal = 0x4004,
 	// 远程服务器回应转发结果
-	T2T_forward_response = 0x4005,
+	C2C_forward_response = 0x4005,
 	// 子服务器上报终端上下线消息
-	T2T_terminal_onoff_line = 0x4006,
+	C2C_terminal_onoff_line = 0x4006,
 	// 子服务器上报终端消息
-	T2T_forward_to_ics = 0x4007,
+	C2C_forward_to_ics = 0x4007,
 	// 两者心跳消息
-	T2T_heartbeat = 0x4008,
+	C2C_heartbeat = 0x4008,
 
 	MessageId_max,
 };
