@@ -237,6 +237,36 @@ public:
 
 	/// 查询远端服务器
 	ConneciontPrt findRemoteProxy(const string& remoteID);
+
+	/// 获取web可访问的ip地址
+	inline const string& getWebIp() const
+	{
+		return m_onlineIP;
+	}
+
+	/// 获取web可访问的tcp端口号
+	inline int getWebPort() const
+	{
+		return m_onlinePort;
+	}
+
+	/// 获取链接心跳时间
+	inline uint16_t getHeartbeatTime() const
+	{
+		return m_heartbeatTime;
+	}
+
+	/// 获取推送
+	inline PushSystem& getPushSystem()
+	{
+		return m_pushSystem;
+	}
+
+	/// 获取io服务
+	inline asio::io_service& getIoService()
+	{
+		return m_ioService;
+	}
 private:
 	/// 初始化数据库连接信息
 	void clearConnectionInfo();
@@ -247,9 +277,6 @@ private:
 	/// 保持代理服务器心跳
 	void keepHeartbeat(ConneciontPrt conn);
 private:
-	friend class IcsTerminalClient;
-	friend class IcsWebClient;
-
 	asio::io_service& m_ioService;
 
 	// 终端服务

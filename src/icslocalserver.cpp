@@ -35,7 +35,7 @@ IcsTerminalClient::~IcsTerminalClient()
 			, "{ call sp_offline(:id<char[33],in>,:ip<char[17],in>,:port<int,in>) }"
 			, connGuard.connection());
 
-		s << m_connName << m_localServer.m_onlineIP << m_localServer.m_onlinePort;
+		s << m_connName << m_localServer.getWebIp() << m_localServer.getWebPort();
 	}
 }
 
@@ -126,7 +126,7 @@ void IcsTerminalClient::error() throw()
 			otl_stream s(1
 				, "{ call sp_offline(:id<char[33],in>,:ip<char[17],in>,:port<int,in>) }"
 					, connGuard.connection());
-			s << m_connName << m_localServer.m_onlineIP << m_localServer.m_onlinePort;
+			s << m_connName << m_localServer.getWebIp() << m_localServer.getWebPort();
 		}
 		catch (otl_exception& ex)
 		{
@@ -180,9 +180,9 @@ void IcsTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStrea
 			, "{ call sp_online(:id<char[33],in>,:ip<char[16],in>,:port<int,in>) }"
 			, connGuard.connection());
 
-		onlineStream << m_connName << m_localServer.m_onlineIP << m_localServer.m_onlinePort;
+		onlineStream << m_connName << m_localServer.getWebIp() << m_localServer.getWebPort();
 
-		response << ShortString("ok") << m_localServer.m_heartbeatTime;
+		response << ShortString("ok") << m_localServer.getHeartbeatTime();
 
 		m_localServer.addTerminalClient(m_gwid, shared_from_this());
 
@@ -301,7 +301,7 @@ void IcsTerminalClient::handleEventsReport(ProtocolStream& request, ProtocolStre
 		ProtocolStream pushStream(ProtocolStream::OptType::writeType, g_memoryPool.get());
 		pushStream << m_connName << m_deviceKind << event_time << event_id << event_value;
 
-		m_localServer.m_pushSystem.send(pushStream);
+		m_localServer.getPushSystem().send(pushStream);
 	}
 	request.assertEmpty();
 }
@@ -902,7 +902,7 @@ void IcsWebClient::handleConnectRemote(ProtocolStream& request, ProtocolStream& 
 	if (!remoteIP.empty() || remotePort != 0)
 	{
 		// 连接该远端
-		asio::ip::tcp::socket remoteSocket(m_localServer.m_ioService);
+		asio::ip::tcp::socket remoteSocket(m_localServer.getIoService());
 		asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(remoteIP), remotePort);
 		asio::error_code ec;
 		remoteSocket.connect(endpoint, ec);
@@ -989,14 +989,7 @@ IcsRemoteProxyClient::IcsRemoteProxyClient(IcsLocalServer& localServer, socket&&
 
 IcsRemoteProxyClient::~IcsRemoteProxyClient()
 {
-	if (m_isLegal)
-	{
-		OtlConnectionGuard connGuard(g_database);
-		otl_stream s(1
-			, "{ call sp_remote_proxy_onoff_line(:ent<char[33],in>,1) }"
-			, connGuard.connection());
-		s << m_enterpriseID;
-	}
+	
 }
 
 
@@ -1086,6 +1079,14 @@ void IcsRemoteProxyClient::error() throw()
 	if (!m_enterpriseID.empty())
 	{
 		m_localServer.removeRemotePorxy(m_enterpriseID);
+		if (m_isLegal)
+		{
+			OtlConnectionGuard connGuard(g_database);
+			otl_stream s(1
+				, "{ call sp_remote_proxy_onoff_line(:ent<char[33],in>,2,'',0) }"
+				, connGuard.connection());
+			s << m_enterpriseID;
+		}
 		m_enterpriseID.clear();
 	}
 }
@@ -1162,16 +1163,15 @@ void IcsRemoteProxyClient::handleAuthResponse(ProtocolStream& request, ProtocolS
 		// 链接成功记录到数据库
 		OtlConnectionGuard connGuard(g_database);
 		otl_stream s(1
-			, "{ call sp_remote_proxy_onoff_line(:ent<char[33],in>,0) }"
+			, "{ call sp_remote_proxy_onoff_line(:ent<char[33],in>,1,:ip<char[16],in>,:port<int,in>) }"
 			, connGuard.connection());
-		s << m_enterpriseID;
+		s << m_enterpriseID << m_localServer.getWebIp() << m_localServer.getWebPort();
 
 		m_isLegal = true;
 		response.initHead(MessageId::C2C_auth_request2, false);
 		response << t2;
 
 		m_localServer.addRemotePorxy(m_enterpriseID, shared_from_this());
-
 	}
 	else
 	{
@@ -1263,14 +1263,35 @@ IcsLocalServer::IcsLocalServer(asio::io_service& ioService, const string& termin
 		});
 
 	m_timer.start();
+
+
+	// 数据库记录该服务器地址 sp_server_onoff_line
+	{
+		OtlConnectionGuard connGuard(g_database);
+		otl_stream s(1
+			, "{ call sp_server_onoff_line(:ip<char[16],in>,:port<int,in>,:stat<int,in>) }"
+			, connGuard.connection());
+		s << m_onlineIP << m_onlinePort << (int)1;
+	}
 }
 
 IcsLocalServer::~IcsLocalServer()
 {
+	// 服务器下线
+	{
+		OtlConnectionGuard connGuard(g_database);
+		otl_stream s(1
+			, "{ call sp_server_onoff_line(:ip<char[16],in>,:port<int,in>,:stat<int,in>) }"
+			, connGuard.connection());
+		s << m_onlineIP << m_onlinePort << (int)2;
+	}
+
+	// 停止tcp服务
 	m_terminalTcpServer.stop();
 	m_webTcpServer.stop();
 	m_timer.stop();
 
+	// 清除链接信息
 	{
 		std::lock_guard<std::mutex> lock(m_terminalConnMapLock);
 		m_terminalConnMap.clear();

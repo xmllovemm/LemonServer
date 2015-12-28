@@ -31,7 +31,6 @@
 
   <proxyraddr>
     <terminal>0.0.0.0:8888</terminal>
-    <web>0.0.0.0:8887</web>
     <center>0.0.0.0:8886</center>
   </proxyraddr>
 
@@ -53,7 +52,7 @@
   <database>
     <username>commuser</username>
     <password>datang</password>
-    <dsn>basta_data</dsn>
+    <dsn>mysql</dsn>
     <count>4</count>
   </database>
   

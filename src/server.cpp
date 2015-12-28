@@ -25,32 +25,6 @@ void usage(const char* prog)
 	cerr << "useage:" << prog << " configfile" << endl;
 }
 
-int itostr(char* buf, int value)
-{
-	// numerator = denomerator * quotient + remainder
-	// n = d * q + r
-	static const char* digitalsBuff = "9876543210123456789";
-	const char* digital = digitalsBuff + 9;
-	char* outbuf = buf;
-	
-	if (value < 0)
-	{
-		*outbuf++ = '-';
-	}
-
-	int q = value;
-	do
-	{	
-		*outbuf++ = digital[q % 10];
-		q /= 10;
-	} while (q != 0);
-
-	*outbuf = 0;
-
-	std::reverse(buf + (value < 0 ? 1 : 0), outbuf);
-
-	return outbuf - buf;
-}
 
 
 int main(int argc, char** argv)
@@ -106,26 +80,31 @@ int main(int argc, char** argv)
 			ics::be_daemon(g_configFile.getAttributeString("program", "workdir").c_str());
 		}
 
-		// 主线程开始IO事件
-		io_service.run();
-
+		// 主线程开始IO事件,忽略错误
+		asio::error_code ec;
+		io_service.run(ec);
 	}
 	catch (ics::IcsException& ex)
 	{
 		cerr << "init failed ics exception: " << ex.message() << endl;
+		return 1;
 	}
 	catch (std::exception& ex)
 	{
 		cerr << "init failed std exception: " << ex.what() << endl;
+		return 2;
 	}
 	catch (otl_exception& ex)
 	{
 		cerr << "init failed database exception: " << ex.msg << endl;
+		return 3;
 	}
 	catch (...)
 	{
 		cerr << "unknown error" << endl;
+		return 4;
 	}
+
 
 	cout << "The process stoped";
 
