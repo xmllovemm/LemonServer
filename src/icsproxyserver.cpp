@@ -752,7 +752,7 @@ IcsPorxyServer::IcsPorxyServer(asio::io_service& ioService
 	{
 		ConneciontPrt conn = std::make_shared<IcsCenter>(*this, std::move(s));
 		conn->start();
-		//connectionTimeoutHandler(conn);
+		connectionTimeoutHandler(conn);
 	});
 
 	m_timer.start();
