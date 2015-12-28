@@ -31,7 +31,6 @@
 
   <proxyraddr>
     <terminal>0.0.0.0:8888</terminal>
-    <web>0.0.0.0:8887</web>
     <center>0.0.0.0:8886</center>
   </proxyraddr>
 
