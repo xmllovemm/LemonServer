@@ -169,16 +169,6 @@ protected:
 		trySend();
 	}
 
-	/// 出错
-	void do_error()
-	{
-//		LOG_DEBUG(m_name << " is closing...");
-		m_valid = false;		
-		error();	/// 通知上层应用出错	
-		asio::error_code ec;
-		m_socket.close(ec);		/// 关闭链接
-	}
-
 	/// 十六进制显示
 	void toHexInfo(const char* info, const uint8_t* data, std::size_t length)
 	{
@@ -318,6 +308,17 @@ protected:
 
 		return ret;
 	}
+
+public:
+		/// 出错
+		void do_error()
+		{
+			//		LOG_DEBUG(m_name << " is closing...");
+			m_valid = false;
+			error();	/// 通知上层应用出错	
+			asio::error_code ec;
+			m_socket.close(ec);		/// 关闭链接
+		}
 
 protected:	
 	/// 链接套接字

@@ -936,7 +936,12 @@ void IcsWebClient::handleDisconnectRemote(ProtocolStream& request, ProtocolStrea
 	// 断开该远端
 	bool connectResult = true;
 
-	m_localServer.removeRemotePorxy(remoteID);
+	auto conn = m_localServer.findRemoteProxy(remoteID);
+	if (nullptr!=conn)
+	{
+		conn->do_error();
+	}
+
 }
 
 // 转发到remote对应终端
@@ -1240,6 +1245,9 @@ IcsLocalServer::IcsLocalServer(asio::io_service& ioService, const string& termin
 	, m_webTcpServer(ioService), m_webMaxCount(webMaxCount)
 	, m_pushSystem(ioService, pushAddr)
 {
+	//清除所有的链接信息;
+	clearConnectionInfo();
+
 	m_onlineIP = g_configFile.getAttributeString("protocol", "onlineIP");
 	m_onlinePort = g_configFile.getAttributeInt("protocol", "onlinePort");
 	m_heartbeatTime = g_configFile.getAttributeInt("protocol", "heartbeat");
@@ -1384,11 +1392,13 @@ IcsLocalServer::ConneciontPrt IcsLocalServer::findRemoteProxy(const string& remo
 /// 初始化数据库连接信息
 void IcsLocalServer::clearConnectionInfo()
 {
-	OtlConnectionGuard connGuard(g_database);
-	otl_stream s(1
-		, "{ call sp_clear_connection_info(:ip<char[32],in>,:port<int,in>) }"
-		, connGuard.connection());
-	s << m_onlineIP << m_onlinePort;
+
+		OtlConnectionGuard connGuard(g_database);
+		otl_stream s(1
+			, "{ call sp_clear_connection_info(:ip<char[32],in>,:port<int,in>) }"
+			, connGuard.connection());
+		s << m_onlineIP << m_onlinePort;
+
 }
 
 /// 连接超时处理
