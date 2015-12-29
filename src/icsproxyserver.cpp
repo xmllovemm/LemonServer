@@ -84,7 +84,7 @@ void IcsProxyTerminalClient::dispatch(ProtocolStream& request) throw(IcsExceptio
 	request.moveBack(sizeof(requestID));
 
 	// 记录该请求ID转发结果
-	uint32_t fileid;
+	uint32_t fileid=0;
 	ShortString filename;
 
 	// 加载文件不成功时不再转发给终端

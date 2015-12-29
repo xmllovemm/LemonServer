@@ -43,45 +43,45 @@ IcsTerminalClient::~IcsTerminalClient()
 void IcsTerminalClient::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	auto id = request.getHead()->getMsgID();
-	if (id != T2C_auth_request && m_connName.empty())
+	if (id != T2C_auth_request_0x0101 && m_connName.empty())
 	{
 		throw IcsException("must authrize at first step");
 	}
 	switch (id)
 	{
-	case T2C_auth_request:
+	case T2C_auth_request_0x0101:
 		handleAuthRequest(request, response);
 		break;
 
-	case T2C_heartbeat:
+	case T2C_heartbeat_0x0b01:
 		handleHeartbeat(request, response);
 		break;
 
-	case T2C_std_status_report:
+	case T2C_std_status_report_0x0301:
 		handleStdStatusReport(request, response);
 		break;
 
-	case T2C_def_status_report:
+	case T2C_def_status_report_0x0401:
 		handleDefStatusReport(request, response);
 		break;
 
-	case T2C_event_report:
+	case T2C_event_report_0x0501:
 		handleEventsReport(request, response);
 		break;
 
-	case T2C_bus_report:
+	case T2C_bus_report_0x0901:
 		handleBusinessReport(request, response);
 		break;
 
-	case T2C_gps_report:
+	case T2C_gps_report_0x0902:
 		handleGpsReport(request, response);
 		break;
 
-	case T2C_datetime_sync_request:
+	case T2C_datetime_sync_request_0x0a01:
 		handleDatetimeSync(request, response);
 		break;
 
-	case T2C_log_report:
+	case T2C_log_report_0x0c01:
 		handleLogReport(request, response);
 		break;
 
@@ -99,7 +99,7 @@ void IcsTerminalClient::dispatch(ProtocolStream& request) throw(IcsException, ot
 	uint32_t requestID;
 	request >> terminalName >> messageID >> requestID;
 
-	if (messageID <= MessageId::T2C_min || messageID >= MessageId::T2C_max)
+	if (messageID <= MessageId::T2C_min_0x0100 || messageID >= MessageId::T2C_max)
 	{
 		throw IcsException("dispatch message=%d is not one of T2C", messageID);
 	}
@@ -142,7 +142,7 @@ void IcsTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStrea
 	if (!m_connName.empty())
 	{
 		LOG_DEBUG(m_connName << " ignore repeat authrize message");
-		response.initHead(MessageId::C2T_auth_response, request.getHead()->getSendNum());
+		response.initHead(MessageId::C2T_auth_response_0x0102, request.getHead()->getSendNum());
 		response << ShortString("ok") << (uint16_t)10;
 		return;
 	}
@@ -170,7 +170,7 @@ void IcsTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStrea
 
 	getStream >> ret >> id >> name;
 
-	response.initHead(MessageId::C2T_auth_response, false);
+	response.initHead(MessageId::C2T_auth_response_0x0102, false);
 
 	if (ret == 0)	// 成功
 	{
@@ -319,7 +319,7 @@ void IcsTerminalClient::handleBusinessReport(ProtocolStream& request, ProtocolSt
 
 	if (m_lastBusSerialNum == business_no)	// 重复的业务流水号，直接忽略
 	{
-		response.initHead(MessageId::MessageId_min, false);
+		response.initHead(MessageId::MessageId_min_0x0000, false);
 		return;
 	}
 
@@ -608,7 +608,7 @@ void IcsTerminalClient::handleDatetimeSync(ProtocolStream& request, ProtocolStre
 
 	getIcsNowTime(dt2);
 
-	response.initHead(MessageId::MessageId_min, m_send_num++);
+	response.initHead(MessageId::MessageId_min_0x0000, m_send_num++);
 	response << dt1 << dt2 << dt2;
 }
 
@@ -735,7 +735,7 @@ void IcsTerminalClient::handleRequestFile(ProtocolStream& request, ProtocolStrea
 	}
 	else	// 无升级事务
 	{
-		response.initHead(MessageId::C2T_upgrade_not_found, request.getHead()->getAckNum());
+		response.initHead(MessageId::C2T_upgrade_not_found_0x0205, request.getHead()->getAckNum());
 	}
 }
 
@@ -787,19 +787,19 @@ void IcsWebClient::handle(ProtocolStream& request, ProtocolStream& response) thr
 {
 	switch (request.getHead()->getMsgID())
 	{
-	case MessageId::W2C_send_to_ics_terminal:
+	case MessageId::W2C_send_to_ics_terminal_0x2001:
 		handleICSForward(request, response);
 		break;
 
-	case MessageId::W2C_connect_remote_request:
+	case MessageId::W2C_connect_remote_request_0x2002:
 		handleConnectRemote(request, response);
 		break;
 
-	case MessageId::W2C_disconnect_remote:
+	case MessageId::W2C_disconnect_remote_0x2003:
 		handleDisconnectRemote(request, response);
 		break;
 
-	case MessageId::W2C_send_to_remote_terminal:
+	case MessageId::W2C_send_to_remote_terminal_0x2004:
 		handleRemoteForward(request, response);
 		break;
 
@@ -1003,29 +1003,29 @@ IcsRemoteProxyClient::~IcsRemoteProxyClient()
 void IcsRemoteProxyClient::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	auto id = request.getHead()->getMsgID();
-	if (id != C2C_auth_response && !m_isLegal)
+	if (id != C2C_auth_response_0x4002 && !m_isLegal)
 	{
 		throw IcsException("must response authrize message at first step");
 	}
 	switch (id)
 	{
-	case MessageId::C2C_auth_response:
+	case MessageId::C2C_auth_response_0x4002:
 		handleAuthResponse(request, response);
 		break;
 
-	case MessageId::C2C_forward_response:
+	case MessageId::C2C_forward_response_0x4005:
 		handleForwardResponse(request, response);
 		break;
 
-	case MessageId::C2C_terminal_onoff_line:
+	case MessageId::C2C_terminal_onoff_line_0x4006:
 		handleOnoffLine(request, response);
 		break;
 
-	case MessageId::C2C_forward_to_ics:
+	case MessageId::C2C_forward_to_ics_0x4007:
 		handleTerminalMessage(request, response);
 		break;
 
-	case MessageId::C2C_heartbeat:	// ignore
+	case MessageId::C2C_heartbeat_0x4008:	// ignore
 		break;
 
 	default:
@@ -1040,7 +1040,7 @@ void IcsRemoteProxyClient::dispatch(ProtocolStream& request) throw(IcsException,
 {
 	// 消息结构：企业ID 网关ID 消息ID 消息体内容(请求ID 文件ID)
 	ProtocolStream response(ProtocolStream::OptType::writeType, g_memoryPool.get());
-	response.initHead(MessageId::C2C_forward_to_terminal, false);
+	response.initHead(MessageId::C2C_forward_to_terminal_0x4004, false);
 
 	uint16_t messageID;
 
@@ -1055,7 +1055,7 @@ void IcsRemoteProxyClient::dispatch(ProtocolStream& request) throw(IcsException,
 	request >> messageID;
 
 	/// 若升级消息时需要提前查找文件路径放到该消息末尾处
-	if (messageID == MessageId::C2T_upgrade_request)	
+	if (messageID == MessageId::C2T_upgrade_request_0x0201)
 	{
 		uint32_t fileid;
 
@@ -1104,7 +1104,7 @@ void IcsRemoteProxyClient::error() throw()
 void IcsRemoteProxyClient::requestAuthrize()
 {
 	ProtocolStream request(ProtocolStream::OptType::writeType, g_memoryPool.get());
-	request.initHead(MessageId::C2C_auth_request1, false);
+	request.initHead(MessageId::C2C_auth_request1_0x4001, false);
 
 	// 取当前时间点
 	std::time_t t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -1125,7 +1125,7 @@ void IcsRemoteProxyClient::requestAuthrize()
 void IcsRemoteProxyClient::sendHeartbeat()
 {
 	ProtocolStream request(ProtocolStream::OptType::writeType, g_memoryPool.get());
-	request.initHead(MessageId::C2C_heartbeat, true);
+	request.initHead(MessageId::C2C_heartbeat_0x4008, true);
 
 	// 发送给远端通信服务器
 	trySend(request);
@@ -1177,7 +1177,7 @@ void IcsRemoteProxyClient::handleAuthResponse(ProtocolStream& request, ProtocolS
 		s << m_enterpriseID << m_localServer.getWebIp() << m_localServer.getWebPort();
 
 		m_isLegal = true;
-		response.initHead(MessageId::C2C_auth_request2, false);
+		response.initHead(MessageId::C2C_auth_request2_0x4003, false);
 		response << t2;
 
 		m_localServer.addRemotePorxy(m_enterpriseID, shared_from_this());
