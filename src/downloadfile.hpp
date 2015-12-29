@@ -3,15 +3,20 @@
 #ifndef _DOWN_LOAD_FILE_H
 #define _DOWN_LOAD_FILE_H
 
+#include "icsexception.hpp"
+#include "config.hpp"
+#include "otlv4.h"
 #include <memory>
 #include <unordered_map>
 #include <mutex>
 #include <string>
 
+
 namespace ics {
 
 #define UPGRADEFILE_MAXSIZE 102400
 #define UPGRADE_FILE_SEGMENG_SIZE 512
+
 
 // 文件升级
 class FileUpgradeManager
@@ -21,6 +26,10 @@ public:
 	// 升级文件信息
 	struct FileInfo
 	{
+		FileInfo(const std::string& filename);
+
+		~FileInfo();
+		
 		void* file_content;
 		uint32_t file_length;
 		std::string file_name;
@@ -30,13 +39,18 @@ public:
 
 	~FileUpgradeManager();
 
-	std::shared_ptr<FileInfo> getFileInfo(uint32_t fileid);
+	/// 根据文件ID查找文件信息
+	std::shared_ptr<FileInfo> getFileInfo(uint32_t fileid) throw();
+
+	/// 根据文件ID及其对应文件名创建文件信息
+	std::shared_ptr<FileInfo> loadFileInfo(uint32_t fileid, const std::string& filename) throw(IcsException);
 
 public:
 	static FileUpgradeManager* getInstance();
 
 private:
-	std::shared_ptr<FileInfo> loadFileInfo(uint32_t fileid);
+	/// 根据就文件ID从数据库查询文件名后加载文件信息
+	std::shared_ptr<FileInfo> loadFileInfo(uint32_t fileid) throw(IcsException, otl_exception);
 
 private:
 	// 文件id映射表

@@ -1,0 +1,131 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{FBB10956-9420-4ED0-93A4-E1271654165B}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>icsserver</RootNamespace>
+    <ProjectName>ics-center</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+    <IncludePath>E:\workspace\VS\extern_include\includes;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>odbc;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <Text Include="ReadMe.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\src\clientmanager.hpp" />
+    <ClInclude Include="..\..\..\src\config.hpp" />
+    <ClInclude Include="..\..\..\src\database.hpp" />
+    <ClInclude Include="..\..\..\src\downloadfile.hpp" />
+    <ClInclude Include="..\..\..\src\icsconfig.hpp" />
+    <ClInclude Include="..\..\..\src\icsconnection.hpp" />
+    <ClInclude Include="..\..\..\src\icsexception.hpp" />
+    <ClInclude Include="..\..\..\src\icslocalserver.hpp" />
+    <ClInclude Include="..\..\..\src\icsprotocol.hpp" />
+    <ClInclude Include="..\..\..\src\icsproxyserver.hpp" />
+    <ClInclude Include="..\..\..\src\icspushsystem.hpp" />
+    <ClInclude Include="..\..\..\src\log.hpp" />
+    <ClInclude Include="..\..\..\src\mempool.hpp" />
+    <ClInclude Include="..\..\..\src\otlv4.h" />
+    <ClInclude Include="..\..\..\src\signalhandler.hpp" />
+    <ClInclude Include="..\..\..\src\tcpserver.hpp" />
+    <ClInclude Include="..\..\..\src\timer.hpp" />
+    <ClInclude Include="..\..\..\src\tinystr.h" />
+    <ClInclude Include="..\..\..\src\tinyxml.h" />
+    <ClInclude Include="..\..\..\src\util.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\src\clientmanager.cpp" />
+    <ClCompile Include="..\..\..\src\database.cpp" />
+    <ClCompile Include="..\..\..\src\downloadfile.cpp" />
+    <ClCompile Include="..\..\..\src\icsconfig.cpp" />
+    <ClCompile Include="..\..\..\src\icsconnection.cpp" />
+    <ClCompile Include="..\..\..\src\icslocalserver.cpp" />
+    <ClCompile Include="..\..\..\src\icsprotocol.cpp" />
+    <ClCompile Include="..\..\..\src\icsproxyserver.cpp" />
+    <ClCompile Include="..\..\..\src\icspushsystem.cpp" />
+    <ClCompile Include="..\..\..\src\log.cpp" />
+    <ClCompile Include="..\..\..\src\mempool.cpp" />
+    <ClCompile Include="..\..\..\src\server.cpp" />
+    <ClCompile Include="..\..\..\src\tcpconnection.cpp" />
+    <ClCompile Include="..\..\..\src\tcpserver.cpp" />
+    <ClCompile Include="..\..\..\src\timer.cpp" />
+    <ClCompile Include="..\..\..\src\tinystr.cpp" />
+    <ClCompile Include="..\..\..\src\tinyxml.cpp" />
+    <ClCompile Include="..\..\..\src\tinyxmlerror.cpp" />
+    <ClCompile Include="..\..\..\src\tinyxmlparser.cpp" />
+    <ClCompile Include="..\..\..\src\util.cpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

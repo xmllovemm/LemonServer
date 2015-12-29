@@ -84,7 +84,14 @@ void IcsProxyTerminalClient::dispatch(ProtocolStream& request) throw(IcsExceptio
 	request.moveBack(sizeof(requestID));
 
 	// 记录该请求ID转发结果
+	uint32_t fileid;
+	ShortString filename;
 
+	// 加载文件不成功时不再转发给终端
+	if (!FileUpgradeManager::getInstance()->loadFileInfo(fileid, filename))
+	{
+		return;
+	}
 
 	// 发送到该链接对端
 	ProtocolStream forward(ProtocolStream::OptType::writeType, g_memoryPool.get());
@@ -555,15 +562,13 @@ void IcsProxyTerminalClient::handleRequestFile(ProtocolStream& request, Protocol
 
 	// 设置升级进度(查询该请求id对应的状态)
 
-	int result = 0;
-
 
 	// 查找文件
 	auto fileInfo = FileUpgradeManager::getInstance()->getFileInfo(file_id);
 
 
 	// 查看是否已取消升级
-	if (result == 0 && fileInfo)	// 正常状态且找到该文件
+	if (fileInfo)	// 正常状态且找到该文件
 	{
 		if (fragment_offset > fileInfo->file_length)	// 超出文件大小
 		{
@@ -583,9 +588,9 @@ void IcsProxyTerminalClient::handleRequestFile(ProtocolStream& request, Protocol
 
 		response.append((char*)fileInfo->file_content + fragment_offset, fragment_length);
 
-		forwardToIcsCenter(request);	// 转发到中心
+		forwardToIcsCenter(request);	// 转发到中心，记录升级进度
 	}
-	else	// 无升级事务
+	else	// 无升级事务/找不到文件
 	{
 		response.initHead(MessageId::C2T_upgrade_not_found, request.getHead()->getAckNum());
 	}
