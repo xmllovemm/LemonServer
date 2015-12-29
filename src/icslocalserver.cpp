@@ -1044,12 +1044,6 @@ void IcsRemoteProxyClient::dispatch(ProtocolStream& request) throw(IcsException,
 
 	uint16_t messageID;
 
-	/// 跳过企业ID 网关ID
-	request.moveForward<ShortString>();
-
-	/// 剩余消息体复制到转发消息上
-	response << request;
-
 	/// 跳过企业ID 网关ID,取出消息ID
 	request.moveForward<ShortString>().moveForward<ShortString>();
 	request >> messageID;
@@ -1060,24 +1054,45 @@ void IcsRemoteProxyClient::dispatch(ProtocolStream& request) throw(IcsException,
 		uint32_t fileid;
 
 		/// 跳过请求ID,取出文件ID
-		request.moveForward<uint32_t>() >> fileid;
-
-		// 从数据库中查询该文件ID对应的文件名
-		// 转发结果记录到数据库
-		OtlConnectionGuard connection(g_database);
-		otl_stream s(1, "SELECT CONCAT(t.FILE_PATH,t.FILE_NAME)	FROM b_upgrade_file_t t	WHERE t.FILE_ID = :fileid<int,in>", connection.connection());
-		s << (int)fileid;
+		request.moveForward<uint32_t>();
+		request >> fileid;
 
 		std::string filepath;
-		s >> filepath;
+
+		{
+			// 从数据库中查询该文件ID对应的文件名
+			// 转发结果记录到数据库
+			OtlConnectionGuard connection(g_database);
+			otl_stream s(1, "SELECT CONCAT(t.FILE_PATH,t.FILE_NAME)	FROM b_upgrade_file_t t	WHERE t.FILE_ID = :fileid<int,in>", connection.connection());
+			s << (int)fileid;
+
+			s >> filepath;
+		}
 
 		if (filepath.empty())
 		{
 			throw IcsException("can't find the file path of the fileid %d", fileid);
 		}
 
-		/// 将文件全路径添加的转发消息尾
-		response << filepath;
+		std::string tmp;
+		request.rewind();
+		request.moveForward<ShortString>();
+
+		request >> tmp;
+		response << tmp;	//  网关ID
+
+		request >> messageID;
+		response << messageID;	// 消息ID
+		
+		response << filepath;	// 文件全路径
+
+		response << request;	// 剩余消息
+	}
+	else
+	{
+		request.rewind();
+		request.moveForward<ShortString>();
+		response << request;
 	}
 	_baseType::_baseType::trySend(response);
 }
