@@ -280,13 +280,13 @@ protected:
 			handle(request, response);
 
 			/// send response message
-			if (response.getHead()->getMsgID() != MessageId::MessageId_min)
+			if (response.getHead()->getMsgID() != MessageId::MessageId_min_0x0000)
 			{	
 				trySend(response);
 			}
 			else if (head->needResposne())
 			{
-				response.initHead(MessageId::MessageId_min, head->getSendNum());	// head->getMsgID()
+				response.initHead(MessageId::MessageId_min_0x0000, head->getSendNum());	// head->getMsgID()
 				trySend(response);
 			}
 			ret = true;
@@ -382,15 +382,15 @@ private:
 		{
 			auto msgid = ((IcsMsgHead*)m_recvBuff.data())->getMsgID();
 			IcsConnection<Protocol>* ic;
-			if (msgid > MessageId::T2C_min && msgid < MessageId::T2C_max)
+			if (msgid > MessageId::T2C_min_0x0100 && msgid < MessageId::T2C_max)
 			{
 //				ic = new IcsTerminal<Protocol>(std::move(m_socket));
 			}
-			else if (msgid > MessageId::W2C_min && msgid < MessageId::W2C_max)
+			else if (msgid > MessageId::W2C_min_0x2000 && msgid < MessageId::W2C_max)
 			{
 //				ic = new IcsWeb<Protocol>(std::move(m_socket));
 			}
-			else if (msgid == MessageId::C2C_forward_to_terminal)
+			else if (msgid == MessageId::C2C_forward_to_terminal_0x4004)
 			{
 //				IcsConnection<Protocol>* ic = new IcsTerminal<Protocol>(std::move(m_socket));
 			}

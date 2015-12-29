@@ -53,7 +53,7 @@ void PushSystem::send(ProtocolStream& request)
 		LOG_DEBUG("PushMsg reconnect");
 		reconnect();
 	}
-	request.initHead(MessageId::C2P_push_message, false);
+	request.initHead(MessageId::C2P_push_message_0x3001, false);
 	m_connection->dispatch(request);
 }
 
