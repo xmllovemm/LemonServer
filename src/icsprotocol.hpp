@@ -347,43 +347,15 @@ public:
 
 	/// 跳过该类型的数据
 	template<class T>
-	ProtocolStream& moveForward() throw(IcsException)
-	{
-		if (sizeof(T) > leftLength())
-		{
-			throw IcsException("can't move forward %d bytes", sizeof(T));
-		}
-		m_pos += sizeof(T);
-		return *this;
-	}
+	ProtocolStream& moveForward() throw(IcsException);
 
 	/// 跳过ShortString类型的数据
-	template<>
-	ProtocolStream& moveForward<ShortString>() throw(IcsException)
-	{
-		uint8_t len;
-		*this >> len;
-		if (len > leftLength())
-		{
-			throw IcsException("can't move forward %d bytes", len);
-		}
-		m_pos += len;
-		return *this;
-	}
+//	template<>
+//	ProtocolStream& moveForward<ShortString>() throw(IcsException);
 
 	/// 跳过LongString类型的数据
-	template<>
-	ProtocolStream& moveForward<LongString>() throw(IcsException)
-	{
-		uint16_t len;
-		*this >> len;
-		if (len > leftLength())
-		{
-			throw IcsException("can't move forward %d bytes", len);
-		}
-		m_pos += len;
-		return *this;
-	}
+//	template<>
+//	ProtocolStream& moveForward<LongString>() throw(IcsException);
 
 	void moveBack(std::size_t offset) throw(IcsException);
 
@@ -412,9 +384,6 @@ public:
 	}
 
 	// -----------------------write data----------------------- 
-	/// 组装一条完整消息,返回值：true-有完整消息，false-需要更多数据，异常-超出最大缓冲区
-//	bool assembleMessage(uint8_t* & buf, std::size_t& len) throw (IcsException);
-
 	/// 按请求消息初始化消息头
 	void initHead(MessageId id, bool needResponse);
 
@@ -496,6 +465,52 @@ private:
 	/// 终止地址
 	uint8_t*	m_end;
 };
+
+///*
+/// 跳过该类型的数据
+template<class T>
+ProtocolStream& ProtocolStream::moveForward() throw(IcsException)
+{
+	if (sizeof(T) > leftLength())
+	{
+		throw IcsException("can't move forward %d bytes", sizeof(T));
+	}
+	m_pos += sizeof(T);
+	return *this;
+}
+
+
+/// 跳过ShortString类型的数据
+template<>
+ProtocolStream& ProtocolStream::moveForward<ShortString>() throw(IcsException)
+{
+	uint8_t len;
+	*this >> len;
+	if (len > leftLength())
+	{
+		throw IcsException("can't move forward %d bytes", len);
+	}
+	m_pos += len;
+	return *this;
+}
+//*/
+
+/// 跳过LongString类型的数据
+/*
+template<>
+ProtocolStream& ProtocolStream::moveForward<LongString>() throw(IcsException)
+{
+	uint16_t len;
+	*this >> len;
+	if (len > leftLength())
+	{
+		throw IcsException("can't move forward %d bytes", len);
+	}
+	m_pos += len;
+	return *this;
+}
+*/
+
 
 }	// end ics
 

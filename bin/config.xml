@@ -38,7 +38,7 @@
   <!--ics protocol-->
   <protocol>
     <heartbeat>15</heartbeat>
-    <onlineIP>192.168.50.116</onlineIP>
+    <onlineIP>192.168.50.112</onlineIP>
     <onlinePort>9998</onlinePort>
   </protocol>
 
