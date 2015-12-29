@@ -75,24 +75,30 @@ void IcsProxyTerminalClient::handle(ProtocolStream& request, ProtocolStream& res
 // 处理平层消息
 void IcsProxyTerminalClient::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
 {
-	ShortString gatewayID;	//网关Id
+	// 消息结构：网关ID 消息ID 消息体内容(请求ID 文件ID)
 	uint16_t messageID;		//消息Id
-	uint32_t requestID;		//请求Id
 
-	request >> gatewayID >> messageID >> requestID;
+	request.moveForward<ShortString>();
+	request >> messageID;
 	
-	request.moveBack(sizeof(requestID));
-
-	// 记录该请求ID转发结果
-	uint32_t fileid=0;
-	ShortString filename;
-
-	// 加载文件不成功时不再转发给终端
-	if (!FileUpgradeManager::getInstance()->loadFileInfo(fileid, filename))
+	/// 若为请求升级，取出文件预先加载
+	if (messageID == MessageId::C2T_upgrade_request_0x0201)
 	{
-		throw IcsException("can't load file(fileid=%d, %s)", fileid, filename.c_str());
-	}
+		ShortString filename;
+		uint32_t fileid;
+		request >> filename;
+		request.moveForward<uint32_t>();
+		request >> fileid;
 
+		// 退回 请求ID 文件ID 字段
+		request.moveBack(sizeof(uint32_t)+sizeof(uint32_t));
+
+		// 加载文件不成功时不再转发给终端
+		if (!FileUpgradeManager::getInstance()->loadFileInfo(fileid, filename))
+		{
+			throw IcsException("can't load file(fileid=%d, %s)", fileid, filename.c_str());
+		}
+	}
 	// 发送到该链接对端
 	ProtocolStream forward(ProtocolStream::OptType::writeType, g_memoryPool.get());
 	forward.initHead((MessageId)messageID, true);
@@ -713,10 +719,19 @@ void IcsCenter::handleAuthrize2(ProtocolStream& request, ProtocolStream& respons
 /// 转发消息给终端
 void IcsCenter::handleForwardToTermianl(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
+	// 消息结构：网关ID 消息ID 消息体内容(请求ID 文件ID)
+
 	ShortString gatewayID;	//网关Id
 	uint16_t messageID;		//消息Id
 	uint32_t requestID;		//请求Id
-	request >> gatewayID >> messageID>>requestID;
+	request >> gatewayID >> messageID;
+
+	/// 若为请求升级，跳过文件全路径
+	if (messageID == MessageId::C2T_upgrade_request_0x0201)
+	{
+		request.moveForward<ShortString>();
+	}
+	request>> requestID;
 
 	//应答中心服务器转发结果;
 	response.initHead(C2C_forward_response_0x4005, false);
@@ -726,7 +741,19 @@ void IcsCenter::handleForwardToTermianl(ProtocolStream& request, ProtocolStream&
 	if (conn)
 	{
 		request.rewind();
-		conn->dispatch(request);
+		try
+		{
+			conn->dispatch(request);
+		}
+		catch (IcsException& ex)
+		{
+			response << (uint8_t)1 << ex.message();	//失败;
+
+		}
+		catch (otl_exception& ex)
+		{
+			response << (uint8_t)1 << (const char*)ex.msg;	//失败;
+		}
 
 		response<< (uint8_t)0;	//成功;
 	}
