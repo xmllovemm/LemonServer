@@ -332,12 +332,9 @@ public:
 
 	ProtocolStream(OptType type, const MemoryChunk& chunk);
 
-//	ProtocolStream(ProtocolStream&& rhs);
-
 	ProtocolStream(const ProtocolStream& rhs, const MemoryChunk& chunk);
 
 	~ProtocolStream();
-
 
 	/// 调用该接口以后不可读写操作
 	MemoryChunk toMemoryChunk();
@@ -347,6 +344,48 @@ public:
 	{
 		m_pos = m_start + sizeof(IcsMsgHead);
 	}
+
+	/// 跳过该类型的数据
+	template<class T>
+	ProtocolStream& moveForward() throw(IcsException)
+	{
+		if (sizeof(T) > leftLength())
+		{
+			throw IcsException("can't move forward %d bytes", sizeof(T));
+		}
+		m_pos += sizeof(T);
+		return *this;
+	}
+
+	/// 跳过ShortString类型的数据
+	template<>
+	ProtocolStream& moveForward<ShortString>() throw(IcsException)
+	{
+		uint8_t len;
+		*this >> len;
+		if (len > leftLength())
+		{
+			throw IcsException("can't move forward %d bytes", len);
+		}
+		m_pos += len;
+		return *this;
+	}
+
+	/// 跳过LongString类型的数据
+	template<>
+	ProtocolStream& moveForward<LongString>() throw(IcsException)
+	{
+		uint16_t len;
+		*this >> len;
+		if (len > leftLength())
+		{
+			throw IcsException("can't move forward %d bytes", len);
+		}
+		m_pos += len;
+		return *this;
+	}
+
+	void moveBack(std::size_t offset) throw(IcsException);
 
 	/// get the protocol head
 	IcsMsgHead* getHead() const
@@ -424,7 +463,6 @@ public:
 
 	void append(const void* data, std::size_t len);
 
-	void moveBack(std::size_t offset) throw(IcsException);
 
 	// -----------------------read data----------------------- 
 	template<class T>

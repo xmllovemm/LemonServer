@@ -90,7 +90,7 @@ void IcsProxyTerminalClient::dispatch(ProtocolStream& request) throw(IcsExceptio
 	// 加载文件不成功时不再转发给终端
 	if (!FileUpgradeManager::getInstance()->loadFileInfo(fileid, filename))
 	{
-		return;
+		throw IcsException("can't load file(fileid=%d, %s)", fileid, filename.c_str());
 	}
 
 	// 发送到该链接对端

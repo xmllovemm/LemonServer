@@ -947,6 +947,7 @@ void IcsWebClient::handleDisconnectRemote(ProtocolStream& request, ProtocolStrea
 // 转发到remote对应终端
 void IcsWebClient::handleRemoteForward(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
+	// 消息结构：企业ID 网关ID 消息ID 消息体内容(请求ID 文件ID)
 	ShortString enterpriseName;
 	ShortString gwid;
 	uint16_t messageID;
@@ -1037,44 +1038,47 @@ void IcsRemoteProxyClient::handle(ProtocolStream& request, ProtocolStream& respo
 // 处理平层消息
 void IcsRemoteProxyClient::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
 {
+	// 消息结构：企业ID 网关ID 消息ID 消息体内容(请求ID 文件ID)
 	ProtocolStream response(ProtocolStream::OptType::writeType, g_memoryPool.get());
-	ShortString enterpriseName;
-	ShortString gwid;
+	response.initHead(MessageId::C2C_forward_to_terminal, false);
+
 	uint16_t messageID;
 
-	request >> enterpriseName;
+	/// 跳过企业ID 网关ID
+	request.moveForward<ShortString>();
 
-	response.initHead(MessageId::C2C_forward_to_terminal, false);
+	/// 剩余消息体复制到转发消息上
 	response << request;
 
-	request >> gwid >> messageID;
-	if (messageID == MessageId::C2T_upgrade_request)	/// 升级消息时需要提前查找文件路径
+	/// 跳过企业ID 网关ID,取出消息ID
+	request.moveForward<ShortString>().moveForward<ShortString>();
+	request >> messageID;
+
+	/// 若升级消息时需要提前查找文件路径放到该消息末尾处
+	if (messageID == MessageId::C2T_upgrade_request)	
 	{
-		uint32_t requestID;
 		uint32_t fileid;
-		request >> requestID >> fileid;
+
+		/// 跳过请求ID,取出文件ID
+		request.moveForward<uint32_t>() >> fileid;
 
 		// 从数据库中查询该文件ID对应的文件名
 		// 转发结果记录到数据库
+		OtlConnectionGuard connection(g_database);
+		otl_stream s(1, "SELECT CONCAT(t.FILE_PATH,t.FILE_NAME)	FROM b_upgrade_file_t t	WHERE t.FILE_ID = :fileid<int,in>", connection.connection());
+		s << (int)fileid;
+
+		std::string filepath;
+		s >> filepath;
+
+		if (filepath.empty())
 		{
-			OtlConnectionGuard connection(g_database);
-			otl_stream s(1, "SELECT CONCAT(t.FILE_PATH,t.FILE_NAME)	FROM b_upgrade_file_t t	WHERE t.FILE_ID = :fileid<int,in>", connection.connection());
-			s << (int)fileid;
-		
-			std::string filepath;
-			s >> filepath;
-
-			if (filepath.empty())
-			{
-				LOG_ERROR("can't find the file path of the fileid " << fileid);
-				return;
-			}
-
-			/// 添加文件路径
-			response << filepath;
+			throw IcsException("can't find the file path of the fileid %d", fileid);
 		}
-	}
 
+		/// 将文件全路径添加的转发消息尾
+		response << filepath;
+	}
 	_baseType::_baseType::trySend(response);
 }
 
