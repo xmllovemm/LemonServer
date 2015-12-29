@@ -5,7 +5,6 @@
 
 extern ics::IcsConfig g_configFile;
 
-
 namespace ics {
 
 //---------------------------IcsProxyTerminalClient---------------------------//
@@ -76,10 +75,11 @@ void IcsProxyTerminalClient::handle(ProtocolStream& request, ProtocolStream& res
 // 处理平层消息
 void IcsProxyTerminalClient::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
 {
+	ShortString gatewayID;	//网关Id
+	uint16_t messageID;		//消息Id
+	uint32_t requestID;		//请求Id
 
-	uint32_t requestID;
-	request >> requestID;
-
+	request >> gatewayID >> messageID >> requestID;
 	
 	request.moveBack(sizeof(requestID));
 
@@ -95,7 +95,7 @@ void IcsProxyTerminalClient::dispatch(ProtocolStream& request) throw(IcsExceptio
 
 	// 发送到该链接对端
 	ProtocolStream forward(ProtocolStream::OptType::writeType, g_memoryPool.get());
-	//forward.initHead()
+	forward.initHead((MessageId)messageID, true);
 	forward << request;
 
 	_baseType::trySend(forward);
@@ -649,7 +649,7 @@ void IcsCenter::handle(ProtocolStream& request, ProtocolStream& response) throw(
 		handleAuthrize2(request, response);
 		break;
 
-	case MessageId::C2C_forward_to_terminal:
+	case MessageId::C2C_forward_to_terminal_4004:
 		handleForwardToTermianl(request, response);
 		break;
 
@@ -713,22 +713,26 @@ void IcsCenter::handleAuthrize2(ProtocolStream& request, ProtocolStream& respons
 /// 转发消息给终端
 void IcsCenter::handleForwardToTermianl(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	ShortString terminalName;
-	uint16_t messageID;
-//	uint32_t requestID;
-	request >> terminalName >> messageID;
+	ShortString gatewayID;	//网关Id
+	uint16_t messageID;		//消息Id
+	uint32_t requestID;		//请求Id
+	request >> gatewayID >> messageID>>requestID;
 
-	auto conn = m_proxyServer.findTerminalClient(terminalName);
+	//应答中心服务器转发结果;
+	response.initHead(C2C_forward_response_4005, false);
+	response << gatewayID << messageID << requestID;
+
+	auto conn = m_proxyServer.findTerminalClient(gatewayID);	//远程终端连接;
 	if (conn)
 	{
 		request.rewind();
-		request.initHead((MessageId)messageID, false);
 		conn->dispatch(request);
-		response << (uint8_t)0;
+
+		response<< (uint8_t)0;	//成功;
 	}
 	else
 	{
-		response << (uint8_t)1 << "can't be found";
+		response<< (uint8_t)1 << "Terminal can't be found";	//失败;
 	}
 }
 
