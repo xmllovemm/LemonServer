@@ -22,45 +22,45 @@ IcsProxyTerminalClient::~IcsProxyTerminalClient()
 void IcsProxyTerminalClient::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	auto id = request.getHead()->getMsgID();
-	if (id != T2C_auth_request && m_connName.empty())
+	if (id != T2C_auth_request_0x0101 && m_connName.empty())
 	{
 		throw IcsException("must authrize at first step");
 	}
 	switch (id)
 	{
-	case T2C_auth_request:
+	case T2C_auth_request_0x0101:
 		handleAuthRequest(request, response);
 		break;
 
-	case T2C_heartbeat:
+	case T2C_heartbeat_0x0b01:
 		handleHeartbeat(request, response);
 		break;
 
-	case T2C_std_status_report:
+	case T2C_std_status_report_0x0301:
 		handleStdStatusReport(request, response);
 		break;
 
-	case T2C_def_status_report:
+	case T2C_def_status_report_0x0401:
 		handleDefStatusReport(request, response);
 		break;
 
-	case T2C_event_report:
+	case T2C_event_report_0x0501:
 		handleEventsReport(request, response);
 		break;
 
-	case T2C_bus_report:
+	case T2C_bus_report_0x0901:
 		handleBusinessReport(request, response);
 		break;
 
-	case T2C_gps_report:
+	case T2C_gps_report_0x0902:
 		handleGpsReport(request, response);
 		break;
 
-	case T2C_datetime_sync_request:
+	case T2C_datetime_sync_request_0x0a01:
 		handleDatetimeSync(request, response);
 		break;
 
-	case T2C_log_report:
+	case T2C_log_report_0x0c01:
 		handleLogReport(request, response);
 		break;
 
@@ -119,7 +119,7 @@ void IcsProxyTerminalClient::forwardToIcsCenter(ProtocolStream& request)
 	ProtocolStream forward(ProtocolStream::OptType::writeType, g_memoryPool.get());
 
 	request.rewind();
-	forward.initHead(MessageId::C2C_forward_to_ics, false);
+	forward.initHead(MessageId::C2C_forward_to_ics_0x4007, false);
 	forward << m_connName << (uint16_t)request.getHead()->getMsgID() << request;
 
 	m_proxyServer.sendToIcsCenter(forward);
@@ -129,7 +129,7 @@ void IcsProxyTerminalClient::forwardToIcsCenter(ProtocolStream& request)
 void IcsProxyTerminalClient::onoffLineToIcsCenter(uint8_t status)
 {
 	ProtocolStream forward(ProtocolStream::OptType::writeType, g_memoryPool.get());
-	forward.initHead(MessageId::C2C_terminal_onoff_line, false);
+	forward.initHead(MessageId::C2C_terminal_onoff_line_0x4006, false);
 	forward << m_connName << m_deviceKind << status;
 
 	m_proxyServer.sendToIcsCenter(forward);
@@ -141,7 +141,7 @@ void IcsProxyTerminalClient::handleAuthRequest(ProtocolStream& request, Protocol
 	if (!m_connName.empty())
 	{
 		LOG_DEBUG(m_connName << " ignore repeat authrize message");
-		response.initHead(MessageId::C2T_auth_response, request.getHead()->getSendNum());
+		response.initHead(MessageId::C2T_auth_response_0x0102, request.getHead()->getSendNum());
 		response << ShortString("ok") << (uint16_t)10;
 		return;
 	}
@@ -154,7 +154,7 @@ void IcsProxyTerminalClient::handleAuthRequest(ProtocolStream& request, Protocol
 	request.assertEmpty();
 
 
-	response.initHead(MessageId::C2T_auth_response, false);
+	response.initHead(MessageId::C2T_auth_response_0x0102, false);
 
 	if (1)	// 成功
 	{
@@ -297,7 +297,7 @@ void IcsProxyTerminalClient::handleBusinessReport(ProtocolStream& request, Proto
 
 	if (m_lastBusSerialNum == business_no)	// 重复的业务流水号，直接忽略
 	{
-		response.initHead(MessageId::MessageId_min, false);
+		response.initHead(MessageId::MessageId_min_0x0000, false);
 		return;
 	}
 
@@ -471,7 +471,7 @@ void IcsProxyTerminalClient::handleDatetimeSync(ProtocolStream& request, Protoco
 
 	getIcsNowTime(dt2);
 
-	response.initHead(MessageId::MessageId_min, m_send_num++);
+	response.initHead(MessageId::MessageId_min_0x0000, m_send_num++);
 	response << dt1 << dt2 << dt2;
 }
 
@@ -592,7 +592,7 @@ void IcsProxyTerminalClient::handleRequestFile(ProtocolStream& request, Protocol
 	}
 	else	// 无升级事务/找不到文件
 	{
-		response.initHead(MessageId::C2T_upgrade_not_found, request.getHead()->getAckNum());
+		response.initHead(MessageId::C2T_upgrade_not_found_0x0205, request.getHead()->getAckNum());
 	}
 }
 
@@ -641,19 +641,19 @@ void IcsCenter::handle(ProtocolStream& request, ProtocolStream& response) throw(
 	auto id = request.getHead()->getMsgID();
 	switch (id)
 	{
-	case MessageId::C2C_auth_request1:
+	case MessageId::C2C_auth_request1_0x4001:
 		handleAuthrize1(request, response);
 		break;
 
-	case MessageId::C2C_auth_request2:
+	case MessageId::C2C_auth_request2_0x4003:
 		handleAuthrize2(request, response);
 		break;
 
-	case MessageId::C2C_forward_to_terminal_4004:
+	case MessageId::C2C_forward_to_terminal_0x4004:
 		handleForwardToTermianl(request, response);
 		break;
 
-	case MessageId::C2C_heartbeat:	// ignore
+	case MessageId::C2C_heartbeat_0x4008:	// ignore
 		break;
 
 	default:		
@@ -676,7 +676,7 @@ void IcsCenter::handleAuthrize1(ProtocolStream& request, ProtocolStream& respons
 
 	request.assertEmpty();
 
-	response.initHead(MessageId::C2C_auth_response, false);
+	response.initHead(MessageId::C2C_auth_response_0x4002, false);
 	response << t1 << t2;
 }
 
@@ -719,7 +719,7 @@ void IcsCenter::handleForwardToTermianl(ProtocolStream& request, ProtocolStream&
 	request >> gatewayID >> messageID>>requestID;
 
 	//应答中心服务器转发结果;
-	response.initHead(C2C_forward_response_4005, false);
+	response.initHead(C2C_forward_response_0x4005, false);
 	response << gatewayID << messageID << requestID;
 
 	auto conn = m_proxyServer.findTerminalClient(gatewayID);	//远程终端连接;
