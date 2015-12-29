@@ -203,9 +203,9 @@ enum MessageId {
 	// 中心通信服务器认证请求2
 	C2C_auth_request2 = 0x4003,
 	// 中心通信服务器通知远程服务器转发终端消息
-	C2C_forward_to_terminal = 0x4004,
+	C2C_forward_to_terminal_4004 = 0x4004,
 	// 远程服务器回应转发结果
-	C2C_forward_response = 0x4005,
+	C2C_forward_response_4005 = 0x4005,
 	// 子服务器上报终端上下线消息
 	C2C_terminal_onoff_line = 0x4006,
 	// 子服务器上报终端消息

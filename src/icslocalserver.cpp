@@ -1012,7 +1012,7 @@ void IcsRemoteProxyClient::handle(ProtocolStream& request, ProtocolStream& respo
 		handleAuthResponse(request, response);
 		break;
 
-	case MessageId::C2C_forward_response:
+	case MessageId::C2C_forward_response_4005:
 		handleForwardResponse(request, response);
 		break;
 
@@ -1044,7 +1044,7 @@ void IcsRemoteProxyClient::dispatch(ProtocolStream& request) throw(IcsException,
 
 	request >> enterpriseName;
 
-	response.initHead(MessageId::C2C_forward_to_terminal, false);
+	response.initHead(MessageId::C2C_forward_to_terminal_4004, false);
 	response << request;
 
 	request >> gwid >> messageID;
