@@ -85,6 +85,26 @@ void IcsTerminalClient::handle(ProtocolStream& request, ProtocolStream& response
 		handleLogReport(request, response);
 		break;
 
+	case T2C_upgrade_agree_0x0203:
+		handleAgreeUpgrade(request, response);
+		break;
+
+	case T2C_upgrade_deny_0x0202:
+		handleDenyUpgrade(request, response);
+		break;
+
+	case T2C_upgrade_file_request_0x0204:
+		handleRequestFile(request, response);
+		break;
+
+	case T2C_upgrade_result_report_0x0207:
+		handleUpgradeResult(request, response);
+		break;
+
+	case T2C_upgrade_cancel_ack_0x0209:
+		handleUpgradeCancelAck(request, response);
+		break;
+
 	default:
 		throw IcsException("unknown terminal message id = 0x%04x ", (uint16_t)id);
 		break;

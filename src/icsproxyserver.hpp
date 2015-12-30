@@ -56,10 +56,7 @@ private:
 
 	// 业务上报
 	void handleBusinessReport(ProtocolStream& request, ProtocolStream& response)  throw(IcsException, otl_exception);
-	
-	// 终端发送心跳到中心
-	void handleHeartbeat(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
-	
+		
 	// 终端发送时钟同步请求
 	void handleDatetimeSync(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
@@ -87,7 +84,7 @@ private:
 private:
 	IcsPorxyServer&	m_proxyServer;
 
-	std::string     m_connName;
+	ShortString     m_gwid;
 	uint16_t		m_deviceKind;
 	uint16_t		m_send_num;
 
