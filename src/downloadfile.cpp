@@ -32,7 +32,7 @@ FileUpgradeManager::FileInfo::FileInfo(const std::string& filename)
 	int fd = open(this->file_name.c_str(), O_RDONLY);
 	if (fd < 0)
 	{
-		throw IcsException("open file %s failed,as %s", this->file_name, strerror(errno));
+		throw IcsException("open file %s failed,as %s", this->file_name.c_str(), strerror(errno));
 	}
 
 	// 获取文件大小

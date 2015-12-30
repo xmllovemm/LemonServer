@@ -744,18 +744,16 @@ void IcsCenter::handleForwardToTermianl(ProtocolStream& request, ProtocolStream&
 		try
 		{
 			conn->dispatch(request);
+			response << (uint8_t)0;	//成功;
 		}
 		catch (IcsException& ex)
 		{
 			response << (uint8_t)1 << ex.message();	//失败;
-
 		}
 		catch (otl_exception& ex)
 		{
 			response << (uint8_t)1 << (const char*)ex.msg;	//失败;
 		}
-
-		response<< (uint8_t)0;	//成功;
 	}
 	else
 	{

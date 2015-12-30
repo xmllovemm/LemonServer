@@ -1042,10 +1042,12 @@ void IcsRemoteProxyClient::dispatch(ProtocolStream& request) throw(IcsException,
 	ProtocolStream response(ProtocolStream::OptType::writeType, g_memoryPool.get());
 	response.initHead(MessageId::C2C_forward_to_terminal_0x4004, false);
 
+	ShortString entepriseID;
 	uint16_t messageID;
 
-	/// 跳过企业ID 网关ID,取出消息ID
-	request.moveForward<ShortString>().moveForward<ShortString>();
+	request >> entepriseID;
+	/// 跳过网关ID
+	request.moveForward<ShortString>();
 	request >> messageID;
 
 	/// 若升级消息时需要提前查找文件路径放到该消息末尾处
@@ -1063,15 +1065,15 @@ void IcsRemoteProxyClient::dispatch(ProtocolStream& request) throw(IcsException,
 			// 从数据库中查询该文件ID对应的文件名
 			// 转发结果记录到数据库
 			OtlConnectionGuard connection(g_database);
-			otl_stream s(1, "SELECT CONCAT(t.FILE_PATH,t.FILE_NAME)	FROM b_upgrade_file_t t	WHERE t.FILE_ID = :fileid<int,in>", connection.connection());
-			s << (int)fileid;
+			otl_stream s(1, "SELECT FILE_PATH FROM b_subComm_file_t WHERE FILE_ID=:fileid<int,in> AND ENTERPRISE_CODE=:entId<char[32],in>; ", connection.connection());
+			s << (int)fileid << entepriseID;
 
 			s >> filepath;
 		}
 
 		if (filepath.empty())
 		{
-			throw IcsException("can't find the file path of the fileid %d", fileid);
+			throw IcsException("can't find the file of the fileid(%d) for enterprise(%s)", fileid, entepriseID.c_str());
 		}
 
 		std::string tmp;
@@ -1206,7 +1208,25 @@ void IcsRemoteProxyClient::handleAuthResponse(ProtocolStream& request, ProtocolS
 // 代理服务器转发结果
 void IcsRemoteProxyClient::handleForwardResponse(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	LOG_DEBUG("forward result");
+	// 网关ID 消息ID 请求ID 结果 原因
+	ShortString gwid, reason;
+	uint32_t requestID;
+	uint16_t messageID;
+	uint8_t result;
+
+	request >> gwid >> messageID >> requestID >> result;
+
+	if (result == 0)	// 成功
+	{
+		LOG_DEBUG("forward success: gwid=" << gwid << ",message id=" << messageID << ",request id=" << requestID);
+	}
+	else // 失败
+	{
+		request >> reason;
+		LOG_ERROR("forward failed: gwid=" << gwid << ",message id=" << messageID << ",request id=" << requestID << ",reason=" << reason);
+	}
+
+	request.assertEmpty();
 }
 
 // 代理服务器上下线消息
@@ -1230,9 +1250,10 @@ void IcsRemoteProxyClient::handleOnoffLine(ProtocolStream& request, ProtocolStre
 // 代理服务器转发终端的消息
 void IcsRemoteProxyClient::handleTerminalMessage(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	// 在消息体开始处取出终端编号(gwid) 消息ID
-	uint16_t msgid;
+	// 网关ID 消息ID
 	ShortString remoteGwid;
+	uint16_t msgid;
+
 	request >> remoteGwid >> msgid;
 
 	auto& monitorName = findLocalID(remoteGwid);

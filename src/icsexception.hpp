@@ -15,7 +15,7 @@ class IcsException{
 public:
 	IcsException(const char* format, ...)
 	{
-		char message[126];
+		char message[256];
 		va_list args;
 
 		va_start(args, format);
