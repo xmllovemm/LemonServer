@@ -22,7 +22,7 @@ IcsProxyTerminalClient::~IcsProxyTerminalClient()
 void IcsProxyTerminalClient::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	auto id = request.getHead()->getMsgID();
-	if (id != T2C_auth_request_0x0101 && m_connName.empty())
+	if (id != T2C_auth_request_0x0101 && m_gwid.empty())
 	{
 		throw IcsException("must authrize at first step");
 	}
@@ -33,7 +33,6 @@ void IcsProxyTerminalClient::handle(ProtocolStream& request, ProtocolStream& res
 		break;
 
 	case T2C_heartbeat_0x0b01:
-		handleHeartbeat(request, response);
 		break;
 
 	case T2C_std_status_report_0x0301:
@@ -62,6 +61,26 @@ void IcsProxyTerminalClient::handle(ProtocolStream& request, ProtocolStream& res
 
 	case T2C_log_report_0x0c01:
 		handleLogReport(request, response);
+		break;
+
+	case T2C_upgrade_agree_0x0203:
+		handleAgreeUpgrade(request, response);
+		break;
+
+	case T2C_upgrade_deny_0x0202:
+		handleDenyUpgrade(request, response);
+		break;
+
+	case T2C_upgrade_file_request_0x0204:
+		handleRequestFile(request, response);
+		break;
+
+	case T2C_upgrade_result_report_0x0207:
+		handleUpgradeResult(request, response);
+		break;
+
+	case T2C_upgrade_cancel_ack_0x0209:
+		handleUpgradeCancelAck(request, response);
 		break;
 
 	default:
@@ -93,6 +112,14 @@ void IcsProxyTerminalClient::dispatch(ProtocolStream& request) throw(IcsExceptio
 		// 退回 请求ID 文件ID 字段
 		request.moveBack(sizeof(uint32_t)+sizeof(uint32_t));
 
+		filename = g_configFile.getAttributeString("program", "filedir") 
+#ifdef WIN32
+			+ "\\"
+#else
+			+ "/"
+#endif // WIN32
+			+ filename;
+
 		// 加载文件不成功时不再转发给终端
 		if (!FileUpgradeManager::getInstance()->loadFileInfo(fileid, filename))
 		{
@@ -111,11 +138,11 @@ void IcsProxyTerminalClient::dispatch(ProtocolStream& request) throw(IcsExceptio
 void IcsProxyTerminalClient::error() throw()
 {
 	// 已认证设备离线
-	if (!_baseType::m_replaced && !m_connName.empty())
+	if (!_baseType::m_replaced && !m_gwid.empty())
 	{
-		m_proxyServer.removeTerminalClient(m_connName);
+		m_proxyServer.removeTerminalClient(m_gwid);
 		onoffLineToIcsCenter(1);	// 通知ICS中心
-		m_connName.clear();
+		m_gwid.clear();
 	}
 }
 
@@ -126,7 +153,7 @@ void IcsProxyTerminalClient::forwardToIcsCenter(ProtocolStream& request)
 
 	request.rewind();
 	forward.initHead(MessageId::C2C_forward_to_ics_0x4007, false);
-	forward << m_connName << (uint16_t)request.getHead()->getMsgID() << request;
+	forward << m_gwid << (uint16_t)request.getHead()->getMsgID() << request;
 
 	m_proxyServer.sendToIcsCenter(forward);
 }
@@ -136,7 +163,7 @@ void IcsProxyTerminalClient::onoffLineToIcsCenter(uint8_t status)
 {
 	ProtocolStream forward(ProtocolStream::OptType::writeType, g_memoryPool.get());
 	forward.initHead(MessageId::C2C_terminal_onoff_line_0x4006, false);
-	forward << m_connName << m_deviceKind << status;
+	forward << m_gwid << m_deviceKind << status;
 
 	m_proxyServer.sendToIcsCenter(forward);
 }
@@ -144,9 +171,9 @@ void IcsProxyTerminalClient::onoffLineToIcsCenter(uint8_t status)
 // 终端认证
 void IcsProxyTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	if (!m_connName.empty())
+	if (!m_gwid.empty())
 	{
-		LOG_DEBUG(m_connName << " ignore repeat authrize message");
+		LOG_DEBUG(m_gwid << " ignore repeat authrize message");
 		response.initHead(MessageId::C2T_auth_response_0x0102, request.getHead()->getSendNum());
 		response << ShortString("ok") << (uint16_t)10;
 		return;
@@ -164,15 +191,15 @@ void IcsProxyTerminalClient::handleAuthRequest(ProtocolStream& request, Protocol
 
 	if (1)	// 成功
 	{
-		m_connName = std::move(gwId); // 保存检测点id
+		m_gwid = std::move(gwId); // 保存检测点id
 
 		response << "ok" << m_proxyServer.getHeartbeatTime();
 
-		m_proxyServer.addTerminalClient(m_connName, shared_from_this());
+		m_proxyServer.addTerminalClient(m_gwid, shared_from_this());
 
-		LOG_INFO("terminal " << m_connName << " created on " << this->name());
+		LOG_INFO("terminal " << m_gwid << " created on " << this->name());
 
-		this->setName(m_connName + "@" + this->name());
+		this->setName(m_gwid + "@" + this->name());
 
 		onoffLineToIcsCenter(0);
 	}
@@ -210,7 +237,7 @@ void IcsProxyTerminalClient::handleStdStatusReport(ProtocolStream& request, Prot
 	// 其它
 	else
 	{
-		LOG_WARN(m_connName << "recv unknown standard status type:" << status_type);
+		LOG_WARN(m_gwid << "recv unknown standard status type:" << status_type);
 	}
 }
 
@@ -459,13 +486,7 @@ void IcsProxyTerminalClient::handleBusinessReport(ProtocolStream& request, Proto
 	
 //	request.assertEmpty();
 
-forwardToIcsCenter(request);	// 转发到中心
-}
-
-// 终端发送心跳到中心
-void IcsProxyTerminalClient::handleHeartbeat(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
-{
-
+	forwardToIcsCenter(request);	// 转发到中心
 }
 
 // 终端发送时钟同步请求
@@ -594,7 +615,7 @@ void IcsProxyTerminalClient::handleRequestFile(ProtocolStream& request, Protocol
 
 		response.append((char*)fileInfo->file_content + fragment_offset, fragment_length);
 
-		forwardToIcsCenter(request);	// 转发到中心，记录升级进度
+//		forwardToIcsCenter(request);	// 转发到中心，记录升级进度
 	}
 	else	// 无升级事务/找不到文件
 	{

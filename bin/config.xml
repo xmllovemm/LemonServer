@@ -3,8 +3,11 @@
   
   <!--program init-->
   <program>
-    <!--root directory-->
+    <!--work directory-->
     <workdir>/home/xml/workspace/test/icsserver/bin</workdir>
+    
+    <!--file firectory-->
+    <filedir>/opt/ftpdata</filedir>
     
     <!--be a daemon process: 0-no,1-yes-->
     <daemon>0</daemon>
