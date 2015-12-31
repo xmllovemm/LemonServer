@@ -7,7 +7,7 @@
     <workdir>/home/xml/workspace/test/icsserver/bin</workdir>
     
     <!--file firectory-->
-    <filedir>/opt/ftpdata</filedir>
+    <filedir>F:\BastaWork\Visual Studio 2013\Projects\SubCommServer\Debug\FTPFiles</filedir>
     
     <!--be a daemon process: 0-no,1-yes-->
     <daemon>0</daemon>
@@ -19,7 +19,7 @@
     <workerthread>4</workerthread>
 
     <!--size of each chunk in memory pool-->
-    <chunksize>126</chunksize>
+    <chunksize>1024</chunksize>
     
     <!--count of chunk in memory pool-->
     <chunkcount>50</chunkcount>

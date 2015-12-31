@@ -54,10 +54,11 @@ FileUpgradeManager::FileInfo::FileInfo(const std::string& filename)
 	}
 #else
 	/// open file read only
-	HANDLE hFile = CreateFile(this->file_name.c_str(), GENERIC_READ, READ_CONTROL, 0, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, NULL);
-	if (hFile == INVALID_HANDLE_VALUE)
+	HANDLE hFile = CreateFile(this->file_name.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+
+	if (!hFile || hFile == INVALID_HANDLE_VALUE)
 	{
-		throw IcsException("CreateFile %s failed", this->file_name.c_str());
+		throw IcsException("CreateFile %s failed,ErrorNum:%d", this->file_name.c_str(),GetLastError());
 	}
 	this->file_length = GetFileSize(hFile, NULL);
 
