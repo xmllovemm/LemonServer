@@ -19,7 +19,7 @@
     <workerthread>4</workerthread>
 
     <!--size of each chunk in memory pool-->
-    <chunksize>126</chunksize>
+    <chunksize>1024</chunksize>
     
     <!--count of chunk in memory pool-->
     <chunkcount>50</chunkcount>
