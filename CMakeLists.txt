@@ -15,6 +15,7 @@ set(CMAKE_BUILD_TYPE Debug)
 
 add_definitions("-DTIXML_USE_STL")
 #add_definitions("-DICS_CENTER_MODE")
+add_definitions("-DLOG_USE_LOG4CPLUS")
 
 # show the detail info when make
 # set(CMAKE_VERBOSE_MAKEFILE on)
@@ -39,6 +40,7 @@ include_directories(
 # set lib directories
 link_directories(
 	/usr/local/gcc-5.2/lib
+	/home/xml/log4cplus-1.2.0-rc5/lib
 )
 
 # target name
