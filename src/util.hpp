@@ -13,6 +13,15 @@
 
 namespace ics {
 
+class NonCopyable{
+public:
+	NonCopyable() = default;
+	NonCopyable(const NonCopyable&) = delete;
+	NonCopyable(NonCopyable&&) = delete;
+	NonCopyable& operator=(const NonCopyable&) = delete;
+	NonCopyable& operator=(NonCopyable&&) = delete;
+};
+
 /// 计算该数据段CRC32校验值
 uint32_t crc32_code(const void* buf, std::size_t size);
 

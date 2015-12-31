@@ -8,6 +8,7 @@
 #include "config.hpp"
 #include "otlv4.h"
 #include "timer.hpp"
+#include "util.hpp"
 #include <asio.hpp>
 #include <cstdio>
 
@@ -22,7 +23,7 @@ typedef asio::ip::udp icsudp;
 
 /// ICS协议处理基类
 template<class Protocol>
-class IcsConnection : public std::enable_shared_from_this<IcsConnection<Protocol>> {
+class IcsConnection : public std::enable_shared_from_this<IcsConnection<Protocol>>, NonCopyable {
 public:
 
 	typedef typename Protocol::socket socket;
@@ -82,15 +83,14 @@ public:
 	void replaced()
 	{
 		m_replaced = true;
-		m_valid = false;
 		do_error();
 	}
 
-	bool valid()
+	/// 链接是否有效
+	bool isValid()
 	{
 		return m_valid;
 	}
-
 
 	// 处理底层消息
 	virtual void handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception) = 0;
@@ -114,6 +114,18 @@ public:
 		return m_valid;
 	}
 
+	/// 出错
+	void do_error()
+	{
+		if (m_valid)
+		{
+			m_valid = false;
+			error();	/// 通知上层应用出错	
+			asio::error_code ec;
+			m_socket.close(ec);		/// 关闭链接
+		}
+	}
+
 protected:
 	/// 发送数据
 	void trySend(ProtocolStream& msg)
@@ -132,11 +144,11 @@ protected:
 		this->m_name = name;
 	}
 
-	/// 链接是否有效
-	bool isValid()
-	{
-		return m_valid;
-	}
+
+	/// 是否被相同链接替换
+	bool m_replaced = false;
+
+private:
 
 	/// 投递读操作
 	void do_read()
@@ -311,28 +323,15 @@ protected:
 		return ret;
 	}
 
-public:
-		/// 出错
-		void do_error()
-		{
-			//		LOG_DEBUG(m_name << " is closing...");
-			m_valid = false;
-			error();	/// 通知上层应用出错	
-			asio::error_code ec;
-			m_socket.close(ec);		/// 关闭链接
-		}
-
-protected:	
 	/// 链接套接字
 	socket	m_socket;
 
-
-	/// 链接是否有效
-	bool m_valid = true;
-
-	/// 是否被相同链接替换
-	bool m_replaced = false;
 private:
+	/// 链接是否有效
+//	std::atomic<bool> m_valid = true;
+//	std::atomic<bool>			m_isSending = false;
+	bool m_valid = true;
+	bool m_isSending = false;
 	// recv area
 	uint8_t				m_recvBuff[1024];
 	/// 已接收数据大小
@@ -342,7 +341,6 @@ private:
 	uint16_t m_serialNum = 0;
 	std::list<MemoryChunk> m_sendList;
 	std::mutex		m_sendLock;
-	bool			m_isSending = false;
 
 	/// 链接名：默认为对端的地址，格式为"ip:port"
 	std::string	m_name;

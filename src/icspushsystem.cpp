@@ -48,7 +48,7 @@ PushSystem::~PushSystem()
 
 void PushSystem::send(ProtocolStream& request)
 {
-	if (!m_connection || !m_connection->valid())
+	if (!m_connection || !m_connection->isValid())
 	{
 		LOG_DEBUG("PushMsg reconnect");
 		reconnect();

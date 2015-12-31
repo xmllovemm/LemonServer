@@ -81,7 +81,8 @@ void character_convert(const char* from_code, const std::string& src, std::size_
 void be_daemon(const char* root_dir) throw (IcsException)
 {
 #ifndef WIN32
-	if (!daemon(1, 1) == 0 && !chroot(root_dir) && !chdir("/"))
+//	if (!daemon(1, 1) == 0 && !chroot(root_dir) && !chdir("/"))
+	if (!daemon(1, 1) == 0 && !chdir(root_dir))
 	{
 		throw IcsException("be daemon error: %s", strerror(errno));
 	}

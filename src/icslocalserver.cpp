@@ -27,7 +27,7 @@ IcsTerminalClient::IcsTerminalClient(IcsLocalServer& localServer, socket&& s, co
 
 IcsTerminalClient::~IcsTerminalClient()
 {
-	if (!_baseType::m_replaced && !m_connName.empty())
+	if (!_baseType::m_replaced && !m_monitorID.empty())
 	{
 		OtlConnectionGuard connGuard(g_database);
 
@@ -35,7 +35,7 @@ IcsTerminalClient::~IcsTerminalClient()
 			, "{ call sp_offline(:id<char[33],in>,:ip<char[17],in>,:port<int,in>) }"
 			, connGuard.connection());
 
-		s << m_connName << m_localServer.getWebIp() << m_localServer.getWebPort();
+		s << m_monitorID << m_localServer.getWebIp() << m_localServer.getWebPort();
 	}
 }
 
@@ -43,7 +43,7 @@ IcsTerminalClient::~IcsTerminalClient()
 void IcsTerminalClient::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	auto id = request.getHead()->getMsgID();
-	if (id != T2C_auth_request_0x0101 && m_connName.empty())
+	if (id != T2C_auth_request_0x0101 && m_monitorID.empty())
 	{
 		throw IcsException("must authrize at first step");
 	}
@@ -139,29 +139,29 @@ void IcsTerminalClient::dispatch(ProtocolStream& request) throw(IcsException, ot
 // 出错处理
 void IcsTerminalClient::error() throw()
 {
-	if (!_baseType::m_replaced && !m_connName.empty())
+	if (!_baseType::m_replaced && !m_monitorID.empty())
 	{
 		try {
 			OtlConnectionGuard connGuard(g_database);
 			otl_stream s(1
 				, "{ call sp_offline(:id<char[33],in>,:ip<char[17],in>,:port<int,in>) }"
 					, connGuard.connection());
-			s << m_connName << m_localServer.getWebIp() << m_localServer.getWebPort();
+			s << m_monitorID << m_localServer.getWebIp() << m_localServer.getWebPort();
 		}
 		catch (otl_exception& ex)
 		{
 			LOG_WARN("otl_exception:" << ex.msg);
 		}
-		m_connName.clear();
+		m_monitorID.clear();
 	}
 }
 
 // 终端认证
 void IcsTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	if (!m_connName.empty())
+	if (!m_monitorID.empty())
 	{
-		LOG_DEBUG(m_connName << " ignore repeat authrize message");
+		LOG_DEBUG(m_monitorID << " ignore repeat authrize message");
 		response.initHead(MessageId::C2T_auth_response_0x0102, request.getHead()->getSendNum());
 		response << ShortString("ok") << (uint16_t)10;
 		return;
@@ -186,29 +186,29 @@ void IcsTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStrea
 	otl_stream getStream(1, "select @ret :#<int>,@id :#<char[32]>,@name :#name<char[32]>", connGuard.connection());
 
 	int ret = 2;
-	string id, name;
+	string monitorID, monitorName;
 
-	getStream >> ret >> id >> name;
+	getStream >> ret >> monitorID >> monitorName;
 
 	response.initHead(MessageId::C2T_auth_response_0x0102, false);
 
 	if (ret == 0)	// 成功
 	{
-		m_connName = std::move(id); // 保存检测点id
+		m_monitorID = std::move(monitorID); // 保存检测点id
 
 		otl_stream onlineStream(1
 			, "{ call sp_online(:id<char[33],in>,:ip<char[16],in>,:port<int,in>) }"
 			, connGuard.connection());
 
-		onlineStream << m_connName << m_localServer.getWebIp() << m_localServer.getWebPort();
+		onlineStream << m_monitorID << m_localServer.getWebIp() << m_localServer.getWebPort();
 
 		response << ShortString("ok") << m_localServer.getHeartbeatTime();
 
 		m_localServer.addTerminalClient(m_gwid, shared_from_this());
 
-		LOG_INFO("terminal " << m_connName << " created on " << this->name());
+		LOG_INFO("terminal " << m_monitorID << " created on " << this->name());
 
-		this->setName(m_connName + "@" + this->name());
+		this->setName(m_monitorID + "@" + this->name());
 	}
 	else
 	{
@@ -246,12 +246,12 @@ void IcsTerminalClient::handleStdStatusReport(ProtocolStream& request, ProtocolS
 			"{ call sp_status_standard(:id<char[33],in>,:devFlag<int,in>,:devStat<char[512],in>,:cheatFlag<int,in>,:cheatStat<char[512],in>,:zeroPoint<float,in>,:recvTime<timestamp,in>) }"
 			, connGuard.connection());
 
-		o << m_connName << (int)device_ligtht << device_status << (int)cheat_ligtht << cheat_status << zero_point << recv_time;
+		o << m_monitorID << (int)device_ligtht << device_status << (int)cheat_ligtht << cheat_status << zero_point << recv_time;
 	}
 	// 其它
 	else
 	{
-		LOG_WARN(m_connName << "recv unknown standard status type:" << status_type);
+		LOG_WARN(m_monitorID << "recv unknown standard status type:" << status_type);
 	}
 }
 
@@ -315,11 +315,11 @@ void IcsTerminalClient::handleEventsReport(ProtocolStream& request, ProtocolStre
 	{
 		request >> event_id >> event_type >> event_value;
 
-		eventStream << m_connName << (int)m_deviceKind << (int)event_id << (int)event_type << event_value << event_time << recv_time;
+		eventStream << m_monitorID << (int)m_deviceKind << (int)event_id << (int)event_type << event_value << event_time << recv_time;
 
 		// 发送给推送服务器: 监测点ID 发生时间 事件编号 事件值
 		ProtocolStream pushStream(ProtocolStream::OptType::writeType, g_memoryPool.get());
-		pushStream << m_connName << m_deviceKind << event_time << event_id << event_value;
+		pushStream << m_monitorID << m_deviceKind << event_time << event_id << event_value;
 
 		m_localServer.getPushSystem().send(pushStream);
 	}
@@ -365,7 +365,7 @@ void IcsTerminalClient::handleBusinessReport(ProtocolStream& request, ProtocolSt
 			",:unitPrice<float,in>,:money<float,in>,:inOrOut<int,in>,:reportTime<timestamp,in>,:recvTime<timestamp,in>) }"
 			, connGuard.connection());
 
-		s << m_connName << (int)business_no << cargo_num << vehicle_num
+		s << m_monitorID << (int)business_no << cargo_num << vehicle_num
 			<< consigness << cargo_name << weight1 << weight2 << weight3 << weight4
 			<< unit_price << money << (int)in_out << report_time << recv_time;
 
@@ -388,7 +388,7 @@ void IcsTerminalClient::handleBusinessReport(ProtocolStream& request, ProtocolSt
 
 			request >> number >> amount >> total_weight >> single_weighet;
 
-			s << m_connName << business_no << (int)amount << total_weight << single_weighet << report_time << recv_time;
+			s << m_monitorID << business_no << (int)amount << total_weight << single_weighet << report_time << recv_time;
 		}
 	}
 	else if (business_type == 3)	// 公路衡器
@@ -435,10 +435,10 @@ void IcsTerminalClient::handleBusinessReport(ProtocolStream& request, ProtocolSt
 		}
 
 		otl_stream s(1
-			, "{ call `ics_highway`.sp_business_expressway(:id<char[33],in>,:num<int,in>,:weight<int,in>,:speed<float,in>,:axleNum<int,in>,:axleStr<char[256],in>,:typeNum<int,in>,:typeStr<char[256],in>,:reportTime<timestamp,in>,:recvTime<timestamp,in>) }"
+			, "{ call `ics_highway`.sp_business_expressway(:id<char[33],in>,:num<int,in>,:weight<int,in>,:speed<double,in>,:axleNum<int,in>,:axleStr<char[256],in>,:typeNum<int,in>,:typeStr<char[256],in>,:reportTime<timestamp,in>,:recvTime<timestamp,in>) }"
 			, connGuard.connection());
 
-		s << m_connName << (int)business_no << (int)total_weight << speed*0.1 << (int)axle_num << axle_str << (int)type_num << type_str << report_time << recv_time;
+		s << m_monitorID << (int)business_no << (int)total_weight << ((float)speed)*0.1 << (int)axle_num << axle_str << (int)type_num << type_str << report_time << recv_time;
 	}
 	else if (business_type == 4)	// 餐厨车
 	{
@@ -481,7 +481,7 @@ void IcsTerminalClient::handleBusinessReport(ProtocolStream& request, ProtocolSt
 			",:logFlag<int,in>,:logitude<int,in>,:laFlag<int,in>,:latitude<int,in>,:signal<int,in>,:height<int,in>,:speed<int,in>) }"
 			, connGuard.connection());
 
-		s << m_connName << (int)business_no << report_time << recv_time
+		s << m_monitorID << (int)business_no << report_time << recv_time
 			<< (int)weightFlag.mode << (int)weightFlag.unit << (int)weightFlag.card << (int)weightFlag.flow << (int)weightFlag.evalution
 			<< tubID << (int)tubVolumn << (int)weight << (int)driverID
 			<< (int)postionFlag.longitude_flag << (int)longitude << (int)postionFlag.latitude_flag << (int)latitude << (int)postionFlag.signal << (int)height << (int)speed;
@@ -502,7 +502,7 @@ void IcsTerminalClient::handleBusinessReport(ProtocolStream& request, ProtocolSt
 			",:checkT2<timestamp,in>,:totalW2<int,in>,:limitW2<int,in>,:axleCount2<int,in>) }"
 			, connGuard.connection());
 
-		s << m_connName << (int)business_no << recv_time << vehicleID 
+		s << m_monitorID << (int)business_no << recv_time << vehicleID 
 			<< checkTime1 << (int)totalWeight1 << (int)limitWeight1 << (int)axleCount1 << (int)overWeight
 			<< checkTime2 << (int)totalWeight2 << (int)limitWeight2 << (int)axleCount2;
 	}
@@ -517,7 +517,7 @@ void IcsTerminalClient::handleBusinessReport(ProtocolStream& request, ProtocolSt
 			, "{ call `ics_freewayOverloadControl`.sp_business_dayreport(:id<char[33],in>,:recvTime<timestamp,in>,:reportTime<timestamp,in>,:count<int,in>) }"
 			, connGuard.connection());
 
-		s << m_connName << recv_time << report_time << (int)vehicleCount;
+		s << m_monitorID << recv_time << report_time << (int)vehicleCount;
 	}
 	else
 	{
@@ -554,7 +554,7 @@ void IcsTerminalClient::handleGpsReport(ProtocolStream& request, ProtocolStream&
 		, "{ call `ics_canchu`.sp_gps_report(:id<char[33],in>,:logFlag<int,in>,:logitude<int,in>,:laFlag<int,in>,:latitude<int,in>,:signal<int,in>,:height<int,in>,:speed<int,in>) }"
 		, connGuard.connection());
 
-	s << m_connName << (int)postionFlag.longitude_flag << (int)longitude << (int)postionFlag.latitude_flag << (int)latitude << (int)postionFlag.signal << (int)height << (int)speed;
+	s << m_monitorID << (int)postionFlag.longitude_flag << (int)longitude << (int)postionFlag.latitude_flag << (int)latitude << (int)postionFlag.signal << (int)height << (int)speed;
 }
 
 // 终端回应参数查询
@@ -659,7 +659,7 @@ void IcsTerminalClient::handleLogReport(ProtocolStream& request, ProtocolStream&
 		, "{ call sp_log_report(:id<char[32],in>,:logtime<timestamp,in>,:logLevel<int,in>,:logValue<char[256],in>) }"
 		, connGuard.connection());
 
-	s << m_connName << status_time << (int)log_level << log_value;
+	s << m_monitorID << status_time << (int)log_level << log_value;
 }
 
 // 终端发送心跳到中心
@@ -683,13 +683,13 @@ void IcsTerminalClient::handleDenyUpgrade(ProtocolStream& request, ProtocolStrea
 		, "{ call sp_upgrade_refuse(:id<char[33],in>,:reqID<int,in>,:reason<char[126],in>) }"
 		, connGuard.connection());
 
-	s << m_connName << int(request_id) << reason;
+	s << m_monitorID << int(request_id) << reason;
 }
 
 // 终端接收升级请求
 void IcsTerminalClient::handleAgreeUpgrade(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	uint32_t request_id;	// 文件id
+	uint32_t request_id;	// 请求id
 	request >> request_id;
 	request.assertEmpty();
 
@@ -698,7 +698,7 @@ void IcsTerminalClient::handleAgreeUpgrade(ProtocolStream& request, ProtocolStre
 		, "{ call sp_upgrade_accept(:id<char[33],in>,:reqID<int,in>) }"
 		, connGuard.connection());
 
-	s << m_connName << int(request_id);
+	s << m_monitorID << int(request_id);
 }
 
 // 索要升级文件片段
@@ -719,7 +719,7 @@ void IcsTerminalClient::handleRequestFile(ProtocolStream& request, ProtocolStrea
 		, "{ call sp_upgrade_set_progress(:F1<int,in>,:F2<int,in>,@stat) }"
 		, connGuard.connection());
 
-	s << m_connName << (int)request_id << (int)received_size;
+	s << m_monitorID << (int)request_id << (int)received_size;
 
 	otl_stream queryResutl(1, "select @stat :#<int>", connGuard.connection());
 
@@ -1281,7 +1281,7 @@ void IcsRemoteProxyClient::handleTerminalMessage(ProtocolStream& request, Protoc
 	if (!monitorName.empty())
 	{
 		request.initHead((MessageId)msgid, false);
-		_baseType::m_connName = monitorName;
+		_baseType::m_monitorID = monitorName;
 		try {
 			_baseType::handle(request, response);
 		}

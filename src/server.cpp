@@ -51,6 +51,12 @@ int main(int argc, char** argv)
 		// 加载配置文件
 		g_configFile.load(configFile);
 
+		// 初始进程模式
+		if (g_configFile.getAttributeInt("program", "daemon"))
+		{
+			ics::be_daemon(g_configFile.getAttributeString("program", "workdir").c_str());
+		}
+
 		// 初始日志模块
 		ics::init_log(g_configFile.getAttributeString("log", "configfile").c_str());
 
@@ -74,11 +80,7 @@ int main(int argc, char** argv)
 //			, g_configFile.getAttributeString("proxyraddr", "web"), 100
 			, g_configFile.getAttributeString("proxyraddr", "center"), 100);
 #endif
-		// 初始进程模式
-		if (g_configFile.getAttributeInt("program", "daemon"))
-		{
-			ics::be_daemon(g_configFile.getAttributeString("program", "workdir").c_str());
-		}
+		
 
 		// 主线程开始IO事件,忽略错误
 		asio::error_code ec;

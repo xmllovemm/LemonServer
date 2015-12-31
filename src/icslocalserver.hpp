@@ -92,7 +92,7 @@ private:
 protected:
 	IcsLocalServer&			m_localServer;
 	/// 链接名称(对应ICS系统中监测点编号)
-	std::string             m_connName;
+	std::string             m_monitorID;
 	/// 网关ID
 	std::string				m_gwid;
 	/// 设备类型编号(推送时区别不同设备)
