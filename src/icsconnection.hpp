@@ -202,6 +202,7 @@ private:
 		std::lock_guard<std::mutex> lock(m_sendLock);
 		if (!m_isSending && !m_sendList.empty())
 		{
+			m_isSending = true;
 			MemoryChunk& block = m_sendList.front();
 			auto self(this->shared_from_this());
 			m_socket.async_send(asio::buffer(block.data, block.length),
@@ -209,11 +210,14 @@ private:
 			{
 				if (!ec)
 				{
-					MemoryChunk& chunk = self->m_sendList.front();
-					self->toHexInfo("send to", chunk.data, chunk.length);
-					g_memoryPool.put(chunk);
-					self->m_sendList.pop_front();
-					self->m_isSending = false;
+					{
+						std::lock_guard<std::mutex> lock(self->m_sendLock);
+						MemoryChunk& chunk = self->m_sendList.front();
+						self->toHexInfo("send to", chunk.data, chunk.length);
+						g_memoryPool.put(chunk);
+						self->m_sendList.pop_front();
+						self->m_isSending = false;
+					}
 					self->trySend();
 				}
 				else

@@ -114,19 +114,11 @@ void IcsTerminalClient::handle(ProtocolStream& request, ProtocolStream& response
 // 处理平层消息
 void IcsTerminalClient::dispatch(ProtocolStream& request) throw(IcsException, otl_exception)
 {
+	// 消息结构：网关ID 消息ID 消息体内容(请求ID 文件ID)
 	ShortString terminalName;
 	uint16_t messageID;
 	uint32_t requestID;
-	request >> terminalName >> messageID >> requestID;
-
-	if (messageID <= MessageId::T2C_min_0x0100 || messageID >= MessageId::T2C_max)
-	{
-		throw IcsException("dispatch message=%d is not one of T2C", messageID);
-	}
-	request.moveBack(sizeof(requestID));
-
-	// 记录该请求ID转发结果
-
+	request >> terminalName >> messageID;
 
 	// 发送到该链接对端
 	ProtocolStream response(ProtocolStream::OptType::writeType, g_memoryPool.get());
@@ -704,9 +696,7 @@ void IcsTerminalClient::handleAgreeUpgrade(ProtocolStream& request, ProtocolStre
 // 索要升级文件片段
 void IcsTerminalClient::handleRequestFile(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-
 	uint32_t file_id, request_id, fragment_offset, received_size;
-
 	uint16_t fragment_length;
 
 	request >> file_id >> request_id >> fragment_offset >> fragment_length >> received_size;
@@ -844,6 +834,7 @@ void IcsWebClient::error() throw()
 // 转发到ICS对应终端
 void IcsWebClient::handleICSForward(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
+	// 消息结构：网关ID 消息ID 消息体内容(请求ID 文件ID)
 	ShortString gwid;
 	uint16_t messageID;
 	uint32_t requestID;
