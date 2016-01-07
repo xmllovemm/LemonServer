@@ -42,7 +42,7 @@ FileUpgradeManager::FileInfo::FileInfo(const std::string& filename)
 	if (this->file_length > UPGRADEFILE_MAXSIZE)
 	{
 		close(fd);
-		throw IcsException("file %s 's size it too big", this->file_name.c_str());
+		throw IcsException("file %s 's size=%d bytes it too big", this->file_name.c_str(), this->file_length);
 	}
 
 	// 文件内容映射到内存
@@ -127,7 +127,9 @@ std::shared_ptr<FileUpgradeManager::FileInfo> FileUpgradeManager::getFileInfo(ui
 #ifdef ICS_CENTER_MODE	
 		try {
 			// ICS中心模式可从数据库中尝试读取文件
-			return loadFileInfo(fileid);
+			auto fileinfo = loadFileInfo(fileid);
+			m_fileMap[fileid] = fileinfo;
+			return fileinfo;
 		}
 		catch (IcsException& ex)
 		{
@@ -144,8 +146,8 @@ std::shared_ptr<FileUpgradeManager::FileInfo> FileUpgradeManager::getFileInfo(ui
 #else
 		// 代理模式无法查询到文件路径
 		LOG_ERROR("FileUpgradeManager can't get info file by fileid");
-		return nullptr;
 #endif
+		return nullptr;
 	}
 }
 
@@ -154,10 +156,10 @@ std::shared_ptr<FileUpgradeManager::FileInfo> FileUpgradeManager::loadFileInfo(u
 {
 	// 根据文件id从数据库读取文件路径
 	OtlConnectionGuard connGuard(g_database);
-	otl_stream s(1, "{ sp_upgrade_getfile(:F1<int,in>,@filename) }", connGuard.connection());
+	otl_stream s(1, "{ call sp_upgrade_getfile(:fileid<int,in>,@filename) }", connGuard.connection());
 	s << (int)fileid;
 
-	otl_stream queryResult(1, "{ sp_upgrade_getfile(:F1<int,in>,@filename) }", connGuard.connection());
+	otl_stream queryResult(1, "select @filename :#filename<char[126]>", connGuard.connection());
 	std::string filename;
 	queryResult >> filename;
 

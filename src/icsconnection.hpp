@@ -254,7 +254,7 @@ private:
 			
 			if (m_recvSize >= msgLen)	// 有一条完整消息
 			{
-				ret = handleMessage(m_recvBuff, msgLen);
+				ret = handleMessage(head, msgLen);
 				m_recvSize -= msgLen;
 				head = (IcsMsgHead*)((uint8_t*)head + msgLen);
 			}

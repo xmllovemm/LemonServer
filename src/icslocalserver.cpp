@@ -155,7 +155,7 @@ void IcsTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStrea
 	{
 		LOG_DEBUG(m_monitorID << " ignore repeat authrize message");
 		response.initHead(MessageId::C2T_auth_response_0x0102, request.getHead()->getSendNum());
-		response << ShortString("ok") << (uint16_t)10;
+		response << ShortString("ok") << m_localServer.getHeartbeatTime();
 		return;
 	}
 
@@ -169,13 +169,13 @@ void IcsTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStrea
 	OtlConnectionGuard connGuard(g_database);
 
 	otl_stream authroizeStream(1,
-		"{ call sp_authroize(:gwid<char[33],in>,:pwd<char[33],in>,@ret,@id,@name) }",
+		"{ call sp_authroize(:gwid<char[33],in>,:pwd<char[33],in>,@ret,@monitorID,@monitorName) }",
 		connGuard.connection());
 
 	authroizeStream << m_gwid << gwPwd;
 	authroizeStream.close();
 
-	otl_stream getStream(1, "select @ret :#<int>,@id :#<char[32]>,@name :#name<char[32]>", connGuard.connection());
+	otl_stream getStream(1, "select @ret :#ret<int>,@monitorID :#monitorID<char[32]>,@monitorName :#monitorName<char[32]>", connGuard.connection());
 
 	int ret = 2;
 	string monitorID, monitorName;
@@ -189,10 +189,10 @@ void IcsTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStrea
 		m_monitorID = std::move(monitorID); // 保存检测点id
 
 		otl_stream onlineStream(1
-			, "{ call sp_online(:id<char[33],in>,:ip<char[16],in>,:port<int,in>) }"
+			, "{ call sp_online(:gwid<char[33],in>,:monitorID<char[33],in>,:ip<char[16],in>,:port<int,in>) }"
 			, connGuard.connection());
 
-		onlineStream << m_monitorID << m_localServer.getWebIp() << m_localServer.getWebPort();
+		onlineStream << m_gwid << m_monitorID << m_localServer.getWebIp() << m_localServer.getWebPort();
 
 		response << ShortString("ok") << m_localServer.getHeartbeatTime();
 
@@ -204,6 +204,7 @@ void IcsTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStrea
 	}
 	else
 	{
+		m_gwid.clear();
 		response << ShortString("failed");
 	}
 
@@ -703,17 +704,18 @@ void IcsTerminalClient::handleRequestFile(ProtocolStream& request, ProtocolStrea
 
 	request.assertEmpty();
 
+
 	// 设置升级进度(查询该请求id对应的状态)
 	OtlConnectionGuard connGuard(g_database);
 	otl_stream s(1
-		, "{ call sp_upgrade_set_progress(:F1<int,in>,:F2<int,in>,@stat) }"
+		, "{ call sp_upgrade_set_progress(:requestID<int,in>,:recvSize<int,in>,@stat) }"
 		, connGuard.connection());
 
-	s << m_monitorID << (int)request_id << (int)received_size;
+	s << (int)request_id << (int)received_size;
 
 	otl_stream queryResutl(1, "select @stat :#<int>", connGuard.connection());
 
-	int result = 0;
+	int result = 99;
 
 	queryResutl >> result;
 
@@ -722,7 +724,7 @@ void IcsTerminalClient::handleRequestFile(ProtocolStream& request, ProtocolStrea
 
 
 	// 查看是否已取消升级
-	if (result == 0 && fileInfo)	// 正常状态且找到该文件
+	if (fragment_length > 0 && result == 0 && fileInfo)	// 正常状态且找到该文件
 	{
 		if (fragment_offset > fileInfo->file_length)	// 超出文件大小
 		{
@@ -738,10 +740,9 @@ void IcsTerminalClient::handleRequestFile(ProtocolStream& request, ProtocolStrea
 			fragment_length = UPGRADE_FILE_SEGMENG_SIZE;
 		}
 
+		response.initHead(C2T_upgrade_file_response_0x0206, false);
 		response << file_id << request_id << fragment_offset << fragment_length;
-
 		response.append((char*)fileInfo->file_content + fragment_offset, fragment_length);
-
 	}
 	else	// 无升级事务
 	{
@@ -860,7 +861,7 @@ void IcsWebClient::handleICSForward(ProtocolStream& request, ProtocolStream& res
 		}
 		else
 		{
-			LOG_ERROR("can't find terminal " << gwid);
+			LOG_ERROR("forward terminal " << gwid << " not found");
 		}
 
 		// 转发结果记录到数据库
@@ -1303,13 +1304,15 @@ IcsLocalServer::IcsLocalServer(asio::io_service& ioService, const string& termin
 	m_onlinePort = g_configFile.getAttributeInt("protocol", "onlinePort");
 	m_heartbeatTime = g_configFile.getAttributeInt("protocol", "heartbeat");
 
+	m_timer.start();
+
 	m_terminalTcpServer.init("center's terminal"
 		, terminalAddr
 		, [this](socket&& s)
 		{					
 			ConneciontPrt conn = std::make_shared<IcsTerminalClient>(*this, std::move(s));
 			conn->start();	// 投递读写事件
-			connectionTimeoutHandler(conn); // 注册连接超时定时器
+//			connectionTimeoutHandler(conn); // 注册连接超时定时器
 		});
 
 	m_webTcpServer.init("center's web"
@@ -1320,9 +1323,6 @@ IcsLocalServer::IcsLocalServer(asio::io_service& ioService, const string& termin
 			conn->start();
 			connectionTimeoutHandler(conn);
 		});
-
-	m_timer.start();
-
 
 	// 数据库记录该服务器地址 sp_server_onoff_line
 	{
@@ -1348,7 +1348,6 @@ IcsLocalServer::~IcsLocalServer()
 	// 停止tcp服务
 	m_terminalTcpServer.stop();
 	m_webTcpServer.stop();
-	m_timer.stop();
 
 	// 清除链接信息
 	{
@@ -1399,8 +1398,8 @@ void IcsLocalServer::removeTerminalClient(const string& conID)
 IcsLocalServer::ConneciontPrt IcsLocalServer::findTerminalClient(const string& conID)
 {
 	std::lock_guard<std::mutex> lock(m_proxyConnMapLock);
-	auto it = m_proxyConnMap.find(conID);
-	if (it != m_proxyConnMap.end())
+	auto it = m_terminalConnMap.find(conID);
+	if (it != m_terminalConnMap.end())
 	{
 		return it->second;
 	}

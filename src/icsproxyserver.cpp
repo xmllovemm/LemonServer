@@ -611,10 +611,9 @@ void IcsProxyTerminalClient::handleRequestFile(ProtocolStream& request, Protocol
 			fragment_length = UPGRADE_FILE_SEGMENG_SIZE;
 		}
 
+		response.initHead(C2T_upgrade_file_response_0x0206, false);
 		response << file_id << request_id << fragment_offset << fragment_length;
-
 		response.append((char*)fileInfo->file_content + fragment_offset, fragment_length);
-
 //		forwardToIcsCenter(request);	// 转发到中心，记录升级进度
 	}
 	else	// 无升级事务/找不到文件

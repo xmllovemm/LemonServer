@@ -129,7 +129,7 @@ void IcsMsgHead::verify(const void* buf, std::size_t len) const throw(IcsExcepti
 	}
 	if (getLength() != len)
 	{
-		throw IcsException("protocol length = %d,but recv length = %d", getLength(), len);
+		throw IcsException("protocol length = %d not equal data length = %d", getLength(), len);
 	}
 	if (getCrcCode() != crc32_code(buf, len - CrcCodeSize))
 	{

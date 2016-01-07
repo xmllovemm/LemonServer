@@ -18,7 +18,6 @@ Timer::~Timer()
 void Timer::add(int interval, timeout handler)
 {
 	std::lock_guard<std::recursive_mutex> lock(m_taskListLock);
-//	m_taskList.push_back(Task{ interval, handler });
 	m_taskList.emplace_back(interval, handler);
 }
 
@@ -38,14 +37,19 @@ void Timer::stop()
 	m_running = false;
 	if (m_timerThread)
 	{
-		m_timerThread->join();
+		try {
+			m_timerThread->join();
+		}
+		catch (int errno)
+		{
+			LOG_DEBUG("thread join error:" << errno);
+		}
 		m_timerThread = nullptr;
 	}
 }
 
 void Timer::loop()
 {
-	LOG_DEBUG("start timer");
 	while (m_running)
 	{		
 		std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -65,5 +69,4 @@ void Timer::loop()
 			}
 		}
 	}
-	LOG_DEBUG("stop timer");
 }
