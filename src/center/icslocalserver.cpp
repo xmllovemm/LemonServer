@@ -621,7 +621,7 @@ void IcsTerminalClient::handleDatetimeSync(ProtocolStream& request, ProtocolStre
 
 	getIcsNowTime(dt2);
 
-	response.initHead(MessageId::MessageId_min_0x0000, m_send_num++);
+	response.initHead(MessageId::C2T_datetime_sync_response_0x0a02, false);
 	response << dt1 << dt2 << dt2;
 }
 
@@ -971,12 +971,10 @@ void IcsWebClient::handleRemoteForward(ProtocolStream& request, ProtocolStream& 
 	{
 		// 根据企业ID找到对应链接
 		auto conn = m_localServer.findRemoteProxy(enterpriseName);
-		bool result = false;
 		if (conn)
 		{
 			try {
 				conn->dispatch(request);
-				result = true;
 			}
 			catch (IcsException& ex)
 			{
@@ -985,14 +983,14 @@ void IcsWebClient::handleRemoteForward(ProtocolStream& request, ProtocolStream& 
 		}
 		else
 		{
+			// 转发失败结果记录到数据库
 			LOG_ERROR("can't find enterpirse:" << gwid);
-		}
-		// 转发结果记录到数据库
-		{
+
 			OtlConnectionGuard connection(g_database);
 			otl_stream s(1, "{ call sp_web_command_status(:requestID<int,in>,:msgID<int,in>,:stat<int,in>) }", connection.connection());
-			s << (int)requestID << (int)messageID << (result ? 0 : 1);
+			s << (int)requestID << (int)messageID << (int)0;
 		}
+		
 	}
 }
 
@@ -1228,14 +1226,16 @@ void IcsRemoteProxyClient::handleForwardResponse(ProtocolStream& request, Protoc
 
 	request >> gwid >> messageID >> requestID >> result;
 
-	if (result == 0)	// 成功
-	{
-		LOG_DEBUG("forward success: gwid=" << gwid << ",message id=" << messageID << ",request id=" << requestID);
-	}
-	else // 失败
+	// 记录转发结果到数据库
+
+	OtlConnectionGuard connection(g_database);
+	otl_stream s(1, "{ call sp_web_command_status(:requestID<int,in>,:msgID<int,in>,:stat<int,in>) }", connection.connection());
+	s << (int)requestID << (int)messageID << (int)result;
+
+	if (result != 0) // 失败
 	{
 		request >> reason;
-		LOG_ERROR("forward failed: gwid=" << gwid << ",message id=" << messageID << ",request id=" << requestID << ",reason=" << reason);
+		LOG_ERROR("forward to gwid=" << gwid << " failed,message id=" << messageID << ",request id=" << requestID << ",reason=" << reason);
 	}
 
 	request.assertEmpty();
@@ -1312,7 +1312,7 @@ IcsLocalServer::IcsLocalServer(asio::io_service& ioService, const string& termin
 		{					
 			ConneciontPrt conn = std::make_shared<IcsTerminalClient>(*this, std::move(s));
 			conn->start();	// 投递读写事件
-//			connectionTimeoutHandler(conn); // 注册连接超时定时器
+			connectionTimeoutHandler(conn); // 注册连接超时定时器
 		});
 
 	m_webTcpServer.init("center's web"

@@ -312,7 +312,7 @@ void ProtocolStream::initHead(MessageId id, bool needResponse)
 void ProtocolStream::initHead(MessageId id, uint16_t ackNum)
 {
 	((IcsMsgHead*)m_start)->setMsgID(id);
-	((IcsMsgHead*)m_start)->setFlag(0, 0, 0);
+	((IcsMsgHead*)m_start)->setFlag(0, 1, 0);
 	((IcsMsgHead*)m_start)->setAckNum(ackNum);
 }
 

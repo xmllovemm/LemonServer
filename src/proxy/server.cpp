@@ -3,7 +3,6 @@
 #include "mempool.hpp"
 #include "log.hpp"
 #include "util.hpp"
-#include "icslocalserver.hpp"
 #include "icsconnection.hpp"
 #include "icsconfig.hpp"
 #include "icsproxyserver.hpp"
@@ -63,24 +62,10 @@ int main(int argc, char** argv)
 		// 初始内存池模块
 		g_memoryPool.init(g_configFile.getAttributeInt("program", "chunksize"), g_configFile.getAttributeInt("program", "chunkcount"));
 
-		// 初始主服务
-#ifdef ICS_CENTER_MODE	// ICS中心模式
-		ics::DataBase::initialize();
-		g_database.init(g_configFile.getAttributeString("database", "username"), g_configFile.getAttributeString("database", "password"), g_configFile.getAttributeString("database", "dsn"));
-		g_database.open();
-		
-		auto p = std::make_unique<ics::IcsLocalServer>(io_service
-			, g_configFile.getAttributeString("centeraddr", "terminal"), 100
-			, g_configFile.getAttributeString("centeraddr", "web"), 100
-			, g_configFile.getAttributeString("centeraddr", "msgpush"));	
-#else
 		// ICS代理模式
 		auto p = std::make_unique<ics::IcsPorxyServer>(io_service
 			, g_configFile.getAttributeString("proxyraddr", "terminal"), 100
-//			, g_configFile.getAttributeString("proxyraddr", "web"), 100
-			, g_configFile.getAttributeString("proxyraddr", "center"), 100);
-#endif
-		
+			, g_configFile.getAttributeString("proxyraddr", "center"), 100);		
 
 		// 主线程开始IO事件,忽略错误
 		asio::error_code ec;

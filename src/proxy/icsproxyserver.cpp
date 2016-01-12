@@ -562,40 +562,37 @@ void IcsProxyTerminalClient::handleDenyUpgrade(ProtocolStream& request, Protocol
 
 	request.assertEmpty();
 
-	forwardToIcsCenter(request);	// 转发到中心
+	forwardToIcsCenter(request);
 }
 
 // 终端接收升级请求
 void IcsProxyTerminalClient::handleAgreeUpgrade(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	uint32_t request_id;	// 文件id
+	uint32_t request_id;	// 请求id
 	request >> request_id;
 	request.assertEmpty();
 
-	forwardToIcsCenter(request);	// 转发到中心
+	forwardToIcsCenter(request);
 }
 
 // 索要升级文件片段
 void IcsProxyTerminalClient::handleRequestFile(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-
 	uint32_t file_id, request_id, fragment_offset, received_size;
-
 	uint16_t fragment_length;
 
 	request >> file_id >> request_id >> fragment_offset >> fragment_length >> received_size;
 
 	request.assertEmpty();
 
-	// 设置升级进度(查询该请求id对应的状态)
 
+	// 设置升级进度(查询该请求id对应的状态)
 
 	// 查找文件
 	auto fileInfo = FileUpgradeManager::getInstance()->getFileInfo(file_id);
 
-
 	// 查看是否已取消升级
-	if (fileInfo)	// 正常状态且找到该文件
+	if (fragment_length > 0 && fileInfo)	// 正常状态且找到该文件
 	{
 		if (fragment_offset > fileInfo->file_length)	// 超出文件大小
 		{
@@ -614,9 +611,10 @@ void IcsProxyTerminalClient::handleRequestFile(ProtocolStream& request, Protocol
 		response.initHead(C2T_upgrade_file_response_0x0206, false);
 		response << file_id << request_id << fragment_offset << fragment_length;
 		response.append((char*)fileInfo->file_content + fragment_offset, fragment_length);
-//		forwardToIcsCenter(request);	// 转发到中心，记录升级进度
+
+//		forwardToIcsCenter(request);
 	}
-	else	// 无升级事务/找不到文件
+	else	// 无升级事务
 	{
 		response.initHead(MessageId::C2T_upgrade_not_found_0x0205, request.getHead()->getAckNum());
 	}
@@ -632,7 +630,7 @@ void IcsProxyTerminalClient::handleUpgradeResult(ProtocolStream& request, Protoc
 
 	request.assertEmpty();
 
-	forwardToIcsCenter(request);	// 转发到中心
+	forwardToIcsCenter(request);
 }
 
 // 终端确认取消升级
@@ -644,7 +642,7 @@ void IcsProxyTerminalClient::handleUpgradeCancelAck(ProtocolStream& request, Pro
 
 	request.assertEmpty();
 
-	forwardToIcsCenter(request);	// 转发到中心
+	forwardToIcsCenter(request);
 }
 
 
@@ -724,11 +722,15 @@ void IcsCenter::handleAuthrize2(ProtocolStream& request, ProtocolStream& respons
 	ics::decrypt(&t2, sizeof(t2));
 
 	auto interval = t4 - t2;
-	if (interval < 5)	// 系统时间在3分钟内,认证成功
+	if (interval < 5)	// 系统时间在5秒内,认证成功
 	{
 		m_proxyServer.addIcsCenterConn(shared_from_this());
-
 		LOG_DEBUG("ics center authrize success, interval=" << interval);
+
+		// 将当前全部终端通报给中心服务器
+		ProtocolStream forwardStream(ProtocolStream::OptType::writeType, g_memoryPool.get());
+		forwardStream.initHead(C2C_terminal_onoff_line_0x4006, false);
+		
 	}
 	else
 	{

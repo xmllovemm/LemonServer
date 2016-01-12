@@ -1,6 +1,0 @@
-
-
-The Lemon Server is base on C++ ASIO library(head file only)
-
-All configure is defined in config.hpp file
-

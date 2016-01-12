@@ -192,7 +192,8 @@ private:
 		{
 			std::sprintf(buff + i * 3, " %02x", data[i]);
 		}
-		LOG_DEBUG(info << " [" << m_name << "] " << length << " bytes...");
+		LOG_DEBUG(info << " [" << m_name << "] " << length << " bytes:" << buff);
+//		LOG_DEBUG(info << " [" << m_name << "] " << length << " bytes...");
 #endif
 	}
 

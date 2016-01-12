@@ -11,40 +11,16 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\src\clientmanager.hpp" />
-    <ClInclude Include="..\..\..\src\config.hpp" />
-    <ClInclude Include="..\..\..\src\database.hpp" />
-    <ClInclude Include="..\..\..\src\downloadfile.hpp" />
-    <ClInclude Include="..\..\..\src\icsconfig.hpp" />
-    <ClInclude Include="..\..\..\src\icsconnection.hpp" />
-    <ClInclude Include="..\..\..\src\icsexception.hpp" />
-    <ClInclude Include="..\..\..\src\icslocalserver.hpp" />
-    <ClInclude Include="..\..\..\src\icsprotocol.hpp" />
-    <ClInclude Include="..\..\..\src\icsproxyserver.hpp" />
-    <ClInclude Include="..\..\..\src\icspushsystem.hpp" />
-    <ClInclude Include="..\..\..\src\log.hpp" />
-    <ClInclude Include="..\..\..\src\mempool.hpp" />
-    <ClInclude Include="..\..\..\src\otlv4.h" />
-    <ClInclude Include="..\..\..\src\signalhandler.hpp" />
-    <ClInclude Include="..\..\..\src\tcpserver.hpp" />
-    <ClInclude Include="..\..\..\src\timer.hpp" />
-    <ClInclude Include="..\..\..\src\tinystr.h" />
-    <ClInclude Include="..\..\..\src\tinyxml.h" />
-    <ClInclude Include="..\..\..\src\util.hpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\..\..\src\clientmanager.cpp" />
     <ClCompile Include="..\..\..\src\database.cpp" />
     <ClCompile Include="..\..\..\src\downloadfile.cpp" />
     <ClCompile Include="..\..\..\src\icsconfig.cpp" />
     <ClCompile Include="..\..\..\src\icsconnection.cpp" />
-    <ClCompile Include="..\..\..\src\icslocalserver.cpp" />
     <ClCompile Include="..\..\..\src\icsprotocol.cpp" />
-    <ClCompile Include="..\..\..\src\icsproxyserver.cpp" />
     <ClCompile Include="..\..\..\src\icspushsystem.cpp" />
     <ClCompile Include="..\..\..\src\log.cpp" />
     <ClCompile Include="..\..\..\src\mempool.cpp" />
-    <ClCompile Include="..\..\..\src\server.cpp" />
+    <ClCompile Include="..\..\..\src\proxy\icsproxyserver.cpp" />
+    <ClCompile Include="..\..\..\src\proxy\server.cpp" />
     <ClCompile Include="..\..\..\src\tcpconnection.cpp" />
     <ClCompile Include="..\..\..\src\tcpserver.cpp" />
     <ClCompile Include="..\..\..\src\timer.cpp" />
@@ -53,6 +29,29 @@
     <ClCompile Include="..\..\..\src\tinyxmlerror.cpp" />
     <ClCompile Include="..\..\..\src\tinyxmlparser.cpp" />
     <ClCompile Include="..\..\..\src\util.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\src\config.hpp" />
+    <ClInclude Include="..\..\..\src\database.hpp" />
+    <ClInclude Include="..\..\..\src\downloadfile.hpp" />
+    <ClInclude Include="..\..\..\src\icsconfig.hpp" />
+    <ClInclude Include="..\..\..\src\icsconnection.hpp" />
+    <ClInclude Include="..\..\..\src\icsexception.hpp" />
+    <ClInclude Include="..\..\..\src\icsprotocol.hpp" />
+    <ClInclude Include="..\..\..\src\icspushsystem.hpp" />
+    <ClInclude Include="..\..\..\src\log.hpp" />
+    <ClInclude Include="..\..\..\src\mempool.hpp" />
+    <ClInclude Include="..\..\..\src\otlv4.h" />
+    <ClInclude Include="..\..\..\src\proxy\icsproxyserver.hpp" />
+    <ClInclude Include="..\..\..\src\signalhandler.hpp" />
+    <ClInclude Include="..\..\..\src\tcpserver.hpp" />
+    <ClInclude Include="..\..\..\src\timer.hpp" />
+    <ClInclude Include="..\..\..\src\tinystr.h" />
+    <ClInclude Include="..\..\..\src\tinyxml.h" />
+    <ClInclude Include="..\..\..\src\util.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\..\..\src\proxy\CMakeLists.txt" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{24FDA865-6EF0-4EE0-88EC-707ED8510ED9}</ProjectGuid>
@@ -85,7 +84,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>E:\workspace\VS\extern_include\includes;$(IncludePath)</IncludePath>
+    <IncludePath>E:\workspace\VS\extern_include\includes;../../../src;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>

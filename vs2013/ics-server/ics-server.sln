@@ -7,6 +7,13 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ics-proxy", "ics-proxy\ics-
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ics-center", "ics-center\ics-server.vcxproj", "{FBB10956-9420-4ED0-93A4-E1271654165B}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "config", "config", "{5644953B-1A3C-4E51-95B7-972AC8944789}"
+	ProjectSection(SolutionItems) = preProject
+		..\..\src\CMakeLists.txt = ..\..\src\CMakeLists.txt
+		..\..\bin\config.xml = ..\..\bin\config.xml
+		..\..\bin\log4cplus.properties = ..\..\bin\log4cplus.properties
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32

@@ -44,6 +44,10 @@ void Timer::stop()
 		{
 			LOG_DEBUG("thread join error:" << errno);
 		}
+		catch (std::exception& ex)
+		{
+			LOG_DEBUG("thread join error:" << ex.what());
+		}
 		m_timerThread = nullptr;
 	}
 }
