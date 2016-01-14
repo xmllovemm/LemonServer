@@ -1229,15 +1229,19 @@ void IcsRemoteProxyClient::handleForwardResponse(ProtocolStream& request, Protoc
 	// 记录转发结果到数据库
 
 	OtlConnectionGuard connection(g_database);
-	otl_stream s(1, "{ call sp_web_command_status(:requestID<int,in>,:msgID<int,in>,:stat<int,in>) }", connection.connection());
-	s << (int)requestID << (int)messageID << (int)result;
+	otl_stream s(1, "{ call sp_webcmd_to_remote_proxy(:enterpriseID<char[32],in>,:requestID<int,in>,:msgID<int,in>,:stat<int,in>,:info<char[256],in>) }", connection.connection());
+	s << m_enterpriseID << (int)requestID << (int)messageID << (int)result;
 
 	if (result != 0) // 失败
 	{
 		request >> reason;
+		s << reason;
 		LOG_ERROR("forward to gwid=" << gwid << " failed,message id=" << messageID << ",request id=" << requestID << ",reason=" << reason);
 	}
-
+	else
+	{
+		s << "";
+	}
 	request.assertEmpty();
 }
 

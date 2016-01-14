@@ -26,7 +26,8 @@ void usage(const char* prog)
 
 
 
-int main(int argc, char** argv)
+//int main(int argc, char** argv)
+ int main(int argc, char** argv)
 {
 	const char* configFile = "/etc/icsconf.xml";
 	if (argc >= 2)
