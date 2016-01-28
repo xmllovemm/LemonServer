@@ -43,7 +43,7 @@ IcsTerminalClient::~IcsTerminalClient()
 void IcsTerminalClient::handle(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
 	auto id = request.getHead()->getMsgID();
-	if (id != T2C_auth_request_0x0101 && m_monitorID.empty())
+	if (id != T2C_auth_request_0x0101 && m_gwid.empty())
 	{
 		throw IcsException("must authrize at first step");
 	}
@@ -83,6 +83,22 @@ void IcsTerminalClient::handle(ProtocolStream& request, ProtocolStream& response
 
 	case T2C_log_report_0x0c01:
 		handleLogReport(request, response);
+		break;
+
+	case T2C_param_alter_report_0x0701:
+		handleParamAlertReport(request, response);
+		break;
+
+	case T2C_param_modiy_response_0x0802:
+		handleParamModifyResponse(request, response);
+		break;
+
+	case T2C_param_query_response_0x0602:
+		handleParamQueryResponse(request, response);
+		break;
+
+	case T2C_control_response_0x0d02:
+		handleControlAck(request, response);
 		break;
 
 	case T2C_upgrade_agree_0x0203:
@@ -131,29 +147,30 @@ void IcsTerminalClient::dispatch(ProtocolStream& request) throw(IcsException, ot
 // 出错处理
 void IcsTerminalClient::error() throw()
 {
-	if (!_baseType::m_replaced && !m_monitorID.empty())
+	if (!_baseType::m_replaced && !m_gwid.empty())
 	{
+		m_localServer.removeTerminalClient(m_gwid);
 		try {
 			OtlConnectionGuard connGuard(g_database);
 			otl_stream s(1
-				, "{ call sp_offline(:id<char[33],in>,:ip<char[17],in>,:port<int,in>) }"
+				, "{ call sp_offline(:gwid<char[33],in>,:ip<char[17],in>,:port<int,in>) }"
 					, connGuard.connection());
-			s << m_monitorID << m_localServer.getWebIp() << m_localServer.getWebPort();
+			s << m_gwid << m_localServer.getWebIp() << m_localServer.getWebPort();
 		}
 		catch (otl_exception& ex)
 		{
 			LOG_WARN("otl_exception:" << ex.msg);
 		}
-		m_monitorID.clear();
+		m_gwid.clear();
 	}
 }
 
 // 终端认证
 void IcsTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	if (!m_monitorID.empty())
+	if (!m_gwid.empty())
 	{
-		LOG_DEBUG(m_monitorID << " ignore repeat authrize message");
+		LOG_DEBUG(m_gwid << " ignore repeat authrize message");
 		response.initHead(MessageId::C2T_auth_response_0x0102, request.getHead()->getSendNum());
 		response << ShortString("ok") << m_localServer.getHeartbeatTime();
 		return;
@@ -189,18 +206,18 @@ void IcsTerminalClient::handleAuthRequest(ProtocolStream& request, ProtocolStrea
 		m_monitorID = std::move(monitorID); // 保存检测点id
 
 		otl_stream onlineStream(1
-			, "{ call sp_online(:gwid<char[33],in>,:monitorID<char[33],in>,:ip<char[16],in>,:port<int,in>) }"
+			, "{ call sp_online(:gwid<char[33],in>,:monitorID<char[33],in>,:devKind<int,in>,:ip<char[16],in>,:port<int,in>) }"
 			, connGuard.connection());
 
-		onlineStream << m_gwid << m_monitorID << m_localServer.getWebIp() << m_localServer.getWebPort();
+		onlineStream << m_gwid << m_monitorID << (int)m_deviceKind << m_localServer.getWebIp() << m_localServer.getWebPort();
 
 		response << ShortString("ok") << m_localServer.getHeartbeatTime();
 
 		m_localServer.addTerminalClient(m_gwid, shared_from_this());
 
-		LOG_INFO("terminal " << m_monitorID << " created on " << this->name());
+		LOG_INFO("gwid [" << m_gwid << "] created on " << this->name());
 
-		this->setName(m_monitorID + "@" + this->name());
+		this->setName(m_gwid + "@" + this->name());
 	}
 	else
 	{
@@ -236,10 +253,10 @@ void IcsTerminalClient::handleStdStatusReport(ProtocolStream& request, ProtocolS
 		OtlConnectionGuard connGuard(g_database);
 
 		otl_stream o(1,
-			"{ call sp_status_standard(:id<char[33],in>,:devFlag<int,in>,:devStat<char[512],in>,:cheatFlag<int,in>,:cheatStat<char[512],in>,:zeroPoint<float,in>,:recvTime<timestamp,in>) }"
+			"{ call sp_status_standard(:monitorID<char[16],in>,:gwID<char[16],in>,:devFlag<int,in>,:devStat<char[512],in>,:cheatFlag<int,in>,:cheatStat<char[512],in>,:zeroPoint<float,in>,:recvTime<timestamp,in>) }"
 			, connGuard.connection());
 
-		o << m_monitorID << (int)device_ligtht << device_status << (int)cheat_ligtht << cheat_status << zero_point << recv_time;
+		o << m_monitorID << m_gwid << (int)device_ligtht << device_status << (int)cheat_ligtht << cheat_status << zero_point << recv_time;
 	}
 	// 其它
 	else
@@ -553,22 +570,25 @@ void IcsTerminalClient::handleGpsReport(ProtocolStream& request, ProtocolStream&
 // 终端回应参数查询
 void IcsTerminalClient::handleParamQueryResponse(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	//uint32_t request_id;	// 请求id
-	//uint16_t param_count;	// 参数数量
+	uint32_t request_id;	// 请求id
+	uint16_t param_count;	// 参数数量
 
-	//uint8_t net_id = 0;		//	子网编号
-	//uint16_t param_id = 0;	//	参数编号
-	//uint8_t param_type = 0;	//	参数值类型
-	//string param_value;		//	参数值
+	uint16_t net_id = 0;		//	子网编号
+	uint16_t param_id = 0;	//	参数编号
+	uint8_t param_type = 0;	//	参数值类型
+	string param_value;		//	参数值
 
-	//request >> request_id >> param_count;
+	request >> request_id >> param_count;
 
-	// 		for (uint16_t i = 0; i<param_count; i++)
-	// 		{
-	// 		request >> net_id >> param_id >> param_type >> param_value;
-	// 		// 存入数据库
-	// 
-	// 		}
+	OtlConnectionGuard connGuard(g_database);
+	otl_stream s(1
+		, "{ call `ics_base`.sp_param_query_result(:requestID<int,in>,:netID<int,in>,:paramID<int,in>,:paramValue<char[256],in>) }"
+		, connGuard.connection());
+	for (uint16_t i = 0; i<param_count; i++)
+	{
+		request >> net_id >> param_id >> param_type >> param_value;
+		s << (int)request_id << (int)net_id << (int)param_id << param_value;	// 存入数据库
+	}
 
 }
 
@@ -578,19 +598,21 @@ void IcsTerminalClient::handleParamAlertReport(ProtocolStream& request, Protocol
 	IcsDataTime alert_time;	//	修改时间
 	uint16_t param_count;	// 参数数量
 
-	uint8_t net_id = 0;		//	子网编号
+	uint16_t net_id = 0;	//	子网编号
 	uint16_t param_id = 0;	//	参数编号
 	uint8_t param_type = 0;	//	参数值类型
 	string param_value;		//	参数值
 
 	request >> alert_time >> param_count;
 
+	OtlConnectionGuard connGuard(g_database);
+	otl_stream s(1
+		, "{ call `ics_base`.sp_param_report_modify(:monitorID<char[32],in>,:devKind<int,in>,:modifyTime<timestamp,in>,:netID<int,in>,:paramID<int,in>,:result<char[256],in>) }"
+		, connGuard.connection());
 	for (uint16_t i = 0; i < param_count; i++)
 	{
 		request >> net_id >> param_id >> param_type >> param_value;
-
-		// 存入数据库
-
+		s << m_monitorID << (int)m_deviceKind << alert_time << (int)net_id << (int)param_id << param_value;	// 存入数据库
 	}
 }
 
@@ -600,15 +622,20 @@ void IcsTerminalClient::handleParamModifyResponse(ProtocolStream& request, Proto
 	uint32_t request_id;	// 请求id
 	uint16_t param_count;	// 参数数量
 
-	uint8_t net_id = 0;		//	子网编号
+	uint16_t net_id = 0;		//	子网编号
 	uint16_t param_id = 0;	//	参数编号
-	string alert_value;		//	修改结果
+	string result;		//	修改结果
 
 	request >> request_id >> param_count;
 
+	OtlConnectionGuard connGuard(g_database);
+	otl_stream s(1
+		, "{ call `ics_base`.sp_param_modify_result(:requestID<int,in>,:netID<int,in>,:paramID<int,in>,:result<char[256],in>) }"
+		, connGuard.connection());
 	for (uint16_t i = 0; i < param_count; i++)
 	{
-		request >> net_id >> param_id >> alert_value;
+		request >> net_id >> param_id >> result;
+		s << (int)request_id << (int)net_id << (int)param_id << result;	// 存入数据库
 	}
 }
 
@@ -771,7 +798,7 @@ void IcsTerminalClient::handleUpgradeResult(ProtocolStream& request, ProtocolStr
 // 终端确认取消升级
 void IcsTerminalClient::handleUpgradeCancelAck(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
 {
-	uint32_t request_id;	// 文件id
+	uint32_t request_id;	// 请求id
 
 	request >> request_id;
 
@@ -785,6 +812,23 @@ void IcsTerminalClient::handleUpgradeCancelAck(ProtocolStream& request, Protocol
 	s << (int)request_id;
 }
 
+// 终端回应控制结果
+void IcsTerminalClient::handleControlAck(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception)
+{
+	uint32_t request_id;	// 请求id
+	uint16_t operator_id;	// 操作id
+	ShortString result;		// 操作结果
+
+	request >> request_id >> operator_id >> result;
+	request.assertEmpty();
+
+	OtlConnectionGuard connGuard(g_database);
+	otl_stream s(1
+		, "{ call sp_control_result(:requestID<int,in>,:operatorID<int,in>,:result<char[256],in>) }"
+		, connGuard.connection());
+
+	s << (int)request_id << (int)operator_id << result;;
+}
 
 //---------------------------ics web---------------------------//
 IcsWebClient::IcsWebClient(IcsLocalServer& localServer, socket&& s)
@@ -944,9 +988,6 @@ void IcsWebClient::handleDisconnectRemote(ProtocolStream& request, ProtocolStrea
 	ShortString remoteID;
 	request >> remoteID;
 	request.assertEmpty();
-
-	// 断开该远端
-	bool connectResult = true;
 
 	auto conn = m_localServer.findRemoteProxy(remoteID);
 	if (nullptr!=conn)
@@ -1258,9 +1299,9 @@ void IcsRemoteProxyClient::handleOnoffLine(ProtocolStream& request, ProtocolStre
 
 	OtlConnectionGuard connGuard(g_database);
 	otl_stream s(1
-		, "{ call sp_remote_terminal_onoff_line(:entID<char[32],in>,:gwid<char[33],in>,:stat<int,in>) }"
+		, "{ call sp_remote_terminal_onoff_line(:entID<char[32],in>,:gwid<char[33],in>,:devKind<int,in>,:stat<int,in>) }"
 		, connGuard.connection());
-	s << m_enterpriseID << gwid << (int)status;
+	s << m_enterpriseID << gwid << (int)devKind << (int)status;
 }
 
 // 代理服务器转发终端的消息

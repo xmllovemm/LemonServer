@@ -89,6 +89,9 @@ private:
 	// 终端确认取消升级
 	void handleUpgradeCancelAck(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
 
+	// 终端回应控制结果
+	void handleControlAck(ProtocolStream& request, ProtocolStream& response) throw(IcsException, otl_exception);
+
 protected:
 	IcsLocalServer&			m_localServer;
 	/// 链接名称(对应ICS系统中监测点编号)
